@@ -26,6 +26,9 @@ const (
 	CbTariffs = "m:tar"
 	CbSub     = "s:" // + subscription id
 	CbTariff  = "t:" // + tariff id
+
+	CbSubsPage    = "ps:" // + page number, from 0
+	CbTariffsPage = "pt:" // + page number, from 0
 )
 
 type btn = models.InlineKeyboardButton

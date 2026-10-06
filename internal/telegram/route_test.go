@@ -11,6 +11,7 @@ func TestParseRoute(t *testing.T) {
 		"m:home": {kind: "m:home"}, "m:subs": {kind: "m:subs"}, "m:bal": {kind: "m:bal"},
 		"m:ref": {kind: "m:ref"}, "m:tar": {kind: "m:tar"},
 		"s:12": {kind: "s:", id: 12}, "t:3": {kind: "t:", id: 3},
+		"ps:0": {kind: "ps:", id: 0}, "ps:2": {kind: "ps:", id: 2}, "pt:1": {kind: "pt:", id: 1},
 	}
 	for in, want := range cases {
 		got, ok := parseRoute(in)
@@ -18,7 +19,7 @@ func TestParseRoute(t *testing.T) {
 			t.Errorf("parseRoute(%q) = %+v,%v", in, got, ok)
 		}
 	}
-	for _, in := range []string{"", "x", "s:", "s:abc", "s:-1", "m:nope"} {
+	for _, in := range []string{"", "x", "s:", "s:abc", "s:-1", "s:0", "ps:-1", "pt:x", "m:nope"} {
 		if _, ok := parseRoute(in); ok {
 			t.Errorf("parseRoute(%q) accepted", in)
 		}

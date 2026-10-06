@@ -39,6 +39,7 @@ func New(ctx context.Context, token string, d Deps) (*Bot, error) {
 	b := &Bot{Deps: d, links: view.Links{WebApp: d.WebAppURL}}
 	tg, err := tgbot.New(token,
 		tgbot.WithDefaultHandler(b.onText),
+		tgbot.WithMiddlewares(privateMiddleware),
 		tgbot.WithErrorsHandler(func(err error) { d.Log.Error("telegram", "err", err) }),
 	)
 	if err != nil {
@@ -54,7 +55,7 @@ func New(ctx context.Context, token string, d Deps) (*Bot, error) {
 	tg.RegisterHandler(tgbot.HandlerTypeMessageText, "start", tgbot.MatchTypeCommand, b.onStart)
 	tg.RegisterHandler(tgbot.HandlerTypeMessageText, "menu", tgbot.MatchTypeCommand, b.onMenu)
 	tg.RegisterHandler(tgbot.HandlerTypeMessageText, "help", tgbot.MatchTypeCommand, b.onHelp)
-	for _, p := range []string{"m:", view.CbSub, view.CbTariff} {
+	for _, p := range []string{"m:", view.CbSub, view.CbTariff, view.CbSubsPage, view.CbTariffsPage} {
 		tg.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, p, tgbot.MatchTypePrefix, b.onCallback)
 	}
 
@@ -171,7 +172,7 @@ func (b *Bot) onHelp(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 // one, otherwise it just brings the menu back.
 func (b *Bot) onText(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 	m := u.Message
-	if m == nil || m.From == nil || m.Chat.Type != models.ChatTypePrivate {
+	if m == nil {
 		return
 	}
 	who := user(m.From)
@@ -196,9 +197,6 @@ func (b *Bot) onCallback(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 	answer := &tgbot.AnswerCallbackQueryParams{CallbackQueryID: q.ID}
 	defer func() { b.tg.AnswerCallbackQuery(ctx, answer) }()
 
-	if q.Message.Message == nil {
-		return // too old to edit
-	}
 	chatID, msgID := q.Message.Message.Chat.ID, q.Message.Message.ID
 	rt, ok := parseRoute(q.Data)
 	if !ok {
@@ -214,26 +212,26 @@ func (b *Bot) onCallback(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 	switch rt.kind {
 	case view.CbHome:
 		b.show(ctx, chatID, msgID, view.Home(p, b.links, now))
-	case view.CbSubs:
-		b.show(ctx, chatID, msgID, view.Subscriptions(p, now))
+	case view.CbSubs, view.CbSubsPage:
+		b.show(ctx, chatID, msgID, view.Subscriptions(p, rt.id, now))
 	case view.CbSub:
 		s, found := view.Subscription(p, rt.id, b.links, now)
 		if !found {
-			s = view.Subscriptions(p, now)
+			s = view.Subscriptions(p, 0, now)
 		}
 		b.show(ctx, chatID, msgID, s)
 	case view.CbBalance:
 		b.show(ctx, chatID, msgID, view.Balance(p, b.links))
 	case view.CbRefs:
 		b.show(ctx, chatID, msgID, view.Referrals(p, b.links))
-	case view.CbTariffs:
+	case view.CbTariffs, view.CbTariffsPage:
 		ts, err := b.API.ListTariffs(ctx)
 		if err != nil {
 			b.Log.Error("tariffs", "err", err)
 			b.show(ctx, chatID, msgID, view.Notice(view.TxtDown))
 			return
 		}
-		b.show(ctx, chatID, msgID, view.Tariffs(profile.Tariffs(ts), b.links))
+		b.show(ctx, chatID, msgID, view.Tariffs(profile.Tariffs(ts), rt.id, b.links))
 	case view.CbTariff:
 		_, err := b.Billing.Quote(ctx, r.Customer.ID, billing.Item{Kind: "tariff", ID: rt.id})
 		if errors.Is(err, billing.ErrNotImplemented) {

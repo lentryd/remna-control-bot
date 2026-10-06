@@ -182,7 +182,7 @@ returns `ErrNotImplemented`, handlers show "coming soon". Later the implementati
 Like in space-rocket-next: `LOCAL_DOMAIN` is a subdomain of your own domain (e.g. `local.<domain>`),
 entry `127.0.0.1 local.<domain>` in `/etc/hosts`, certificate via `mkcert` (CA installed with `mkcert -install`)
 — Telegram Desktop on the same machine opens the WebApp at that URL.
-`Makefile`: `certs` (mkcert), `hosts` (hint/check), `up`, `down`, `logs`, `test`.
+`taskfile.yaml` (as in vpn-control): `certs` (mkcert), `hosts` (check), `panel:db` (local panel DB snapshot), `up`, `down`, `logs`, `test`.
 
 ## Production
 

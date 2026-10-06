@@ -21,11 +21,17 @@ export function AppShell({ children }: { children: ReactNode }) {
     const nested = pathname.split('/').filter(Boolean).length > 1 || pathname === '/tariffs'
 
     useEffect(() => {
-        if (!tg || !nested) return tg?.BackButton.hide()
+        if (!tg) return
+        if (!nested) {
+            tg.BackButton.hide()
+            return
+        }
         const back = () => navigate(-1)
         tg.BackButton.show()
         tg.BackButton.onClick(back)
-        return () => tg?.BackButton.offClick(back)
+        return () => {
+            tg?.BackButton.offClick(back)
+        }
     }, [nested, navigate])
 
     const active = (to: string) => (to === '/' ? pathname === '/' : pathname.startsWith(to))

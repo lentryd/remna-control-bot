@@ -1,0 +1,22 @@
+tls:
+    stores:
+        default:
+            defaultCertificate:
+                certFile: /certs/local.pem
+                keyFile: /certs/local-key.pem
+
+# `task dev`: the bot runs on the host. This router is the fallback for the
+# WebApp path; the bot container's router (priority 100) wins while it runs.
+http:
+    routers:
+        bot-on-host:
+            rule: 'Host(`{{ env "LOCAL_DOMAIN" }}`) && PathPrefix(`{{ env "WEBAPP_PATH" }}`)'
+            priority: 50
+            entryPoints: [websecure]
+            tls: {}
+            service: bot-on-host
+    services:
+        bot-on-host:
+            loadBalancer:
+                servers:
+                    - url: 'http://host.docker.internal:8090'

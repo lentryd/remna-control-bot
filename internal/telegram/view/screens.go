@@ -33,7 +33,7 @@ func until(exp *time.Time, unlimited bool) string {
 
 func Home(p profile.Profile, l Links, now time.Time) Screen {
 	var b strings.Builder
-	fmt.Fprintf(&b, "👋 <b>%s</b>\n\n", Esc(p.Name))
+	fmt.Fprintf(&b, "👋 <b>%s</b>\n\n", Esc(clip(p.Name, maxTitle)))
 	fmt.Fprintf(&b, "💰 Баланс: <b>%s</b>\n", Rub(p.Balance))
 	if len(p.Subscriptions) == 0 {
 		b.WriteString("📦 Подписок пока нет — загляните в «Тарифы».")
@@ -53,34 +53,38 @@ func Home(p profile.Profile, l Links, now time.Time) Screen {
 	)}
 }
 
-func Subscriptions(p profile.Profile, now time.Time) Screen {
+func Subscriptions(p profile.Profile, n int, now time.Time) Screen {
 	if len(p.Subscriptions) == 0 {
 		return Screen{Text: "📦 <b>Подписки</b>\n\nУ вас пока нет подписок. Выберите тариф — и она появится здесь.",
 			Keyboard: kb([]btn{cb(BtnTariffs, CbTariffs)}, back(CbHome))}
 	}
+	cur, pages, from, to := page(n, len(p.Subscriptions), subsPerPage)
 	var b strings.Builder
-	b.WriteString("📦 <b>Подписки</b>\n")
+	fmt.Fprintf(&b, "📦 <b>Подписки</b>%s\n", pageTitle(cur, pages))
 	rows := [][]btn{}
-	for _, s := range p.Subscriptions {
+	for _, s := range p.Subscriptions[from:to] {
 		icon := stateIcon(profile.Expiry(s.ExpireAt, s.Unlimited, now))
-		fmt.Fprintf(&b, "\n%s <b>%s</b> — до %s", icon, Esc(s.Title), until(s.ExpireAt, s.Unlimited))
+		fmt.Fprintf(&b, "\n%s <b>%s</b> — до %s", icon, Esc(clip(s.Title, maxTitle)), until(s.ExpireAt, s.Unlimited))
 		if n := len(s.Addons); n > 0 {
 			fmt.Fprintf(&b, " · аддонов: %d", n)
 		}
-		rows = append(rows, []btn{cb(icon+" "+s.Title, CbSub+strconv.Itoa(s.ID))})
+		rows = append(rows, []btn{cb(clip(icon+" "+s.Title, maxTitle), CbSub+strconv.Itoa(s.ID))})
+	}
+	if nav := pager(CbSubsPage, cur, pages); nav != nil {
+		rows = append(rows, nav)
 	}
 	return Screen{Text: b.String(), Keyboard: kb(append(rows, back(CbHome))...)}
 }
 
 func Subscription(p profile.Profile, id int, l Links, now time.Time) (Screen, bool) {
-	for _, s := range p.Subscriptions {
+	for i, s := range p.Subscriptions {
 		if s.ID != id {
 			continue
 		}
 		var b strings.Builder
-		fmt.Fprintf(&b, "%s <b>%s</b>\n\n", stateIcon(profile.Expiry(s.ExpireAt, s.Unlimited, now)), Esc(s.Title))
+		fmt.Fprintf(&b, "%s <b>%s</b>\n\n", stateIcon(profile.Expiry(s.ExpireAt, s.Unlimited, now)), Esc(clip(s.Title, maxTitle)))
 		if s.Tariff != "" {
-			fmt.Fprintf(&b, "🏷 Тариф: %s · %s/мес\n", Esc(s.Tariff), Rub(s.Price))
+			fmt.Fprintf(&b, "🏷 Тариф: %s · %s/мес\n", Esc(clip(s.Tariff, maxTitle)), Rub(s.Price))
 		}
 		fmt.Fprintf(&b, "📅 Действует до: <b>%s</b>\n", until(s.ExpireAt, s.Unlimited))
 		fmt.Fprintf(&b, "📊 Трафик: %s из %s\n", Bytes(s.UsedBytes), Bytes(s.LimitBytes))
@@ -89,8 +93,12 @@ func Subscription(p profile.Profile, id int, l Links, now time.Time) (Screen, bo
 		}
 		if len(s.Addons) > 0 {
 			b.WriteString("\n<b>Аддоны</b>\n")
-			for _, a := range s.Addons {
-				fmt.Fprintf(&b, "%s %s — до %s", stateIcon(profile.Expiry(a.ExpireAt, a.Unlimited, now)), Esc(a.Name), until(a.ExpireAt, a.Unlimited))
+			for j, a := range s.Addons {
+				if j == maxAddons {
+					fmt.Fprintf(&b, "…и ещё %d — в приложении\n", len(s.Addons)-maxAddons)
+					break
+				}
+				fmt.Fprintf(&b, "%s %s — до %s", stateIcon(profile.Expiry(a.ExpireAt, a.Unlimited, now)), Esc(clip(a.Name, maxTitle)), until(a.ExpireAt, a.Unlimited))
 				if a.Included {
 					b.WriteString(" (входит в тариф)")
 				}
@@ -102,7 +110,8 @@ func Subscription(p profile.Profile, id int, l Links, now time.Time) (Screen, bo
 			fmt.Fprintf(&b, "\n🔗 <code>%s</code>", Esc(s.URL))
 			rows = append(rows, []btn{{Text: BtnCopyLink, CopyText: &models.CopyTextButton{Text: s.URL}}})
 		}
-		rows = append(rows, []btn{{Text: BtnDetails, WebApp: l.Page("/subscriptions/" + strconv.Itoa(s.ID))}}, back(CbSubs))
+		rows = append(rows, []btn{{Text: BtnDetails, WebApp: l.Page("/subscriptions/" + strconv.Itoa(s.ID))}},
+			back(CbSubsPage+strconv.Itoa(i/subsPerPage)))
 		return Screen{Text: strings.TrimRight(b.String(), "\n"), Keyboard: kb(rows...)}, true
 	}
 	return Screen{}, false
@@ -159,7 +168,7 @@ func Referrals(p profile.Profile, l Links) Screen {
 			if !r.Active {
 				icon = "⚪️"
 			}
-			fmt.Fprintf(&b, "%s %s — %s\n", icon, Esc(r.Name), Rub(r.Earned))
+			fmt.Fprintf(&b, "%s %s — %s\n", icon, Esc(clip(r.Name, maxTitle)), Rub(r.Earned))
 		}
 	}
 	share := "https://t.me/share/url?url=" + url.QueryEscape(p.RefLink) + "&text=" + url.QueryEscape("Подключайся к VPN по моей ссылке")
@@ -171,21 +180,23 @@ func Referrals(p profile.Profile, l Links) Screen {
 	)}
 }
 
-func Tariffs(ts []profile.Tariff, l Links) Screen {
+func Tariffs(ts []profile.Tariff, n int, l Links) Screen {
 	if len(ts) == 0 {
 		return Screen{Text: "🏷 <b>Тарифы</b>\n\nСейчас нет доступных тарифов.", Keyboard: kb(back(CbHome))}
 	}
+	cur, pages, from, to := page(n, len(ts), tariffsPerPage)
 	var b strings.Builder
-	b.WriteString("🏷 <b>Тарифы</b>\n")
+	fmt.Fprintf(&b, "🏷 <b>Тарифы</b>%s\n", pageTitle(cur, pages))
 	rows := [][]btn{}
-	for _, t := range ts {
+	for _, t := range ts[from:to] {
 		name := t.Name
 		if t.Kind == "addon" && t.AddonName != "" {
 			name = t.AddonName + " · " + t.Name
 		}
+		name = clip(name, maxTitle)
 		fmt.Fprintf(&b, "\n<b>%s</b> — %s/мес", Esc(name), Rub(t.MonthlyPrice))
 		if t.Description != "" {
-			fmt.Fprintf(&b, "\n%s", Esc(t.Description))
+			fmt.Fprintf(&b, "\n%s", Esc(clip(t.Description, maxDescription)))
 		}
 		var limits []string
 		if t.TrafficLimitBytes > 0 {
@@ -198,7 +209,10 @@ func Tariffs(ts []profile.Tariff, l Links) Screen {
 			fmt.Fprintf(&b, "\n<i>%s</i>", strings.Join(limits, " · "))
 		}
 		b.WriteString("\n")
-		rows = append(rows, []btn{cb(BtnPick+": "+name, CbTariff+strconv.Itoa(t.ID))})
+		rows = append(rows, []btn{cb(clip(BtnPick+": "+name, maxTitle), CbTariff+strconv.Itoa(t.ID))})
+	}
+	if nav := pager(CbTariffsPage, cur, pages); nav != nil {
+		rows = append(rows, nav)
 	}
 	rows = append(rows, []btn{{Text: BtnApp, WebApp: l.Page("/tariffs")}}, back(CbHome))
 	return Screen{Text: strings.TrimRight(b.String(), "\n"), Keyboard: kb(rows...)}

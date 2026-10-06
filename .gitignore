@@ -2,6 +2,7 @@
 /data/
 /bin/
 /dev/certs/
+/dev/panel-data/
 /.superpowers/
 /web/node_modules/
 /web/dist/*

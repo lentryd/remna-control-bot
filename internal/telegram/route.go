@@ -10,7 +10,7 @@ import (
 
 type route struct {
 	kind string // a view.Cb* constant
-	id   int
+	id   int    // item id or page number
 }
 
 func parseRoute(data string) (route, bool) {
@@ -18,10 +18,11 @@ func parseRoute(data string) (route, bool) {
 	case view.CbHome, view.CbSubs, view.CbBalance, view.CbRefs, view.CbTariffs:
 		return route{kind: data}, true
 	}
-	for _, p := range []string{view.CbSub, view.CbTariff} {
+	// ids start at 1, page numbers at 0
+	for p, minID := range map[string]int{view.CbSub: 1, view.CbTariff: 1, view.CbSubsPage: 0, view.CbTariffsPage: 0} {
 		if rest, ok := strings.CutPrefix(data, p); ok {
 			id, err := strconv.Atoi(rest)
-			if err != nil || id <= 0 {
+			if err != nil || id < minID {
 				return route{}, false
 			}
 			return route{kind: p, id: id}, true

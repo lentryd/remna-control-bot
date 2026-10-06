@@ -58,12 +58,11 @@ type LedgerEntry struct {
 	Date   time.Time `json:"date"`
 }
 
+// Referral is an invitee as their referrer sees them: what they brought.
 type Referral struct {
-	Name      string  `json:"name"`
-	Active    bool    `json:"active"`
-	Monthly   float64 `json:"monthly"`
-	TotalPaid float64 `json:"total_paid"`
-	Earned    float64 `json:"earned"`
+	Name   string  `json:"name"`
+	Active bool    `json:"active"`
+	Earned float64 `json:"earned"`
 }
 
 func Build(c *vpnctl.Customer, refLink string) Profile {
@@ -107,7 +106,7 @@ func Build(c *vpnctl.Customer, refLink string) Profile {
 		}
 	}
 	for _, r := range c.Referrals {
-		p.Referrals = append(p.Referrals, Referral{Name: r.Name, Active: !r.Archived, Monthly: r.Monthly, TotalPaid: r.TotalPaid, Earned: earned[r.ID]})
+		p.Referrals = append(p.Referrals, Referral{Name: r.Name, Active: !r.Archived, Earned: earned[r.ID]})
 	}
 	sort.SliceStable(p.Referrals, func(i, j int) bool { return p.Referrals[i].Earned > p.Referrals[j].Earned })
 	return p

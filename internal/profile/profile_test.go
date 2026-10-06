@@ -39,7 +39,8 @@ func TestBuild(t *testing.T) {
 		t.Fatalf("referrals: %+v earned=%v", p.Referrals, p.ReferralsEarned)
 	}
 	raw, _ := json.Marshal(p)
-	for _, secret := range []string{"SECRET-NOTE", "SECRET-CONTACT", "SECRET-LEDGER", "referral_percent"} {
+	// invitees: only what they brought, not how much they pay or have paid
+	for _, secret := range []string{"SECRET-NOTE", "SECRET-CONTACT", "SECRET-LEDGER", "referral_percent", "total_paid", "\"monthly\":0,\"total"} {
 		if strings.Contains(string(raw), secret) {
 			t.Errorf("profile JSON leaks %q", secret)
 		}

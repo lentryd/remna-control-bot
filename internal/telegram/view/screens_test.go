@@ -31,7 +31,7 @@ func fixture() profile.Profile {
 			{Type: "charge", Amount: -250, Date: now.AddDate(0, 0, -1)},
 			{Type: "payment", Amount: 500, Date: now.AddDate(0, 0, -2)},
 		},
-		Referrals:       []profile.Referral{{Name: "Bob", Active: true, Monthly: 250, TotalPaid: 750, Earned: 75}},
+		Referrals:       []profile.Referral{{Name: "Bob", Active: true, Earned: 75}},
 		ReferralsEarned: 75,
 		RefLink:         "https://t.me/vpnbot?start=ref_Ab12cd",
 	}
@@ -86,7 +86,7 @@ func golden(t *testing.T, name string, s Screen) {
 func TestScreens(t *testing.T) {
 	p := fixture()
 	golden(t, "home", Home(p, links, now))
-	golden(t, "subscriptions", Subscriptions(p, now))
+	golden(t, "subscriptions", Subscriptions(p, 0, now))
 	sub, ok := Subscription(p, 3, links, now)
 	if !ok {
 		t.Fatal("subscription 3 not found")
@@ -97,13 +97,13 @@ func TestScreens(t *testing.T) {
 	golden(t, "tariffs", Tariffs([]profile.Tariff{
 		{ID: 1, Kind: "base", Name: "Стандарт", Description: "Все страны", MonthlyPrice: 250, TrafficLimitBytes: 100 << 30, HwidLimit: ptr(3)},
 		{ID: 2, Kind: "addon", Name: "YT", AddonName: "YouTube", MonthlyPrice: 50},
-	}, links))
+	}, 0, links))
 }
 
 func TestEmptyStates(t *testing.T) {
 	p := profile.Profile{Name: "New", RefLink: "https://t.me/vpnbot?start=ref_x"}
 	golden(t, "home_empty", Home(p, links, now))
-	golden(t, "subscriptions_empty", Subscriptions(p, now))
+	golden(t, "subscriptions_empty", Subscriptions(p, 0, now))
 	golden(t, "referrals_empty", Referrals(p, links))
 	if _, ok := Subscription(p, 1, links, now); ok {
 		t.Error("missing subscription reported as found")

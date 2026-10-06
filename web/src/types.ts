@@ -32,8 +32,6 @@ export interface LedgerEntry {
 export interface Referral {
     name: string
     active: boolean
-    monthly: number
-    total_paid: number
     earned: number
 }
 export interface Profile {

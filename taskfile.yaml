@@ -1,0 +1,135 @@
+version: "3"
+
+output: prefixed
+
+dotenv: [".env"]
+
+env:
+  CGO_ENABLED: 0
+
+vars:
+  DEV: docker compose -f compose.dev.yml
+
+tasks:
+  init:
+    desc: First-time setup — .env, frontend deps, local panel DB
+    cmds:
+      - test -f .env || cp .env.example .env
+      - task: web:install
+      - task: panel:db
+
+  dev:
+    desc: Panel in docker, bot on the host (+ WebApp dev server) — Telegram reaches it via traefik
+    deps: [dev:stack]
+    cmds:
+      - task: dev:run
+
+  dev:run:
+    internal: true
+    deps: [dev:bot, dev:web]
+
+  dev:stack:
+    desc: Start traefik + panel and stop the bot container (it would compete for BOT_TOKEN)
+    deps: [certs, hosts]
+    preconditions:
+      - sh: test -f dev/panel-data/vpn-control.db
+        msg: run `task panel:db` first
+    cmds:
+      - "{{.DEV}} up -d traefik vpn-control"
+      - "{{.DEV}} stop bot"
+
+  dev:bot:
+    desc: Run the bot on the host against the local panel
+    env:
+      # the panel's compose hostname isn't reachable from the host — go through traefik
+      VPNCTL_URL: https://{{.LOCAL_DOMAIN}}
+      PUBLIC_URL: https://{{.LOCAL_DOMAIN}}
+    cmds:
+      - go run ./cmd/bot
+
+  dev:web:
+    desc: Run the WebApp dev server (proxies ./api to the bot)
+    dir: web
+    cmds: [bun run dev]
+
+  web:install:
+    dir: web
+    status:
+      - test -d node_modules
+    cmds: [bun install]
+
+  web:build:
+    dir: web
+    cmds:
+      - bun run build
+      - touch dist/.gitkeep
+
+  build:
+    desc: Build the binary (embeds the built WebApp)
+    deps: [web:build]
+    cmds:
+      - go build -ldflags="-s -w" -trimpath -o bin/bot ./cmd/bot
+
+  test:
+    desc: Go tests and frontend typecheck
+    cmds:
+      - go test -cover ./...
+      - cd web && bun run typecheck
+
+  lint:
+    desc: Format, vet and tidy the Go module
+    cmds:
+      - go mod tidy
+      - go fmt ./...
+      - go vet ./...
+
+  panel:db:
+    desc: Copy ../vpn-control's local DB into dev/panel-data (used by the local stack)
+    vars:
+      SRC: '{{.PANEL_DB | default "../vpn-control/data/vpn-control.db"}}'
+    preconditions:
+      - sh: test -f "{{.SRC}}"
+        msg: "no panel DB at {{.SRC}} (set PANEL_DB)"
+    cmds:
+      - mkdir -p dev/panel-data
+      - rm -f dev/panel-data/vpn-control.db dev/panel-data/vpn-control.db-shm dev/panel-data/vpn-control.db-wal
+      # .backup gives a consistent copy even while the panel is running (WAL)
+      - sqlite3 "{{.SRC}}" ".backup dev/panel-data/vpn-control.db"
+
+  certs:
+    desc: Trusted local certificate for LOCAL_DOMAIN (mkcert)
+    preconditions:
+      - sh: test -n "$LOCAL_DOMAIN"
+        msg: set LOCAL_DOMAIN in .env
+    status:
+      - test -f dev/certs/local.pem
+    cmds:
+      - mkdir -p dev/certs
+      - mkcert -install
+      - mkcert -cert-file dev/certs/local.pem -key-file dev/certs/local-key.pem "$LOCAL_DOMAIN"
+
+  hosts:
+    desc: Check that LOCAL_DOMAIN resolves to 127.0.0.1 via /etc/hosts
+    cmds:
+      - |
+        grep -qE "[[:space:]]$LOCAL_DOMAIN([[:space:]]|$)" /etc/hosts \
+          && echo "/etc/hosts has $LOCAL_DOMAIN" \
+          || { echo "add to /etc/hosts:  127.0.0.1 $LOCAL_DOMAIN"; exit 1; }
+
+  up:
+    desc: Local stack — traefik + panel + bot on https://LOCAL_DOMAIN
+    deps: [certs, hosts]
+    preconditions:
+      - sh: test -f dev/panel-data/vpn-control.db
+        msg: run `task panel:db` first
+    cmds:
+      - "{{.DEV}} up -d --build"
+      - 'echo "panel: https://$LOCAL_DOMAIN/   webapp: https://$LOCAL_DOMAIN${WEBAPP_PATH:-/bot}/   traefik: http://localhost:8088"'
+
+  down:
+    desc: Stop the local stack
+    cmds: ["{{.DEV}} down"]
+
+  logs:
+    desc: Follow the bot's logs
+    cmds: ["{{.DEV}} logs -f bot"]

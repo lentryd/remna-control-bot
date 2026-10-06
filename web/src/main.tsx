@@ -27,7 +27,14 @@ const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30
 // Follows the Telegram client's light/dark switch.
 function Root() {
     const [scheme, setScheme] = useState<'light' | 'dark'>(tg?.colorScheme ?? 'dark')
-    useEffect(() => tg?.onEvent('themeChanged', () => setScheme(tg!.colorScheme)), [])
+    useEffect(() => {
+        if (!tg) return
+        const sync = () => setScheme(tg!.colorScheme)
+        tg.onEvent('themeChanged', sync)
+        return () => {
+            tg?.offEvent('themeChanged', sync)
+        }
+    }, [])
     return (
         <MantineProvider cssVariablesResolver={cssVariablesResolver} forceColorScheme={scheme} theme={theme}>
             <Suspense fallback={<PageSkeleton />}>
