@@ -1,13 +1,17 @@
 // SubscriptionDetails.tsx — everything about one subscription.
 import { Group, Progress, Stack, Text, Title } from '@mantine/core'
+import { IconBolt } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useParams } from 'react-router'
 
 import { fmtBytes, fmtDate, fmtMoney } from '@shared/format'
 import { CopyableFieldShared } from '@shared/ui/copyable-field/copyable-field'
 import { SectionCard } from '@shared/ui/section-card'
+import { isExpired, pay } from '../renew'
 import { haptic } from '../telegram'
 import type { Profile } from '../types'
+import { CtaButton } from '../ui/CtaButton'
+import { RenewalSplit } from '../ui/RenewalSplit'
 import { StateBadge } from '../ui/StateBadge'
 
 const pct = (used: number, limit: number) => (limit > 0 ? Math.min(100, (used / limit) * 100) : 0)
@@ -41,6 +45,12 @@ export function SubscriptionDetails({ p }: { p: Profile }) {
                 </Stack>
                 {s.device_limit !== null && <Text size="sm">{t('sub.devices', { n: s.device_limit })}</Text>}
             </SectionCard.Root>
+            {!s.unlimited && s.renewal.price > 0 && <RenewalSplit r={s.renewal} />}
+            {!s.unlimited && (
+                <CtaButton fullWidth leftSection={<IconBolt size={20} />} onClick={pay} size="lg">
+                    {isExpired(s) ? t('renew.button_expired') : t('renew.button')}
+                </CtaButton>
+            )}
             {s.url && (
                 <div onClick={haptic}>
                     <CopyableFieldShared label={t('sub.link')} size="md" value={s.url} />

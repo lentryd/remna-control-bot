@@ -94,7 +94,7 @@ func TestArchivedAndDown(t *testing.T) {
 func TestTariffsAndStatic(t *testing.T) {
 	f := vpnctl.NewFake()
 	f.Add(vpnctl.Customer{ID: 1, TelegramID: ptr(int64(42))})
-	f.Tariffs = []vpnctl.Tariff{{ID: 1, Kind: "base", Name: "Std", Active: true}, {ID: 2, Name: "Off"}}
+	f.Tariffs = []vpnctl.Tariff{{ID: 1, Kind: "base", Name: "Std", Active: true, MonthlyPrice: 100}, {ID: 2, Name: "Off"}}
 	d := app(f)
 	code, body := get(t, d, "/bot/api/tariffs", tma(42))
 	if code != 200 || !strings.Contains(body, "Std") || strings.Contains(body, "Off") {

@@ -1,14 +1,15 @@
 // Balance.tsx — totals and full history grouped by month.
-import { Group, Stack, Text, Title } from '@mantine/core'
-import { IconReceipt } from '@tabler/icons-react'
+import { Box, Button, Card, Group, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core'
+import { IconPlus, IconReceipt, IconWallet } from '@tabler/icons-react'
 import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 
 import { fmtDate, fmtMoney } from '@shared/format'
 import { SectionCard } from '@shared/ui/section-card'
-import { StatStrip } from '@shared/ui/stat-strip'
+import { pay } from '../renew'
 import type { LedgerEntry, Profile } from '../types'
 import { Empty } from '../ui/Empty'
+import classes from './balance.module.css'
 
 export function Balance({ p }: { p: Profile }) {
     const { t } = useTranslation()
@@ -20,13 +21,30 @@ export function Balance({ p }: { p: Profile }) {
     return (
         <Stack gap="lg">
             <Title order={3}>{t('balance.title')}</Title>
-            <StatStrip
-                items={[
-                    { label: t('balance.title'), value: fmtMoney(p.balance, 2) },
-                    { label: t('balance.own'), value: fmtMoney(p.balance_own, 2) },
-                    { label: t('balance.referral'), value: fmtMoney(p.balance_referral, 2) }
-                ]}
-            />
+            <Card padding="lg" radius="lg" withBorder>
+                <Group justify="space-between" wrap="nowrap">
+                    <Stack gap={2}>
+                        <Text c="dimmed" size="sm">{t('balance.available')}</Text>
+                        <Text fw={700} lh={1.1} size="32px">{fmtMoney(p.balance, 2)}</Text>
+                    </Stack>
+                    <ThemeIcon radius="xl" size={52} variant="light">
+                        <IconWallet size={28} />
+                    </ThemeIcon>
+                </Group>
+                <SimpleGrid cols={2} mt="md" spacing="sm">
+                    <Box className={classes.part}>
+                        <Text c="dimmed" size="xs">{t('balance.own')}</Text>
+                        <Text fw={600}>{fmtMoney(p.balance_own, 2)}</Text>
+                    </Box>
+                    <Box className={classes.part}>
+                        <Text c="dimmed" size="xs">{t('balance.referral')}</Text>
+                        <Text c={p.balance_referral > 0 ? 'teal' : undefined} fw={600}>{fmtMoney(p.balance_referral, 2)}</Text>
+                    </Box>
+                </SimpleGrid>
+                <Button fullWidth leftSection={<IconPlus size={18} />} mt="md" onClick={pay} radius="md" size="md">
+                    {t('balance.top_up')}
+                </Button>
+            </Card>
             <Text fw={600}>{t('balance.history')}</Text>
             {p.ledger.length === 0 ? (
                 <Empty icon={<IconReceipt />} title={t('empty.ledger')} />

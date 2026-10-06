@@ -70,11 +70,21 @@ func TestSubscriptionsPaging(t *testing.T) {
 
 func TestTariffsPaging(t *testing.T) {
 	ts := manyTariffs(12) // 5 per page → 3 pages
-	if b := buttons(Tariffs(ts, 0, links)); !has(b, CbTariff+"1") || has(b, CbTariff+"6") || !has(b, CbTariffsPage+"1") {
-		t.Fatalf("page 0: %v", b)
+	first := Tariffs(ts, 0, links)
+	if b := buttons(first); !has(b, CbTariffsPage+"1") || has(b, CbTariffsPage+"-1") || !strings.Contains(first.Text, "Тариф 1") || strings.Contains(first.Text, "Тариф 6") {
+		t.Fatalf("page 0: %v\n%s", b, first.Text)
 	}
-	if b := buttons(Tariffs(ts, 2, links)); !has(b, CbTariff+"11") || !has(b, CbTariffsPage+"1") || has(b, CbTariffsPage+"3") {
+	if b := buttons(Tariffs(ts, 2, links)); !has(b, CbTariffsPage+"1") || has(b, CbTariffsPage+"3") {
 		t.Fatalf("page 2: %v", b)
+	}
+}
+
+// Tariffs are picked only in the WebApp: the bot's catalog has no pick buttons.
+func TestTariffsHaveNoPickButtons(t *testing.T) {
+	for _, b := range buttons(Tariffs(manyTariffs(3), 0, links)) {
+		if strings.HasPrefix(b, "t:") {
+			t.Fatalf("pick button %q in the bot", b)
+		}
 	}
 }
 

@@ -1,21 +1,22 @@
 package view
 
 const (
-	BtnBack     = "← Назад"
-	BtnSubs     = "📦 Подписки"
-	BtnBalance  = "💰 Баланс"
-	BtnRefs     = "👥 Рефералы"
-	BtnTariffs  = "🏷 Тарифы"
-	BtnApp      = "🌐 Открыть приложение"
-	BtnDetails  = "Подробнее в приложении"
-	BtnHistory  = "📜 Вся история"
-	BtnAllRefs  = "Все рефералы в приложении"
-	BtnShare    = "📤 Поделиться ссылкой"
-	BtnCopyLink = "📋 Скопировать ссылку"
-	BtnPick     = "Выбрать"
-	BtnHome     = "🏠 Главная"
-	BtnPrev     = "‹ Назад"
-	BtnNext     = "Далее ›"
+	BtnBack      = "← Назад"
+	BtnSubs      = "📦 Подписки"
+	BtnBalance   = "💰 Баланс"
+	BtnRefs      = "👥 Рефералы"
+	BtnTariffs   = "🏷 Тарифы"
+	BtnApp       = "🌐 Открыть приложение"
+	BtnDetails   = "Подробнее в приложении"
+	BtnHistory   = "📜 Вся история"
+	BtnAllRefs   = "Все рефералы в приложении"
+	BtnShare     = "📤 Поделиться ссылкой"
+	BtnCopyLink  = "📋 Скопировать ссылку"
+	BtnPickInApp = "✨ Выбрать тариф в приложении"
+	BtnHome      = "🏠 Главная"
+	BtnPrev      = "‹ Назад"
+	BtnRenew     = "💳 Продлить"
+	BtnNext      = "Далее ›"
 
 	TxtNeedLink = "👋 Этот бот доступен только клиентам.\n\n" +
 		"Отправьте ссылку на вашу подписку (её можно скопировать в VPN-приложении) — " +

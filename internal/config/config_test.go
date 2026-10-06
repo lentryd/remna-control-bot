@@ -1,6 +1,10 @@
 package config
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+	"time"
+)
 
 func env(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
 
@@ -54,5 +58,37 @@ func TestRequiredAndMode(t *testing.T) {
 	m["BOT_MODE"] = "open"
 	if c, _ := load(env(m)); c.Mode != ModeOpen {
 		t.Error("open mode not parsed")
+	}
+}
+
+func TestNotifyAndPayDefaults(t *testing.T) {
+	c, err := load(env(base()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.PayMode != PayMixed || c.NotifyInterval != time.Hour || c.TrafficAlertPct != 80 || fmt.Sprint(c.RemindDays) != "[3 1]" {
+		t.Fatalf("defaults: %+v", c)
+	}
+}
+
+func TestNotifyAndPayParsing(t *testing.T) {
+	m := base()
+	m["BALANCE_PAY_MODE"] = "referral_full"
+	m["NOTIFY_INTERVAL"] = "0"
+	m["TRAFFIC_ALERT_PCT"] = "90"
+	m["REMIND_DAYS"] = " 1, 7 ,3"
+	c, err := load(env(m))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.PayMode != PayReferralFull || c.NotifyInterval != 0 || c.TrafficAlertPct != 90 || fmt.Sprint(c.RemindDays) != "[7 3 1]" {
+		t.Fatalf("parsed: %+v", c)
+	}
+	for k, v := range map[string]string{"BALANCE_PAY_MODE": "all", "NOTIFY_INTERVAL": "soon", "TRAFFIC_ALERT_PCT": "120", "REMIND_DAYS": "x"} {
+		m := base()
+		m[k] = v
+		if _, err := load(env(m)); err == nil {
+			t.Errorf("%s=%s: want error", k, v)
+		}
 	}
 }

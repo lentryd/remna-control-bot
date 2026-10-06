@@ -20,6 +20,7 @@ interface WebApp {
     BackButton: BackButton
     HapticFeedback?: { notificationOccurred(t: 'success' | 'error'): void }
     openTelegramLink(url: string): void
+    showAlert(message: string): void
 }
 declare global {
     interface Window {

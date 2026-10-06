@@ -4,7 +4,10 @@ package config
 import (
 	"fmt"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type Mode string
@@ -12,6 +15,14 @@ type Mode string
 const (
 	ModeOpen   Mode = "open"
 	ModeClosed Mode = "closed"
+)
+
+// PayMode is how renewals may use the balance (BALANCE_PAY_MODE).
+type PayMode string
+
+const (
+	PayMixed        PayMode = "mixed"         // own and referral money together
+	PayReferralFull PayMode = "referral_full" // referral money only if it covers the whole price
 )
 
 type Config struct {
@@ -25,6 +36,11 @@ type Config struct {
 	DBPath      string
 	LogLevel    string
 	RefSecret   string
+
+	PayMode         PayMode
+	NotifyInterval  time.Duration // 0 disables notifications
+	TrafficAlertPct int           // traffic share that triggers an alert
+	RemindDays      []int         // days before the end to remind about payment, descending
 }
 
 // WebAppURL is where Telegram opens the WebApp.
@@ -59,6 +75,27 @@ func load(get func(string) string) (Config, error) {
 			return Config{}, fmt.Errorf("config: %s is required", k)
 		}
 	}
+	c.PayMode = PayMode(or("BALANCE_PAY_MODE", string(PayMixed)))
+	if c.PayMode != PayMixed && c.PayMode != PayReferralFull {
+		return Config{}, fmt.Errorf("config: BALANCE_PAY_MODE must be mixed or referral_full, got %q", c.PayMode)
+	}
+	var err error
+	if v := or("NOTIFY_INTERVAL", "1h"); v != "0" {
+		if c.NotifyInterval, err = time.ParseDuration(v); err != nil || c.NotifyInterval < 0 {
+			return Config{}, fmt.Errorf("config: NOTIFY_INTERVAL %q: want a duration like 1h or 0", v)
+		}
+	}
+	if c.TrafficAlertPct, err = strconv.Atoi(or("TRAFFIC_ALERT_PCT", "80")); err != nil || c.TrafficAlertPct < 1 || c.TrafficAlertPct > 100 {
+		return Config{}, fmt.Errorf("config: TRAFFIC_ALERT_PCT must be 1..100")
+	}
+	for _, f := range strings.Split(or("REMIND_DAYS", "3,1"), ",") {
+		d, err := strconv.Atoi(strings.TrimSpace(f))
+		if err != nil || d < 1 {
+			return Config{}, fmt.Errorf("config: REMIND_DAYS must be positive day counts like 3,1")
+		}
+		c.RemindDays = append(c.RemindDays, d)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(c.RemindDays)))
 	if c.Mode != ModeOpen && c.Mode != ModeClosed {
 		return Config{}, fmt.Errorf("config: BOT_MODE must be open or closed, got %q", c.Mode)
 	}

@@ -4,9 +4,8 @@ import { IconChevronRight, IconPackage, IconTag } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
-import { fmtDate, fmtMoney } from '@shared/format'
-import { StatStrip } from '@shared/ui/stat-strip'
 import type { Profile } from '../types'
+import { BalanceCard } from '../ui/BalanceCard'
 import { Empty } from '../ui/Empty'
 import { SubscriptionRow } from '../ui/SubscriptionRow'
 
@@ -16,13 +15,7 @@ export function Overview({ p }: { p: Profile }) {
     return (
         <Stack gap="lg">
             <Title order={3}>{t('overview.hello', { name: p.name })}</Title>
-            <StatStrip
-                items={[
-                    { label: t('overview.balance'), value: fmtMoney(p.balance, 2), onClick: () => navigate('/balance') },
-                    { label: t('overview.monthly'), value: fmtMoney(p.monthly) },
-                    { label: t('overview.nearest'), value: fmtDate(p.nearest_expire_at) }
-                ]}
-            />
+            <BalanceCard p={p} />
             <Group justify="space-between">
                 <Text fw={600}>{t('overview.subs')}</Text>
                 {p.subscriptions.length > 0 && (

@@ -19,7 +19,7 @@ func parseRoute(data string) (route, bool) {
 		return route{kind: data}, true
 	}
 	// ids start at 1, page numbers at 0
-	for p, minID := range map[string]int{view.CbSub: 1, view.CbTariff: 1, view.CbSubsPage: 0, view.CbTariffsPage: 0} {
+	for p, minID := range map[string]int{view.CbSub: 1, view.CbRenew: 1, view.CbSubsPage: 0, view.CbTariffsPage: 0} {
 		if rest, ok := strings.CutPrefix(data, p); ok {
 			id, err := strconv.Atoi(rest)
 			if err != nil || id < minID {

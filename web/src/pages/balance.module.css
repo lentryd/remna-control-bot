@@ -1,0 +1,5 @@
+.part {
+    padding: 10px 12px;
+    border-radius: var(--mantine-radius-md);
+    background: var(--mantine-color-default-hover);
+}

@@ -1,6 +1,6 @@
 // Subscriptions.tsx — every subscription as a card.
-import { Stack, Title } from '@mantine/core'
-import { IconPackage } from '@tabler/icons-react'
+import { Button, Stack, Title } from '@mantine/core'
+import { IconPackage, IconPlus } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
@@ -22,7 +22,14 @@ export function Subscriptions({ p }: { p: Profile }) {
                     title={t('empty.subs')}
                 />
             ) : (
-                p.subscriptions.map((s) => <SubscriptionRow key={s.id} s={s} />)
+                <>
+                    {p.subscriptions.map((s) => (
+                        <SubscriptionRow key={s.id} s={s} />
+                    ))}
+                    <Button leftSection={<IconPlus size={18} />} mt="xs" onClick={() => navigate('/tariffs')} radius="md" size="md" variant="light">
+                        {t('sub.connect_more')}
+                    </Button>
+                </>
             )}
         </Stack>
     )

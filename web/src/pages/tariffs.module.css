@@ -1,0 +1,23 @@
+.card {
+    position: relative;
+    overflow: hidden;
+    box-shadow: none;
+    border-top: 4px solid var(--mantine-primary-color-filled);
+}
+.card[data-addon] {
+    border-top-color: var(--mantine-color-violet-filled);
+}
+.price {
+    font-size: 36px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.02em;
+}
+.save {
+    flex-shrink: 0;
+    text-transform: none;
+}
+.period {
+    text-transform: none;
+    font-weight: 500;
+}

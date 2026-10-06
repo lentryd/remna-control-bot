@@ -6,6 +6,8 @@ import (
 	"sort"
 	"time"
 
+	"vpn-control-bot/internal/billing"
+	"vpn-control-bot/internal/config"
 	"vpn-control-bot/internal/vpnctl"
 )
 
@@ -37,6 +39,9 @@ type Subscription struct {
 	DeviceLimit *int       `json:"device_limit"`
 	URL         string     `json:"url"`
 	Addons      []Addon    `json:"addons"`
+	// Renewal is a month of the subscription with its paid add-ons, split
+	// between the balance and what is left to pay (BALANCE_PAY_MODE).
+	Renewal billing.Payment `json:"renewal"`
 }
 
 type Addon struct {
@@ -65,7 +70,7 @@ type Referral struct {
 	Earned float64 `json:"earned"`
 }
 
-func Build(c *vpnctl.Customer, refLink string) Profile {
+func Build(c *vpnctl.Customer, refLink string, mode config.PayMode) Profile {
 	p := Profile{
 		ID: c.ID, Name: c.Name, Balance: c.Balance, BalanceOwn: c.BalanceOwn, BalanceReferral: c.BalanceReferral,
 		Monthly: c.Monthly, NearestExpireAt: c.NearestExpireAt, RefLink: refLink,
@@ -91,8 +96,24 @@ func Build(c *vpnctl.Customer, refLink string) Profile {
 			}
 			v.Addons = append(v.Addons, av)
 		}
+		price := v.Price
+		for _, a := range v.Addons {
+			if !a.Included {
+				price += a.Price
+			}
+		}
+		v.Renewal = billing.Split(price, c.BalanceOwn, c.BalanceReferral, mode)
 		p.Subscriptions = append(p.Subscriptions, v)
 	}
+	// Most urgent first: expired, then ending soonest; not yet provisioned
+	// and unlimited ones last.
+	sort.SliceStable(p.Subscriptions, func(i, j int) bool {
+		a, b := p.Subscriptions[i], p.Subscriptions[j]
+		if ra, rb := urgency(a), urgency(b); ra != rb {
+			return ra < rb
+		}
+		return a.ExpireAt != nil && b.ExpireAt != nil && a.ExpireAt.Before(*b.ExpireAt)
+	})
 	for _, l := range c.Ledger {
 		p.Ledger = append(p.Ledger, LedgerEntry{Type: l.Type, Amount: l.Amount, Date: l.Date})
 	}
@@ -112,6 +133,18 @@ func Build(c *vpnctl.Customer, refLink string) Profile {
 	return p
 }
 
+// urgency ranks a subscription for ordering: 0 has an end date, 1 has none
+// yet, 2 never ends.
+func urgency(s Subscription) int {
+	switch {
+	case s.Unlimited:
+		return 2
+	case s.ExpireAt == nil:
+		return 1
+	}
+	return 0
+}
+
 type Tariff struct {
 	ID                int             `json:"id"`
 	Kind              string          `json:"kind"`
@@ -129,7 +162,8 @@ type Tariff struct {
 func Tariffs(in []vpnctl.Tariff) []Tariff {
 	out := []Tariff{}
 	for _, t := range in {
-		if !t.Active {
+		// free tariffs (VIP, add-ons included in a tariff) are internal, not offered
+		if !t.Active || t.MonthlyPrice <= 0 {
 			continue
 		}
 		out = append(out, Tariff{
@@ -149,6 +183,14 @@ func Tariffs(in []vpnctl.Tariff) []Tariff {
 		return a.Name < b.Name
 	})
 	return out
+}
+
+// RenewalWindow is how early the bot and the WebApp start offering to renew.
+const RenewalWindow = 7 * 24 * time.Hour
+
+// NeedsRenewal: an expiring subscription within the window, or already expired.
+func NeedsRenewal(s Subscription, now time.Time) bool {
+	return !s.Unlimited && s.ExpireAt != nil && s.ExpireAt.Sub(now) < RenewalWindow
 }
 
 type State int

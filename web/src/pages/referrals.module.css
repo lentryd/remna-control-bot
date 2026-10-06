@@ -1,15 +1,5 @@
-.hero {
-    color: var(--mantine-color-white);
-    background: linear-gradient(135deg, var(--mantine-primary-color-filled) 0%, var(--mantine-primary-color-filled-hover) 100%);
-    box-shadow: none;
-}
-.muted {
-    color: rgba(255, 255, 255, 0.8);
-}
 .link {
-    padding: 8px 4px 8px 12px;
+    padding: 10px 12px;
     border-radius: var(--mantine-radius-md);
-    background: rgba(255, 255, 255, 0.16);
-    cursor: pointer;
-    min-width: 0;
+    background: var(--mantine-color-default-hover);
 }

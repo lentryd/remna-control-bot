@@ -42,15 +42,35 @@ func Home(p profile.Profile, l Links, now time.Time) Screen {
 		if p.Monthly > 0 {
 			fmt.Fprintf(&b, " · %s/мес", Rub(p.Monthly))
 		}
-		if p.NearestExpireAt != nil {
-			fmt.Fprintf(&b, "\n%s Ближайшее окончание: <b>%s</b>", stateIcon(profile.Expiry(p.NearestExpireAt, false, now)), Date(p.NearestExpireAt))
-		}
 	}
-	return Screen{Text: b.String(), Keyboard: kb(
+	rows := [][]btn{}
+	// Subscriptions are sorted by urgency, so the first one is the one to renew.
+	if len(p.Subscriptions) > 0 && profile.NeedsRenewal(p.Subscriptions[0], now) {
+		s := p.Subscriptions[0]
+		title := clip(s.Title, maxTitle)
+		if s.ExpireAt.After(now) {
+			fmt.Fprintf(&b, "\n\n🟡 «%s» заканчивается %s — %s", Esc(title), left(*s.ExpireAt, now), Date(s.ExpireAt))
+		} else {
+			fmt.Fprintf(&b, "\n\n🔴 «%s» закончилась %s", Esc(title), Date(s.ExpireAt))
+		}
+		rows = append(rows, []btn{cb(clip(BtnRenew+" «"+s.Title+"»", maxTitle), CbRenew+strconv.Itoa(s.ID))})
+	} else if p.NearestExpireAt != nil {
+		fmt.Fprintf(&b, "\n🟢 Ближайшее окончание: <b>%s</b>", Date(p.NearestExpireAt))
+	}
+	return Screen{Text: b.String(), Keyboard: kb(append(rows,
 		[]btn{cb(BtnSubs, CbSubs), cb(BtnBalance, CbBalance)},
 		[]btn{cb(BtnRefs, CbRefs), cb(BtnTariffs, CbTariffs)},
 		[]btn{{Text: BtnApp, WebApp: l.Page("/")}},
-	)}
+	)...)}
+}
+
+// left is "сегодня" or "через N дн.".
+func left(exp, now time.Time) string {
+	days := int(exp.Sub(now).Hours() / 24)
+	if days < 1 {
+		return "сегодня"
+	}
+	return fmt.Sprintf("через %d дн.", days)
 }
 
 func Subscriptions(p profile.Profile, n int, now time.Time) Screen {
@@ -105,7 +125,19 @@ func Subscription(p profile.Profile, id int, l Links, now time.Time) (Screen, bo
 				b.WriteString("\n")
 			}
 		}
+		if r := s.Renewal; !s.Unlimited && r.Price > 0 {
+			fmt.Fprintf(&b, "\n💳 Продление на месяц: <b>%s</b>\n", Rub(r.Price))
+			switch fromBalance := r.FromOwn + r.FromReferral; {
+			case r.ToPay == 0:
+				b.WriteString("Вся сумма спишется с баланса\n")
+			case fromBalance > 0:
+				fmt.Fprintf(&b, "с баланса %s · к оплате <b>%s</b>\n", Rub(fromBalance), Rub(r.ToPay))
+			}
+		}
 		rows := [][]btn{}
+		if !s.Unlimited {
+			rows = append(rows, []btn{cb(BtnRenew, CbRenew+strconv.Itoa(s.ID))})
+		}
 		if s.URL != "" {
 			fmt.Fprintf(&b, "\n🔗 <code>%s</code>", Esc(s.URL))
 			rows = append(rows, []btn{{Text: BtnCopyLink, CopyText: &models.CopyTextButton{Text: s.URL}}})
@@ -187,7 +219,7 @@ func Tariffs(ts []profile.Tariff, n int, l Links) Screen {
 	cur, pages, from, to := page(n, len(ts), tariffsPerPage)
 	var b strings.Builder
 	fmt.Fprintf(&b, "🏷 <b>Тарифы</b>%s\n", pageTitle(cur, pages))
-	rows := [][]btn{}
+	var rows [][]btn
 	for _, t := range ts[from:to] {
 		name := t.Name
 		if t.Kind == "addon" && t.AddonName != "" {
@@ -209,12 +241,11 @@ func Tariffs(ts []profile.Tariff, n int, l Links) Screen {
 			fmt.Fprintf(&b, "\n<i>%s</i>", strings.Join(limits, " · "))
 		}
 		b.WriteString("\n")
-		rows = append(rows, []btn{cb(clip(BtnPick+": "+name, maxTitle), CbTariff+strconv.Itoa(t.ID))})
 	}
 	if nav := pager(CbTariffsPage, cur, pages); nav != nil {
 		rows = append(rows, nav)
 	}
-	rows = append(rows, []btn{{Text: BtnApp, WebApp: l.Page("/tariffs")}}, back(CbHome))
+	rows = append(rows, []btn{{Text: BtnPickInApp, WebApp: l.Page("/tariffs")}}, back(CbHome))
 	return Screen{Text: strings.TrimRight(b.String(), "\n"), Keyboard: kb(rows...)}
 }
 

@@ -23,6 +23,13 @@ export interface Subscription {
     device_limit: number | null
     url: string
     addons: Addon[]
+    renewal: Payment
+}
+export interface Payment {
+    price: number
+    from_own: number
+    from_referral: number
+    to_pay: number
 }
 export interface LedgerEntry {
     type: string

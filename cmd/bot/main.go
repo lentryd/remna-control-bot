@@ -49,14 +49,14 @@ func run() error {
 	acc := access.New(api, codec, cfg.Mode, st)
 
 	bot, err := telegram.New(ctx, cfg.BotToken, telegram.Deps{
-		Access: acc, API: api, Codec: codec, Billing: billing.NotImplemented{}, WebAppURL: cfg.WebAppURL(), Log: log,
+		Access: acc, API: api, Codec: codec, Billing: billing.NotImplemented{}, WebAppURL: cfg.WebAppURL(), PayMode: cfg.PayMode, Log: log,
 	})
 	if err != nil {
 		return err
 	}
 	app := webapp.New(webapp.Deps{
 		API: api, Codec: codec, BotToken: cfg.BotToken, BotUsername: bot.Username(),
-		Path: cfg.WebAppPath, Static: web.Dist, Log: log,
+		Path: cfg.WebAppPath, PayMode: cfg.PayMode, Static: web.Dist, Log: log,
 	})
 
 	errc := make(chan error, 1)

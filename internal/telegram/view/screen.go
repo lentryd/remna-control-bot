@@ -25,8 +25,8 @@ const (
 	CbRefs    = "m:ref"
 	CbTariffs = "m:tar"
 	CbSub     = "s:" // + subscription id
-	CbTariff  = "t:" // + tariff id
 
+	CbRenew       = "r:"  // + subscription id
 	CbSubsPage    = "ps:" // + page number, from 0
 	CbTariffsPage = "pt:" // + page number, from 0
 )

@@ -2,10 +2,13 @@ package profile
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"vpn-control-bot/internal/billing"
+	"vpn-control-bot/internal/config"
 	"vpn-control-bot/internal/vpnctl"
 )
 
@@ -27,7 +30,7 @@ func TestBuild(t *testing.T) {
 			{ReferrerID: 1, RefereeID: 8, Amount: 50}, {ReferrerID: 99, RefereeID: 1, Amount: 1000},
 		},
 	}
-	p := Build(c, "https://t.me/bot?start=ref_x")
+	p := Build(c, "https://t.me/bot?start=ref_x", config.PayMixed)
 
 	if len(p.Subscriptions) != 1 || p.Subscriptions[0].URL != "https://s/a" || len(p.Subscriptions[0].Addons) != 1 {
 		t.Fatalf("subscriptions: %+v", p.Subscriptions)
@@ -49,10 +52,10 @@ func TestBuild(t *testing.T) {
 
 func TestTariffs(t *testing.T) {
 	got := Tariffs([]vpnctl.Tariff{
-		{ID: 1, Kind: "addon", Name: "A", Active: true},
-		{ID: 2, Kind: "base", Name: "B", Active: true, SortOrder: 2},
-		{ID: 3, Kind: "base", Name: "C", Active: false},
-		{ID: 4, Kind: "base", Name: "D", Active: true, SortOrder: 1},
+		{ID: 1, Kind: "addon", Name: "A", Active: true, MonthlyPrice: 1},
+		{ID: 2, Kind: "base", Name: "B", Active: true, MonthlyPrice: 1, SortOrder: 2},
+		{ID: 3, Kind: "base", Name: "C", Active: false, MonthlyPrice: 1},
+		{ID: 4, Kind: "base", Name: "D", Active: true, MonthlyPrice: 1, SortOrder: 1},
 	})
 	ids := []int{}
 	for _, t := range got {
@@ -80,5 +83,54 @@ func TestExpiry(t *testing.T) {
 		if got := Expiry(c.exp, c.unlimited, now); got != c.want {
 			t.Errorf("case %d: %v want %v", i, got, c.want)
 		}
+	}
+}
+
+func TestSubscriptionsByUrgency(t *testing.T) {
+	now := time.Now()
+	sub := func(id int, exp *time.Time, unlimited bool) vpnctl.Subscription {
+		return vpnctl.Subscription{ID: id, RwUser: &vpnctl.RwUser{ExpireAt: exp, Unlimited: unlimited}}
+	}
+	c := &vpnctl.Customer{Subscriptions: []vpnctl.Subscription{
+		sub(1, nil, true),                         // unlimited — last
+		sub(2, ptr(now.AddDate(0, 1, 0)), false),  // a month
+		sub(3, ptr(now.Add(48*time.Hour)), false), // 2 days
+		sub(4, ptr(now.AddDate(0, 0, -5)), false), // expired 5 days ago — first
+		{ID: 5}, // not provisioned yet — before unlimited
+		sub(6, ptr(now.AddDate(0, 0, -1)), false), // expired yesterday
+	}}
+	var got []int
+	for _, s := range Build(c, "", config.PayMixed).Subscriptions {
+		got = append(got, s.ID)
+	}
+	want := []int{4, 6, 3, 2, 5, 1}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("order = %v, want %v", got, want)
+	}
+}
+
+func TestTariffsHideFree(t *testing.T) {
+	got := Tariffs([]vpnctl.Tariff{
+		{ID: 1, Kind: "base", Name: "Base", Active: true, MonthlyPrice: 100},
+		{ID: 2, Kind: "base", Name: "VIP", Active: true, MonthlyPrice: 0},
+		{ID: 3, Kind: "addon", Name: "Included", Active: true, MonthlyPrice: 0},
+	})
+	if len(got) != 1 || got[0].ID != 1 {
+		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestRenewalUsesPayMode(t *testing.T) {
+	c := &vpnctl.Customer{BalanceOwn: 100, BalanceReferral: 250, Subscriptions: []vpnctl.Subscription{{
+		ID: 1, Price: 200, RwUser: &vpnctl.RwUser{},
+		Addons: []vpnctl.Addon{{Price: 100}, {Price: 0, Included: true}},
+	}}}
+	mixed := Build(c, "", config.PayMixed).Subscriptions[0].Renewal
+	if mixed != (billing.Payment{Price: 300, FromReferral: 250, FromOwn: 50}) {
+		t.Fatalf("mixed: %+v", mixed)
+	}
+	full := Build(c, "", config.PayReferralFull).Subscriptions[0].Renewal
+	if full != (billing.Payment{Price: 300, FromOwn: 100, ToPay: 200}) {
+		t.Fatalf("referral_full: %+v", full)
 	}
 }

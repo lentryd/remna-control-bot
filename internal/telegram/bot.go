@@ -13,6 +13,7 @@ import (
 
 	"vpn-control-bot/internal/access"
 	"vpn-control-bot/internal/billing"
+	"vpn-control-bot/internal/config"
 	"vpn-control-bot/internal/profile"
 	"vpn-control-bot/internal/refcode"
 	"vpn-control-bot/internal/telegram/view"
@@ -25,6 +26,7 @@ type Deps struct {
 	Codec     *refcode.Codec
 	Billing   billing.Billing
 	WebAppURL string
+	PayMode   config.PayMode
 	Log       *slog.Logger
 }
 
@@ -55,7 +57,7 @@ func New(ctx context.Context, token string, d Deps) (*Bot, error) {
 	tg.RegisterHandler(tgbot.HandlerTypeMessageText, "start", tgbot.MatchTypeCommand, b.onStart)
 	tg.RegisterHandler(tgbot.HandlerTypeMessageText, "menu", tgbot.MatchTypeCommand, b.onMenu)
 	tg.RegisterHandler(tgbot.HandlerTypeMessageText, "help", tgbot.MatchTypeCommand, b.onHelp)
-	for _, p := range []string{"m:", view.CbSub, view.CbTariff, view.CbSubsPage, view.CbTariffsPage} {
+	for _, p := range []string{"m:", view.CbSub, view.CbSubsPage, view.CbTariffsPage, view.CbRenew} {
 		tg.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, p, tgbot.MatchTypePrefix, b.onCallback)
 	}
 
@@ -128,7 +130,7 @@ func (b *Bot) outcome(r access.Result, err error) (view.Screen, bool) {
 }
 
 func (b *Bot) profile(c *vpnctl.Customer) profile.Profile {
-	return profile.Build(c, RefLink(b.username, b.Codec, c.ID))
+	return profile.Build(c, RefLink(b.username, b.Codec, c.ID), b.PayMode)
 }
 
 func (b *Bot) home(r access.Result, prefix string) view.Screen {
@@ -232,8 +234,8 @@ func (b *Bot) onCallback(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 			return
 		}
 		b.show(ctx, chatID, msgID, view.Tariffs(profile.Tariffs(ts), rt.id, b.links))
-	case view.CbTariff:
-		_, err := b.Billing.Quote(ctx, r.Customer.ID, billing.Item{Kind: "tariff", ID: rt.id})
+	case view.CbRenew:
+		_, err := b.Billing.Quote(ctx, r.Customer.ID, billing.Item{Kind: "subscription", ID: rt.id})
 		if errors.Is(err, billing.ErrNotImplemented) {
 			answer.Text, answer.ShowAlert = view.TxtSoon, true
 		}
