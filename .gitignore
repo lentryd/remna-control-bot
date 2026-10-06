@@ -1,0 +1,8 @@
+/.env
+/data/
+/bin/
+/dev/certs/
+/.superpowers/
+/web/node_modules/
+/web/dist/*
+!/web/dist/.gitkeep
