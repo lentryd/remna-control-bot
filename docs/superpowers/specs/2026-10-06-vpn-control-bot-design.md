@@ -204,6 +204,19 @@ is configured on the external balancer.
 - `vpnctl`: `httptest` server, DTO mapping and errors.
 - `telegram`: rendering texts/keyboards from fixtures (golden), without the network.
 
+## Addendum 2026-10-07: balance pay mode and notifications
+
+- `BALANCE_PAY_MODE` (`mixed` | `referral_full`): `billing.Split` decides how a renewal is covered —
+  mixed spends referral money first, then own funds; referral_full spends referral money only when it
+  covers the whole price, otherwise own funds only. Every subscription in the profile carries `renewal`
+  (a month of the subscription with its paid add-ons) shown by the bot and the WebApp.
+- Notifications (`internal/notify`): every `NOTIFY_INTERVAL` the bot reads `customers:list`,
+  `subscriptions:list` and `tariffs:list`, plans notices and sends each once (keys in the bot's SQLite):
+  traffic ≥ `TRAFFIC_ALERT_PCT` — once per reset period, with the reset date and the cheapest active paid
+  tariff of the same kind with more traffic; payment reminders at `REMIND_DAYS` before the end and once
+  within 3 days after it. Only non-archived customers with a Telegram id.
+- Tariffs are picked only in the WebApp; free (0 ₽) tariffs are not offered.
+
 ## Out of scope for this iteration
 
 Payment and checkout, notifications/reminders, admin commands in the bot, multi-language support (Russian texts only, collected in one place).

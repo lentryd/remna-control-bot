@@ -83,3 +83,29 @@ func TestCreateAndUpdate(t *testing.T) {
 		t.Fatalf("update: err=%v body=%+v", err, got)
 	}
 }
+
+func TestListsForNotifications(t *testing.T) {
+	c := server(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/customers":
+			w.Write([]byte(`[{"id":5,"telegram_id":77,"archived":false},{"id":6}]`))
+		case "/api/v1/subscriptions":
+			w.Write([]byte(`[{"id":1,"customer_id":5,"tariff_id":2,"title":"Main","rw_user":{"used_traffic_bytes":9,"traffic_limit_bytes":10,"traffic_limit_strategy":"MONTH","next_traffic_reset_at":"2026-11-01T00:00:00Z"},"addons":[{"id":3,"addon_id":4,"tariff_id":7,"addon_name":"lte"}]}]`))
+		default:
+			t.Errorf("unexpected %s", r.URL.Path)
+		}
+	})
+	cs, err := c.ListCustomers(context.Background())
+	if err != nil || len(cs) != 2 || *cs[0].TelegramID != 77 || cs[1].TelegramID != nil {
+		t.Fatalf("customers: %+v %v", cs, err)
+	}
+	subs, err := c.ListSubscriptions(context.Background())
+	if err != nil || len(subs) != 1 {
+		t.Fatalf("subscriptions: %v", err)
+	}
+	s := subs[0]
+	if s.CustomerID != 5 || *s.TariffID != 2 || s.RwUser.NextTrafficResetAt == nil || s.RwUser.TrafficLimitStrategy != "MONTH" ||
+		s.Addons[0].AddonID != 4 || *s.Addons[0].TariffID != 7 {
+		t.Fatalf("subscription decode: %+v", s)
+	}
+}

@@ -34,3 +34,24 @@ func TestAwaitingLink(t *testing.T) {
 		t.Fatal("want false after clear")
 	}
 }
+
+func TestNoticesSentOnce(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(filepath.Join(t.TempDir(), "bot.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if sent, _ := s.NoticeSent(ctx, "k"); sent {
+		t.Fatal("fresh store: want not sent")
+	}
+	if err := s.MarkNoticeSent(ctx, "k"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MarkNoticeSent(ctx, "k"); err != nil { // idempotent
+		t.Fatal(err)
+	}
+	if sent, _ := s.NoticeSent(ctx, "k"); !sent {
+		t.Fatal("want sent")
+	}
+}

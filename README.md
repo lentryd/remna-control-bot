@@ -31,9 +31,14 @@ and `REF_SECRET`, nothing is stored.
 | `DB_PATH` | no | `/data/bot.db` | bot's SQLite |
 | `LOG_LEVEL` | no | `info` | `debug` / `info` / `warn` / `error` |
 | `REF_SECRET` | yes | | referral code secret; changing it invalidates every issued link |
+| `BALANCE_PAY_MODE` | no | `mixed` | renewals from the balance: `mixed` — own + referral money; `referral_full` — referral money only if it covers the whole price |
+| `NOTIFY_INTERVAL` | no | `1h` | how often to check for notifications; `0` turns them off |
+| `TRAFFIC_ALERT_PCT` | no | `80` | traffic share of the limit that triggers an alert (with the reset date and a tariff with more traffic) |
+| `REMIND_DAYS` | no | `3,1` | days before the end to remind about payment (plus one reminder right after it ends) |
 
 **Panel token:** vpn-control → Settings → API tokens → preset **Telegram bot**
-(`customers:lookup`, `customers:get`, `customers:create`, `customers:update`, `tariffs:list`).
+(`customers:lookup`, `customers:get`, `customers:create`, `customers:update`, `customers:list`,
+`subscriptions:list`, `tariffs:list`; the two lists are for notifications).
 
 ## Local development
 

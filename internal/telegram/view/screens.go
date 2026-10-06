@@ -43,7 +43,7 @@ func Home(p profile.Profile, l Links, now time.Time) Screen {
 			fmt.Fprintf(&b, " · %s/мес", Rub(p.Monthly))
 		}
 	}
-	rows := [][]btn{}
+	rows := [][]btn{{{Text: BtnApp, WebApp: l.Page("/")}}}
 	// Subscriptions are sorted by urgency, so the first one is the one to renew.
 	if len(p.Subscriptions) > 0 && profile.NeedsRenewal(p.Subscriptions[0], now) {
 		s := p.Subscriptions[0]
@@ -60,7 +60,6 @@ func Home(p profile.Profile, l Links, now time.Time) Screen {
 	return Screen{Text: b.String(), Keyboard: kb(append(rows,
 		[]btn{cb(BtnSubs, CbSubs), cb(BtnBalance, CbBalance)},
 		[]btn{cb(BtnRefs, CbRefs), cb(BtnTariffs, CbTariffs)},
-		[]btn{{Text: BtnApp, WebApp: l.Page("/")}},
 	)...)}
 }
 
@@ -140,7 +139,7 @@ func Subscription(p profile.Profile, id int, l Links, now time.Time) (Screen, bo
 		}
 		if s.URL != "" {
 			fmt.Fprintf(&b, "\n🔗 <code>%s</code>", Esc(s.URL))
-			rows = append(rows, []btn{{Text: BtnCopyLink, CopyText: &models.CopyTextButton{Text: s.URL}}})
+			rows = append(rows, []btn{{Text: BtnOpenLink, WebApp: &models.WebAppInfo{URL: s.URL}}, {Text: BtnInBrowser, URL: s.URL}})
 		}
 		rows = append(rows, []btn{{Text: BtnDetails, WebApp: l.Page("/subscriptions/" + strconv.Itoa(s.ID))}},
 			back(CbSubsPage+strconv.Itoa(i/subsPerPage)))
@@ -203,7 +202,7 @@ func Referrals(p profile.Profile, l Links) Screen {
 			fmt.Fprintf(&b, "%s %s — %s\n", icon, Esc(clip(r.Name, maxTitle)), Rub(r.Earned))
 		}
 	}
-	share := "https://t.me/share/url?url=" + url.QueryEscape(p.RefLink) + "&text=" + url.QueryEscape("Подключайся к VPN по моей ссылке")
+	share := "https://t.me/share/url?url=" + url.QueryEscape(p.RefLink) + "&text=" + url.QueryEscape(TxtShare)
 	return Screen{Text: strings.TrimRight(b.String(), "\n"), Keyboard: kb(
 		[]btn{{Text: BtnShare, URL: share}},
 		[]btn{{Text: BtnCopyLink, CopyText: &models.CopyTextButton{Text: p.RefLink}}},

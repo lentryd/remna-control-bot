@@ -136,3 +136,41 @@ func apply(c *Customer, in CustomerInput) {
 	c.Name, c.Contact, c.TelegramID, c.Notes = in.Name, in.Contact, in.TelegramID, in.Notes
 	c.ReferrerID, c.ReferralPercent, c.Archived = in.ReferrerID, in.ReferralPercent, in.Archived
 }
+
+func (f *Fake) ListCustomers(context.Context) ([]Customer, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.Err != nil {
+		return nil, f.Err
+	}
+	ids := make([]int, 0, len(f.customers))
+	for id := range f.customers {
+		ids = append(ids, id)
+	}
+	sort.Ints(ids)
+	out := make([]Customer, 0, len(ids))
+	for _, id := range ids {
+		c := *f.customers[id]
+		c.Subscriptions = nil
+		out = append(out, c)
+	}
+	return out, nil
+}
+
+// ListSubscriptions returns every customer's subscriptions with CustomerID set.
+func (f *Fake) ListSubscriptions(ctx context.Context) ([]Subscription, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.Err != nil {
+		return nil, f.Err
+	}
+	var out []Subscription
+	for _, c := range f.customers {
+		for _, s := range c.Subscriptions {
+			s.CustomerID = c.ID
+			out = append(out, s)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
+}

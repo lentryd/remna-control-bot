@@ -27,6 +27,9 @@ type Client interface {
 	CreateCustomer(ctx context.Context, in CustomerInput) (int, error)
 	UpdateCustomer(ctx context.Context, id int, in CustomerInput) error
 	ListTariffs(ctx context.Context) ([]Tariff, error)
+	// ListCustomers returns every customer without details (no subscriptions).
+	ListCustomers(ctx context.Context) ([]Customer, error)
+	ListSubscriptions(ctx context.Context) ([]Subscription, error)
 }
 
 // APIError is a non-2xx answer; vpn-control sends {"message","code"}.
@@ -88,6 +91,16 @@ func (c *HTTPClient) UpdateCustomer(ctx context.Context, id int, in CustomerInpu
 func (c *HTTPClient) ListTariffs(ctx context.Context) ([]Tariff, error) {
 	var out []Tariff
 	return out, c.do(ctx, http.MethodGet, "/tariffs", nil, &out)
+}
+
+func (c *HTTPClient) ListCustomers(ctx context.Context) ([]Customer, error) {
+	var out []Customer
+	return out, c.do(ctx, http.MethodGet, "/customers", nil, &out)
+}
+
+func (c *HTTPClient) ListSubscriptions(ctx context.Context) ([]Subscription, error) {
+	var out []Subscription
+	return out, c.do(ctx, http.MethodGet, "/subscriptions", nil, &out)
 }
 
 func (c *HTTPClient) customer(ctx context.Context, path string) (*Customer, error) {

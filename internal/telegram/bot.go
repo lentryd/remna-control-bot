@@ -14,6 +14,7 @@ import (
 	"vpn-control-bot/internal/access"
 	"vpn-control-bot/internal/billing"
 	"vpn-control-bot/internal/config"
+	"vpn-control-bot/internal/notify"
 	"vpn-control-bot/internal/profile"
 	"vpn-control-bot/internal/refcode"
 	"vpn-control-bot/internal/telegram/view"
@@ -74,6 +75,18 @@ func New(ctx context.Context, token string, d Deps) (*Bot, error) {
 		d.Log.Warn("set menu button", "err", err)
 	}
 	return b, nil
+}
+
+// SendNotice sends a notification as a new message (notify.Runner's Send).
+func (b *Bot) SendNotice(ctx context.Context, n notify.Notice) error {
+	s := view.PaymentReminder(n, b.links, time.Now())
+	if n.Kind == notify.Traffic {
+		s = view.TrafficAlert(n, b.links, time.Now())
+	}
+	_, err := b.tg.SendMessage(ctx, &tgbot.SendMessageParams{
+		ChatID: n.ChatID, Text: s.Text, ParseMode: models.ParseModeHTML, ReplyMarkup: s.Keyboard,
+	})
+	return err
 }
 
 func (b *Bot) Username() string        { return b.username }

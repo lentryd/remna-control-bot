@@ -11,6 +11,7 @@ import (
 	"vpn-control-bot/internal/access"
 	"vpn-control-bot/internal/billing"
 	"vpn-control-bot/internal/config"
+	"vpn-control-bot/internal/notify"
 	"vpn-control-bot/internal/refcode"
 	"vpn-control-bot/internal/store"
 	"vpn-control-bot/internal/telegram"
@@ -62,7 +63,14 @@ func run() error {
 	errc := make(chan error, 1)
 	go func() { errc <- app.Listen(cfg.HTTPAddr) }()
 	go bot.Run(ctx)
-	log.Info("started", "mode", cfg.Mode, "bot", "@"+bot.Username(), "webapp", cfg.WebAppURL(), "addr", cfg.HTTPAddr)
+	if cfg.NotifyInterval > 0 {
+		n := &notify.Runner{
+			API: api, Store: st, Send: bot.SendNotice, Interval: cfg.NotifyInterval, Log: log,
+			Rules: notify.Rules{TrafficPct: cfg.TrafficAlertPct, RemindDays: cfg.RemindDays},
+		}
+		go n.Run(ctx)
+	}
+	log.Info("started", "mode", cfg.Mode, "pay", cfg.PayMode, "notify", cfg.NotifyInterval, "bot", "@"+bot.Username(), "webapp", cfg.WebAppURL(), "addr", cfg.HTTPAddr)
 
 	select {
 	case <-ctx.Done():

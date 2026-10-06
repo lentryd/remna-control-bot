@@ -1,5 +1,5 @@
 // CtaButton — the main call to action (renew, connect a tariff): the brand
-// violet as a gradient with a soft glow, so it stands out without shouting.
+// violet as a gradient, so it stands out without shouting.
 import { Button, type ButtonProps } from '@mantine/core'
 import type { ReactNode } from 'react'
 

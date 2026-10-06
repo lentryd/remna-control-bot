@@ -1,5 +1,6 @@
 // Package store keeps the bot's own state: who is expected to send a
-// subscription link. Customer data lives in vpn-control.
+// subscription link and which notifications were already sent. Customer
+// data lives in vpn-control.
 package store
 
 import (
@@ -24,7 +25,10 @@ func Open(path string) (*Store, error) {
 	db.SetMaxOpenConns(1)
 	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS awaiting_link (
 		tg_id INTEGER PRIMARY KEY,
-		since TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`); err != nil {
+		since TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP);
+	CREATE TABLE IF NOT EXISTS notices (
+		key TEXT PRIMARY KEY,
+		sent_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -46,4 +50,16 @@ func (s *Store) AwaitingLink(ctx context.Context, tgID int64) (bool, error) {
 	var n int
 	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM awaiting_link WHERE tg_id = ?`, tgID).Scan(&n)
 	return n > 0, err
+}
+
+// NoticeSent reports whether a notification with this key was sent.
+func (s *Store) NoticeSent(ctx context.Context, key string) (bool, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM notices WHERE key = ?`, key).Scan(&n)
+	return n > 0, err
+}
+
+func (s *Store) MarkNoticeSent(ctx context.Context, key string) error {
+	_, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO notices (key) VALUES (?)`, key)
+	return err
 }

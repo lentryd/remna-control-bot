@@ -1,6 +1,6 @@
 // SubscriptionDetails.tsx — everything about one subscription.
-import { Group, Progress, Stack, Text, Title } from '@mantine/core'
-import { IconBolt } from '@tabler/icons-react'
+import { Button, Group, Progress, Stack, Text, Title } from '@mantine/core'
+import { IconBolt, IconExternalLink } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useParams } from 'react-router'
 
@@ -8,7 +8,7 @@ import { fmtBytes, fmtDate, fmtMoney } from '@shared/format'
 import { CopyableFieldShared } from '@shared/ui/copyable-field/copyable-field'
 import { SectionCard } from '@shared/ui/section-card'
 import { isExpired, pay } from '../renew'
-import { haptic } from '../telegram'
+import { haptic, openExternal } from '../telegram'
 import type { Profile } from '../types'
 import { CtaButton } from '../ui/CtaButton'
 import { RenewalSplit } from '../ui/RenewalSplit'
@@ -52,9 +52,15 @@ export function SubscriptionDetails({ p }: { p: Profile }) {
                 </CtaButton>
             )}
             {s.url && (
-                <div onClick={haptic}>
-                    <CopyableFieldShared label={t('sub.link')} size="md" value={s.url} />
-                </div>
+                <Stack gap="xs">
+                    <div onClick={haptic}>
+                        <CopyableFieldShared label={t('sub.link')} size="md" value={s.url} />
+                    </div>
+                    <Button leftSection={<IconExternalLink size={18} />} onClick={() => openExternal(s.url)} radius="md" size="md" variant="light">
+                        {t('sub.open_page')}
+                    </Button>
+                    <Text c="dimmed" size="xs" ta="center">{t('sub.open_hint')}</Text>
+                </Stack>
             )}
             {s.addons.length > 0 && (
                 <Stack gap="sm">

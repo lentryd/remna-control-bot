@@ -21,6 +21,7 @@ interface WebApp {
     HapticFeedback?: { notificationOccurred(t: 'success' | 'error'): void }
     openTelegramLink(url: string): void
     showAlert(message: string): void
+    openLink(url: string): void
 }
 declare global {
     interface Window {
@@ -36,3 +37,6 @@ export function initTelegram() {
 }
 
 export const haptic = () => tg?.HapticFeedback?.notificationOccurred('success')
+
+// openExternal opens a page in the browser (inside Telegram: its browser).
+export const openExternal = (url: string) => (tg ? tg.openLink(url) : window.open(url, '_blank', 'noopener'))

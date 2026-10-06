@@ -50,6 +50,8 @@ type LedgerEntry struct {
 
 type Subscription struct {
 	ID         int     `json:"id"`
+	CustomerID int     `json:"customer_id"`
+	TariffID   *int    `json:"tariff_id"`
 	Title      string  `json:"title"`
 	Label      string  `json:"label"`
 	TariffName string  `json:"tariff_name"`
@@ -60,6 +62,8 @@ type Subscription struct {
 
 type Addon struct {
 	ID         int     `json:"id"`
+	AddonID    int     `json:"addon_id"`
+	TariffID   *int    `json:"tariff_id"`
 	AddonName  string  `json:"addon_name"`
 	TariffName string  `json:"tariff_name"`
 	Price      float64 `json:"price"`
@@ -74,14 +78,18 @@ type RwUser struct {
 	Unlimited         bool       `json:"unlimited"`
 	UsedTrafficBytes  int64      `json:"used_traffic_bytes"`
 	TrafficLimitBytes int64      `json:"traffic_limit_bytes"`
-	HwidDeviceLimit   *int       `json:"hwid_device_limit"`
-	SubscriptionURL   string     `json:"subscription_url"`
-	Deleted           bool       `json:"deleted"`
+	// TrafficLimitStrategy is NO_RESET, DAY, WEEK, MONTH or MONTH_ROLLING.
+	TrafficLimitStrategy string     `json:"traffic_limit_strategy"`
+	NextTrafficResetAt   *time.Time `json:"next_traffic_reset_at"`
+	HwidDeviceLimit      *int       `json:"hwid_device_limit"`
+	SubscriptionURL      string     `json:"subscription_url"`
+	Deleted              bool       `json:"deleted"`
 }
 
 type Tariff struct {
 	ID                int      `json:"id"`
 	Kind              string   `json:"kind"` // base|addon
+	AddonID           *int     `json:"addon_id"`
 	AddonName         string   `json:"addon_name"`
 	Name              string   `json:"name"`
 	Description       string   `json:"description"`
