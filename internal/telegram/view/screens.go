@@ -1,0 +1,209 @@
+package view
+
+import (
+	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/go-telegram/bot/models"
+
+	"vpn-control-bot/internal/profile"
+)
+
+func stateIcon(s profile.State) string {
+	switch s {
+	case profile.StateActive:
+		return "🟢"
+	case profile.StateSoon:
+		return "🟡"
+	case profile.StateExpired:
+		return "🔴"
+	}
+	return "⚪️"
+}
+
+func until(exp *time.Time, unlimited bool) string {
+	if unlimited {
+		return "∞"
+	}
+	return Date(exp)
+}
+
+func Home(p profile.Profile, l Links, now time.Time) Screen {
+	var b strings.Builder
+	fmt.Fprintf(&b, "👋 <b>%s</b>\n\n", Esc(p.Name))
+	fmt.Fprintf(&b, "💰 Баланс: <b>%s</b>\n", Rub(p.Balance))
+	if len(p.Subscriptions) == 0 {
+		b.WriteString("📦 Подписок пока нет — загляните в «Тарифы».")
+	} else {
+		fmt.Fprintf(&b, "📦 Подписок: <b>%d</b>", len(p.Subscriptions))
+		if p.Monthly > 0 {
+			fmt.Fprintf(&b, " · %s/мес", Rub(p.Monthly))
+		}
+		if p.NearestExpireAt != nil {
+			fmt.Fprintf(&b, "\n%s Ближайшее окончание: <b>%s</b>", stateIcon(profile.Expiry(p.NearestExpireAt, false, now)), Date(p.NearestExpireAt))
+		}
+	}
+	return Screen{Text: b.String(), Keyboard: kb(
+		[]btn{cb(BtnSubs, CbSubs), cb(BtnBalance, CbBalance)},
+		[]btn{cb(BtnRefs, CbRefs), cb(BtnTariffs, CbTariffs)},
+		[]btn{{Text: BtnApp, WebApp: l.Page("/")}},
+	)}
+}
+
+func Subscriptions(p profile.Profile, now time.Time) Screen {
+	if len(p.Subscriptions) == 0 {
+		return Screen{Text: "📦 <b>Подписки</b>\n\nУ вас пока нет подписок. Выберите тариф — и она появится здесь.",
+			Keyboard: kb([]btn{cb(BtnTariffs, CbTariffs)}, back(CbHome))}
+	}
+	var b strings.Builder
+	b.WriteString("📦 <b>Подписки</b>\n")
+	rows := [][]btn{}
+	for _, s := range p.Subscriptions {
+		icon := stateIcon(profile.Expiry(s.ExpireAt, s.Unlimited, now))
+		fmt.Fprintf(&b, "\n%s <b>%s</b> — до %s", icon, Esc(s.Title), until(s.ExpireAt, s.Unlimited))
+		if n := len(s.Addons); n > 0 {
+			fmt.Fprintf(&b, " · аддонов: %d", n)
+		}
+		rows = append(rows, []btn{cb(icon+" "+s.Title, CbSub+strconv.Itoa(s.ID))})
+	}
+	return Screen{Text: b.String(), Keyboard: kb(append(rows, back(CbHome))...)}
+}
+
+func Subscription(p profile.Profile, id int, l Links, now time.Time) (Screen, bool) {
+	for _, s := range p.Subscriptions {
+		if s.ID != id {
+			continue
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "%s <b>%s</b>\n\n", stateIcon(profile.Expiry(s.ExpireAt, s.Unlimited, now)), Esc(s.Title))
+		if s.Tariff != "" {
+			fmt.Fprintf(&b, "🏷 Тариф: %s · %s/мес\n", Esc(s.Tariff), Rub(s.Price))
+		}
+		fmt.Fprintf(&b, "📅 Действует до: <b>%s</b>\n", until(s.ExpireAt, s.Unlimited))
+		fmt.Fprintf(&b, "📊 Трафик: %s из %s\n", Bytes(s.UsedBytes), Bytes(s.LimitBytes))
+		if s.DeviceLimit != nil {
+			fmt.Fprintf(&b, "📱 Устройств: до %d\n", *s.DeviceLimit)
+		}
+		if len(s.Addons) > 0 {
+			b.WriteString("\n<b>Аддоны</b>\n")
+			for _, a := range s.Addons {
+				fmt.Fprintf(&b, "%s %s — до %s", stateIcon(profile.Expiry(a.ExpireAt, a.Unlimited, now)), Esc(a.Name), until(a.ExpireAt, a.Unlimited))
+				if a.Included {
+					b.WriteString(" (входит в тариф)")
+				}
+				b.WriteString("\n")
+			}
+		}
+		rows := [][]btn{}
+		if s.URL != "" {
+			fmt.Fprintf(&b, "\n🔗 <code>%s</code>", Esc(s.URL))
+			rows = append(rows, []btn{{Text: BtnCopyLink, CopyText: &models.CopyTextButton{Text: s.URL}}})
+		}
+		rows = append(rows, []btn{{Text: BtnDetails, WebApp: l.Page("/subscriptions/" + strconv.Itoa(s.ID))}}, back(CbSubs))
+		return Screen{Text: strings.TrimRight(b.String(), "\n"), Keyboard: kb(rows...)}, true
+	}
+	return Screen{}, false
+}
+
+var ledgerTypes = map[string]string{
+	"payment": "Пополнение", "charge": "Списание", "adjustment": "Корректировка", "refund": "Возврат", "referral": "Реферальное начисление",
+}
+
+func Balance(p profile.Profile, l Links) Screen {
+	var b strings.Builder
+	fmt.Fprintf(&b, "💰 <b>Баланс: %s</b>\n", Rub(p.Balance))
+	if p.BalanceReferral != 0 {
+		fmt.Fprintf(&b, "из них реферальных: %s\n", Rub(p.BalanceReferral))
+	}
+	if p.Monthly > 0 {
+		fmt.Fprintf(&b, "Ежемесячно: %s\n", Rub(p.Monthly))
+	}
+	if len(p.Ledger) == 0 {
+		b.WriteString("\nОпераций пока не было.")
+	} else {
+		b.WriteString("\n<b>Последние операции</b>\n")
+		for i, e := range p.Ledger {
+			if i == 5 {
+				break
+			}
+			name := ledgerTypes[e.Type]
+			if name == "" {
+				name = e.Type
+			}
+			d := e.Date
+			fmt.Fprintf(&b, "%s · %s · <b>%s</b>\n", Date(&d), name, Rub(e.Amount))
+		}
+	}
+	return Screen{Text: strings.TrimRight(b.String(), "\n"), Keyboard: kb(
+		[]btn{{Text: BtnHistory, WebApp: l.Page("/balance")}},
+		back(CbHome),
+	)}
+}
+
+func Referrals(p profile.Profile, l Links) Screen {
+	var b strings.Builder
+	b.WriteString("👥 <b>Рефералы</b>\n\n")
+	fmt.Fprintf(&b, "Ваша ссылка:\n<code>%s</code>\n\n", Esc(p.RefLink))
+	if len(p.Referrals) == 0 {
+		b.WriteString("Пока никого. Поделитесь ссылкой — за оплаты приглашённых вы получаете процент на баланс.")
+	} else {
+		fmt.Fprintf(&b, "Приглашено: <b>%d</b> · заработано: <b>%s</b>\n\n<b>Топ по доходу</b>\n", len(p.Referrals), Rub(p.ReferralsEarned))
+		for i, r := range p.Referrals {
+			if i == 5 {
+				break
+			}
+			icon := "🟢"
+			if !r.Active {
+				icon = "⚪️"
+			}
+			fmt.Fprintf(&b, "%s %s — %s\n", icon, Esc(r.Name), Rub(r.Earned))
+		}
+	}
+	share := "https://t.me/share/url?url=" + url.QueryEscape(p.RefLink) + "&text=" + url.QueryEscape("Подключайся к VPN по моей ссылке")
+	return Screen{Text: strings.TrimRight(b.String(), "\n"), Keyboard: kb(
+		[]btn{{Text: BtnShare, URL: share}},
+		[]btn{{Text: BtnCopyLink, CopyText: &models.CopyTextButton{Text: p.RefLink}}},
+		[]btn{{Text: BtnAllRefs, WebApp: l.Page("/referrals")}},
+		back(CbHome),
+	)}
+}
+
+func Tariffs(ts []profile.Tariff, l Links) Screen {
+	if len(ts) == 0 {
+		return Screen{Text: "🏷 <b>Тарифы</b>\n\nСейчас нет доступных тарифов.", Keyboard: kb(back(CbHome))}
+	}
+	var b strings.Builder
+	b.WriteString("🏷 <b>Тарифы</b>\n")
+	rows := [][]btn{}
+	for _, t := range ts {
+		name := t.Name
+		if t.Kind == "addon" && t.AddonName != "" {
+			name = t.AddonName + " · " + t.Name
+		}
+		fmt.Fprintf(&b, "\n<b>%s</b> — %s/мес", Esc(name), Rub(t.MonthlyPrice))
+		if t.Description != "" {
+			fmt.Fprintf(&b, "\n%s", Esc(t.Description))
+		}
+		var limits []string
+		if t.TrafficLimitBytes > 0 {
+			limits = append(limits, "трафик "+Bytes(t.TrafficLimitBytes))
+		}
+		if t.HwidLimit != nil {
+			limits = append(limits, fmt.Sprintf("до %d устройств", *t.HwidLimit))
+		}
+		if len(limits) > 0 {
+			fmt.Fprintf(&b, "\n<i>%s</i>", strings.Join(limits, " · "))
+		}
+		b.WriteString("\n")
+		rows = append(rows, []btn{cb(BtnPick+": "+name, CbTariff+strconv.Itoa(t.ID))})
+	}
+	rows = append(rows, []btn{{Text: BtnApp, WebApp: l.Page("/tariffs")}}, back(CbHome))
+	return Screen{Text: strings.TrimRight(b.String(), "\n"), Keyboard: kb(rows...)}
+}
+
+func Notice(text string) Screen { return Screen{Text: text, Keyboard: kb([]btn{cb(BtnHome, CbHome)})} }
+
+func Plain(text string) Screen { return Screen{Text: text} }

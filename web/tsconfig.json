@@ -1,0 +1,8 @@
+{
+  "files": [],
+  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }],
+  // read by Bun's bundler, which doesn't follow project references
+  "compilerOptions": {
+    "paths": { "@/*": ["./src/*"], "@shared/*": ["./src/shared/*"] }
+  }
+}

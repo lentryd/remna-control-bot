@@ -27,5 +27,7 @@ type Billing interface {
 
 type NotImplemented struct{}
 
-func (NotImplemented) Quote(context.Context, int, Item) (Quote, error) { return Quote{}, ErrNotImplemented }
-func (NotImplemented) Pay(context.Context, int, Item) error            { return ErrNotImplemented }
+func (NotImplemented) Quote(context.Context, int, Item) (Quote, error) {
+	return Quote{}, ErrNotImplemented
+}
+func (NotImplemented) Pay(context.Context, int, Item) error { return ErrNotImplemented }

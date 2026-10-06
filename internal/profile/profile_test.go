@@ -20,7 +20,7 @@ func TestBuild(t *testing.T) {
 				Addons: []vpnctl.Addon{{ID: 3, AddonName: "YouTube", RwUser: &vpnctl.RwUser{Status: "ACTIVE"}}}},
 			{ID: 2, Title: "Gone", RwUser: &vpnctl.RwUser{Deleted: true}},
 		},
-		Ledger: []vpnctl.LedgerEntry{{Type: "payment", Amount: 100, Date: d1, Note: "SECRET-LEDGER"}, {Type: "charge", Amount: -50, Date: d1.AddDate(0, 1, 0)}},
+		Ledger:    []vpnctl.LedgerEntry{{Type: "payment", Amount: 100, Date: d1, Note: "SECRET-LEDGER"}, {Type: "charge", Amount: -50, Date: d1.AddDate(0, 1, 0)}},
 		Referrals: []vpnctl.Referee{{ID: 7, Name: "Bob", TotalPaid: 300}, {ID: 8, Name: "Eve", Archived: true}},
 		Accruals: []vpnctl.Accrual{
 			{ReferrerID: 1, RefereeID: 7, Amount: 30}, {ReferrerID: 1, RefereeID: 7, Amount: 15},

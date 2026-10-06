@@ -1,0 +1,74 @@
+/* Copied from vpn-control/web/src/shared/ui/stat-strip/stat-strip.module.css */
+.strip {
+    display: grid;
+    grid-template-columns: repeat(var(--cells), minmax(0, 1fr));
+    overflow: hidden;
+
+    @media (max-width: $mantine-breakpoint-lg) {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    @media (max-width: $mantine-breakpoint-sm) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.cell {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    padding: 16px 20px;
+    color: var(--app-text-muted);
+    box-shadow:
+        -1px 0 0 var(--app-border),
+        0 -1px 0 var(--app-border);
+    transition: background-color 120ms var(--app-ease);
+
+    &[data-clickable]:hover {
+        background: var(--app-row-hover);
+    }
+
+    &[data-active] {
+        background: var(--app-fill);
+        color: var(--mantine-color-text);
+
+        &::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 2px;
+            background: var(--mantine-primary-color-filled);
+        }
+    }
+}
+
+.label {
+    font-size: var(--mantine-font-size-xs);
+    font-weight: 500;
+    color: inherit;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.value {
+    font-size: 1.375rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    color: var(--app-text-strong);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.hint {
+    font-size: var(--mantine-font-size-xs);
+    color: var(--app-text-muted);
+    margin-top: -2px;
+}

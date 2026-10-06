@@ -1,0 +1,2 @@
+[serve.static]
+plugins = ["./scripts/postcss-plugin.ts"]
