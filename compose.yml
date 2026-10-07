@@ -15,7 +15,7 @@ services:
             - remnawave-network
         labels:
             - 'traefik.enable=true'
-            - 'traefik.http.routers.vpn-control-bot.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`${WEBAPP_PATH:-/bot}`)'
+            - 'traefik.http.routers.vpn-control-bot.rule=Host(`${APP_DOMAIN}`) && (PathPrefix(`${WEBAPP_PATH:-/bot}`) || PathPrefix(`/pay/`))'
             - 'traefik.http.routers.vpn-control-bot.priority=100'
             - 'traefik.http.routers.vpn-control-bot.tls=true'
             - 'traefik.http.routers.vpn-control-bot.entrypoints=${TRAEFIK_ENTRYPOINTS:-web,websecure}'

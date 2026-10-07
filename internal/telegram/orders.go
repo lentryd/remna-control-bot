@@ -9,11 +9,25 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"vpn-control-bot/internal/orders"
+	"vpn-control-bot/internal/payments"
 	"vpn-control-bot/internal/telegram/view"
 	"vpn-control-bot/internal/vpnctl"
 )
 
-var _ orders.Notifier = (*Bot)(nil)
+var (
+	_ orders.Notifier = (*Bot)(nil)
+	_ orders.Alerter  = (*Bot)(nil)
+)
+
+// Alert sends a plain message to the admin chat (no parse mode: the text may
+// hold any characters). Without an admin chat it does nothing.
+func (b *Bot) Alert(ctx context.Context, text string) error {
+	if b.AdminChatID == 0 {
+		return nil
+	}
+	_, err := b.tg.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: b.AdminChatID, Text: text})
+	return err
+}
 
 func (b *Bot) PayScreen(ctx context.Context, o orders.Order, details string) error {
 	s := view.PayScreen(o, details)
@@ -208,7 +222,20 @@ func (b *Bot) onOrderCallback(ctx context.Context, _ *tgbot.Bot, u *models.Updat
 			b.Log.Error("create order", "err", err)
 			answer.Text, answer.ShowAlert = view.TxtDown, true
 		default:
-			b.show(ctx, chatID, msgID, view.Confirm(*o))
+			b.show(ctx, chatID, msgID, view.Confirm(*o, b.providerButtons()...))
+		}
+		return
+	}
+	if provider, id, ok := parseProviderCallback(q.Data); ok {
+		o, err := b.Orders.Pay(ctx, c.ID, id, provider)
+		switch {
+		case errors.Is(err, orders.ErrStateChanged), errors.Is(err, orders.ErrNotFound), errors.Is(err, orders.ErrBadRequest):
+			answer.Text = view.TxtOrderDone
+		case err != nil:
+			b.Log.Error("pay with provider", "provider", provider, "err", err)
+			answer.Text, answer.ShowAlert = view.TxtProviderDown, true
+		default:
+			b.show(ctx, chatID, msgID, view.ProviderPay(*o, b.Orders.Providers.Title(provider)))
 		}
 		return
 	}
@@ -237,4 +264,59 @@ func (b *Bot) onOrderCallback(ctx context.Context, _ *tgbot.Bot, u *models.Updat
 		}
 		return
 	}
+}
+
+// InvoiceLink is payments.Stars' LinkFunc: a Telegram Stars invoice link.
+func (b *Bot) InvoiceLink(ctx context.Context, title, description, payload string, stars int) (string, error) {
+	return b.tg.CreateInvoiceLink(ctx, &tgbot.CreateInvoiceLinkParams{
+		Title: title, Description: description, Payload: payload, Currency: "XTR",
+		Prices: []models.LabeledPrice{{Label: "Оплата", Amount: stars}},
+	})
+}
+
+// onPreCheckout answers Telegram's "may this payment go ahead?" within its
+// 10 s limit: only for an order of this very user that still waits for it.
+func (b *Bot) onPreCheckout(ctx context.Context, q *models.PreCheckoutQuery) {
+	ans := &tgbot.AnswerPreCheckoutQueryParams{PreCheckoutQueryID: q.ID, OK: true}
+	if b.Orders == nil || q.Currency != "XTR" {
+		ans.OK, ans.ErrorMessage = false, "Оплата недоступна."
+	} else if err := b.Orders.CheckInvoice(ctx, "stars", q.InvoicePayload, q.From.ID, float64(q.TotalAmount), q.Currency); err != nil {
+		ans.OK, ans.ErrorMessage = false, "Этот счёт больше недействителен. Создайте заказ заново."
+		b.Log.Warn("pre-checkout refused", "payload", q.InvoicePayload, "user", q.From.ID, "err", err)
+	}
+	if _, err := b.tg.AnswerPreCheckoutQuery(ctx, ans); err != nil {
+		b.Log.Error("answer pre-checkout", "err", err)
+	}
+}
+
+// onStarsPaid applies a Stars payment; the customer's notice comes from the
+// order service. Telegram may repeat the update: a replay is ErrStateChanged.
+// This bot only issues XTR invoices, so any other currency is not applied but
+// is logged loudly: the customer has paid and an operator must look at it.
+func (b *Bot) onStarsPaid(ctx context.Context, m *models.Message) {
+	sp := m.SuccessfulPayment
+	if b.Orders == nil {
+		return
+	}
+	if sp.Currency != "XTR" {
+		b.Log.Error("successful_payment in an unexpected currency, not applied", "currency", sp.Currency,
+			"order", sp.InvoicePayload, "charge", sp.TelegramPaymentChargeID, "amount", sp.TotalAmount)
+		return
+	}
+	_, err := b.Orders.Paid(ctx, payments.Event{Provider: "stars", OrderID: sp.InvoicePayload, ExternalID: sp.TelegramPaymentChargeID,
+		Paid: true, Amount: float64(sp.TotalAmount), Currency: sp.Currency})
+	switch {
+	case err == nil, errors.Is(err, orders.ErrStateChanged):
+	default:
+		// The money is taken but the order was not applied: this needs a human.
+		b.Log.Error("stars payment not applied", "order", sp.InvoicePayload, "charge", sp.TelegramPaymentChargeID, "err", err)
+	}
+}
+
+func (b *Bot) providerButtons() []view.ProviderButton {
+	var out []view.ProviderButton
+	for _, p := range b.Orders.Providers.Enabled() {
+		out = append(out, view.ProviderButton{ID: p.ID(), Title: p.Title()})
+	}
+	return out
 }

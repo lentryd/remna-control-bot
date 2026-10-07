@@ -81,13 +81,15 @@ export interface OrderRequest {
     months?: number
     days?: number
     amount?: number
+    method?: string
 }
 export interface OrderQuote {
     title: string
     price: number
     from_balance: number
     to_pay: number
-    methods: ('manual' | 'balance')[]
+    methods: string[]
+    titles?: Record<string, string>
 }
 export interface Order {
     id: string
@@ -98,8 +100,9 @@ export interface Order {
     from_balance: number
     to_pay: number
     paid: number
-    method: 'manual' | 'balance'
-    status: 'new' | 'awaiting_receipt' | 'pending_review' | 'approving' | 'approved' | 'credited' | 'failed' | 'rejected' | 'expired' | 'cancelled'
+    method: string
+    pay_url?: string
+    status: 'new' | 'awaiting_payment' | 'awaiting_receipt' | 'pending_review' | 'approving' | 'approved' | 'credited' | 'failed' | 'rejected' | 'expired' | 'cancelled'
     reason?: string
     until?: string
     created_at: string

@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"strings"
 	"testing"
 
 	"vpn-control-bot/internal/refcode"
@@ -41,6 +42,19 @@ func TestParseIDs(t *testing.T) {
 	for _, in := range []string{"rp:3:1", "rp:3:1:0:0", "rp:a:1:0", "rp:3:-1:0", "pr:3:1:0"} {
 		if _, ok := parseIDs(in, "rp:", 3); ok {
 			t.Errorf("%q accepted", in)
+		}
+	}
+}
+
+func TestParseProviderCallback(t *testing.T) {
+	const id = "0c6f2b3a-5d4e-4f1a-9b7c-8e2d1a3f4b5c"
+	p, o, ok := parseProviderCallback("pp:yookassa:" + id)
+	if !ok || p != "yookassa" || o != id {
+		t.Fatalf("%q %q %v", p, o, ok)
+	}
+	for _, bad := range []string{"pp:yookassa", "pp::" + id, "pp:yookassa:1", "pp:yoo kassa:" + id, "pp:a:b:" + id, "pr:yookassa:" + id, "pp:" + strings.Repeat("a", 40) + ":" + id} {
+		if _, _, ok := parseProviderCallback(bad); ok {
+			t.Errorf("%q must be rejected", bad)
 		}
 	}
 }

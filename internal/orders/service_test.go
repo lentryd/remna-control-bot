@@ -3,11 +3,13 @@ package orders
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 
+	"vpn-control-bot/internal/payments"
 	"vpn-control-bot/internal/vpnctl"
 )
 
@@ -171,5 +173,51 @@ func TestOrderIDsAreUUIDs(t *testing.T) {
 	list, total, err := s.List(ctx, c.ID, 10, 0)
 	if err != nil || total != 3 || len(list) != 3 || list[0].ID != last.ID {
 		t.Fatalf("list %v %d %v: newest first", list, total, err)
+	}
+}
+
+func TestQuoteListsProviders(t *testing.T) {
+	s, _, _, c := setup(t)
+	ctx := context.Background()
+	r := Request{Kind: KindRenew, ItemKind: "subscription", ItemID: 3, Months: 3}
+
+	q, err := s.Quote(ctx, c, r)
+	if err != nil || !slices.Equal(q.Methods, []Method{MethodManual}) || len(q.Titles) != 0 {
+		t.Fatalf("no providers: %+v %v", q, err)
+	}
+	s.Providers = payments.NewRegistry(&payments.Fake{Name: "fake"})
+	q, _ = s.Quote(ctx, c, r)
+	if !slices.Equal(q.Methods, []Method{MethodManual, "fake"}) || q.Titles["fake"] != "Fake pay" {
+		t.Fatalf("with a provider: %+v", q)
+	}
+	s.Manual = false
+	if q, _ = s.Quote(ctx, c, r); !slices.Equal(q.Methods, []Method{"fake"}) {
+		t.Fatalf("providers only: %+v", q)
+	}
+	// Fully covered by the balance: only the balance, whatever is configured.
+	c.Balance, c.BalanceOwn = 5000, 5000
+	if q, _ = s.Quote(ctx, c, r); !slices.Equal(q.Methods, []Method{MethodBalance}) {
+		t.Fatalf("covered: %+v", q)
+	}
+}
+
+func TestProviderColumnsRoundTrip(t *testing.T) {
+	s, _, _, c := setup(t)
+	ctx := context.Background()
+	o, err := s.Create(ctx, c, 77, Request{Kind: KindTopup, Amount: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.move(ctx, o.ID, []Status{StatusAwaitingReceipt}, StatusAwaitingPayment, map[string]any{
+		"method": "fake", "external_id": "ext-1", "pay_url": "https://pay.test/x", "pay_amount": 66.67, "pay_currency": "XTR"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Get(ctx, o.ID)
+	if err != nil || got.Status != StatusAwaitingPayment || got.Method != "fake" || !got.Method.IsProvider() || got.ExternalID != "ext-1" ||
+		got.PayURL != "https://pay.test/x" || got.PayAmount != 66.67 || got.PayCurrency != "XTR" {
+		t.Fatalf("%+v %v", got, err)
+	}
+	if MethodManual.IsProvider() || MethodBalance.IsProvider() || Method("").IsProvider() {
+		t.Error("manual, balance and empty are not providers")
 	}
 }

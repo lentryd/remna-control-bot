@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"vpn-control-bot/internal/config"
 	"vpn-control-bot/internal/notify"
 	"vpn-control-bot/internal/orders"
+	"vpn-control-bot/internal/payments"
 	"vpn-control-bot/internal/refcode"
 	"vpn-control-bot/internal/store"
 	"vpn-control-bot/internal/telegram"
@@ -54,6 +56,28 @@ func run() error {
 		DB: st.DB(), Chats: st, API: api, PayMode: cfg.PayMode, Manual: cfg.ManualEnabled(),
 		Details: cfg.ManualPayDetails, TTL: cfg.OrderTTL, Now: time.Now, Log: log,
 	}
+	var stars *payments.Stars
+	var provs []payments.Provider
+	pc := cfg.Pay
+	if pc.YooKassaOn() {
+		provs = append(provs, &payments.YooKassa{ShopID: pc.YooKassaShopID, Secret: pc.YooKassaSecret, ReturnURL: pc.YooKassaReturnURL,
+			ReceiptEmail: pc.YooKassaReceiptEmail, VAT: pc.YooKassaVAT})
+	}
+	if pc.CryptoBotOn() {
+		provs = append(provs, &payments.CryptoBot{Token: pc.CryptoBotToken, Testnet: pc.CryptoBotTestnet, Assets: pc.CryptoBotAssets})
+	}
+	if pc.HeleketOn() {
+		provs = append(provs, &payments.Heleket{MerchantID: pc.HeleketMerchantID, APIKey: pc.HeleketAPIKey, ToCurrency: pc.HeleketToCurrency,
+			Network: pc.HeleketNetwork, CallbackURL: cfg.PublicURL + "/pay/heleket"})
+	}
+	if pc.StarsOn() {
+		stars = &payments.Stars{RubPerStar: pc.StarsRubRate}
+		provs = append(provs, stars)
+	}
+	svc.Providers = payments.NewRegistry(provs...)
+	if len(provs) > 0 && !strings.HasPrefix(cfg.PublicURL, "https://") {
+		log.Warn("payment providers are on but PUBLIC_URL is not https: webhooks will not reach the bot", "url", cfg.PublicURL)
+	}
 	bot, err := telegram.New(ctx, cfg.BotToken, telegram.Deps{
 		Access: acc, API: api, Codec: codec, Orders: svc, Prompts: st, AdminChatID: cfg.AdminChatID, IsAdmin: cfg.IsAdmin,
 		WebAppURL: cfg.WebAppURL(), PayMode: cfg.PayMode, Log: log,
@@ -62,6 +86,9 @@ func run() error {
 		return err
 	}
 	svc.Notify = bot
+	if stars != nil {
+		stars.Link = bot.InvoiceLink
+	}
 	if cfg.ManualEnabled() {
 		bot.CheckAdminChat(ctx)
 	}
@@ -83,7 +110,10 @@ func run() error {
 	} else {
 		go sweepLoop(ctx, svc, log)
 	}
-	log.Info("started", "mode", cfg.Mode, "pay", cfg.PayMode, "manual", cfg.ManualEnabled(), "notify", cfg.NotifyInterval, "bot", "@"+bot.Username(), "webapp", cfg.WebAppURL(), "addr", cfg.HTTPAddr)
+	if len(provs) > 0 {
+		go providerLoop(ctx, svc, log)
+	}
+	log.Info("started", "mode", cfg.Mode, "pay", cfg.PayMode, "manual", cfg.ManualEnabled(), "notify", cfg.NotifyInterval, "bot", "@"+bot.Username(), "webapp", cfg.WebAppURL(), "addr", cfg.HTTPAddr, "providers", svc.Providers.IDs())
 
 	select {
 	case <-ctx.Done():
@@ -101,6 +131,22 @@ func sweepLoop(ctx context.Context, svc *orders.Service, log *slog.Logger) {
 	for {
 		if err := svc.ExpireStale(ctx); err != nil {
 			log.Error("orders: sweep", "err", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
+// providerLoop recovers lost provider webhooks and expires stale invoices.
+func providerLoop(ctx context.Context, svc *orders.Service, log *slog.Logger) {
+	t := time.NewTicker(time.Minute)
+	defer t.Stop()
+	for {
+		if err := svc.SweepProviders(ctx); err != nil {
+			log.Error("orders: provider sweep", "err", err)
 		}
 		select {
 		case <-ctx.Done():

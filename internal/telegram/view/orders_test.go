@@ -90,3 +90,47 @@ func TestRenewPeriods(t *testing.T) {
 		t.Fatalf("%v", b)
 	}
 }
+
+func TestConfirmWithProviders(t *testing.T) {
+	o := order() // manual
+	s := Confirm(o, ProviderButton{ID: "yookassa", Title: "Карта / СБП"}, ProviderButton{ID: "stars", Title: "Telegram Stars ⭐"})
+	b := buttons(s)
+	if !has(b, CbOrderPay+o.ID) || !has(b, CbOrderProvider+"yookassa:"+o.ID) || !has(b, CbOrderProvider+"stars:"+o.ID) || !has(b, CbOrderCancel+o.ID) {
+		t.Fatalf("buttons %v", b)
+	}
+	for _, cb := range b {
+		if len(cb) > 64 {
+			t.Errorf("callback data %q is over Telegram's 64 bytes", cb)
+		}
+	}
+	undecided := o
+	undecided.Method, undecided.Status = "", orders.StatusNew
+	if b := buttons(Confirm(undecided, ProviderButton{ID: "stars", Title: "S"})); has(b, CbOrderPay+o.ID) || !has(b, CbOrderProvider+"stars:"+o.ID) {
+		t.Errorf("an undecided order offers only providers: %v", b)
+	}
+	bal := o
+	bal.Method = orders.MethodBalance
+	if b := buttons(Confirm(bal, ProviderButton{ID: "stars", Title: "S"})); has(b, CbOrderProvider+"stars:"+o.ID) {
+		t.Errorf("a balance order offers no provider: %v", b)
+	}
+}
+
+func TestProviderPay(t *testing.T) {
+	o := order()
+	o.Status, o.Method, o.PayURL = orders.StatusAwaitingPayment, "yookassa", "https://yoomoney.ru/pay/p1"
+	s := ProviderPay(o, "Карта / СБП")
+	if !strings.Contains(s.Text, "Карта / СБП") || !strings.Contains(s.Text, "800") {
+		t.Fatalf("text:\n%s", s.Text)
+	}
+	var url string
+	for _, row := range s.Keyboard.InlineKeyboard {
+		for _, b := range row {
+			if b.URL != "" {
+				url = b.URL
+			}
+		}
+	}
+	if url != o.PayURL || !has(buttons(s), CbOrderCancel+o.ID) {
+		t.Fatalf("url %q buttons %v", url, buttons(s))
+	}
+}

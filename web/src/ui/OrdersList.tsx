@@ -8,11 +8,12 @@ import { useTranslation } from 'react-i18next'
 import { fmtDate, fmtMoney } from '@shared/format'
 import { SectionCard } from '@shared/ui/section-card'
 import { cancelOrder, requestReceipt, useOrders } from '../api'
-import { tg } from '../telegram'
+import { openExternal, tg } from '../telegram'
 import type { Order } from '../types'
 
 const colors: Record<Order['status'], string> = {
     new: 'gray',
+    awaiting_payment: 'yellow',
     awaiting_receipt: 'yellow',
     pending_review: 'yellow',
     approving: 'yellow',
@@ -41,6 +42,11 @@ export function OrdersList() {
     }
     const receipt = (id: string) => act(id, () => requestReceipt(id).then(() => tg?.close()))
     const cancel = (id: string) => act(id, () => cancelOrder(id))
+    const payAgain = (o: Order) => {
+        if (!o.pay_url) return
+        if (o.method === 'stars' && tg?.openInvoice) tg.openInvoice(o.pay_url, (s) => s === 'paid' && qc.invalidateQueries({ queryKey: ['orders'] }))
+        else openExternal(o.pay_url)
+    }
     if (list.length === 0) return null
     return (
         <Stack gap="xs">
@@ -63,6 +69,12 @@ export function OrdersList() {
                         {o.status === 'awaiting_receipt' && (
                             <Group gap="xs">
                                 <Button disabled={pending !== null} loading={pending === o.id} onClick={() => receipt(o.id)} radius="xl" size="xs" variant="light">{t('orders.send_receipt')}</Button>
+                                <Button color="gray" disabled={pending !== null} onClick={() => cancel(o.id)} radius="xl" size="xs" variant="subtle">{t('orders.cancel')}</Button>
+                            </Group>
+                        )}
+                        {o.status === 'awaiting_payment' && (
+                            <Group gap="xs">
+                                <Button disabled={pending !== null} onClick={() => payAgain(o)} radius="xl" size="xs" variant="light">{t('orders.pay')}</Button>
                                 <Button color="gray" disabled={pending !== null} onClick={() => cancel(o.id)} radius="xl" size="xs" variant="subtle">{t('orders.cancel')}</Button>
                             </Group>
                         )}

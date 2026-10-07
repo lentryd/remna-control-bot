@@ -37,8 +37,10 @@ type Deps struct {
 }
 
 func New(d Deps) *fiber.App {
-	app := fiber.New(fiber.Config{DisableStartupMessage: true, StrictRouting: true})
+	app := fiber.New(fiber.Config{DisableStartupMessage: true, StrictRouting: true, BodyLimit: 1 << 20})
 	s := &server{Deps: d}
+
+	app.Post("/pay/:provider", s.payWebhook)
 
 	api := app.Group(d.Path + "/api")
 	api.Use(s.auth)

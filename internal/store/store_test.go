@@ -120,3 +120,14 @@ func TestMigratesDecisionColumn(t *testing.T) {
 		s.Close()
 	}
 }
+
+func TestOrdersProviderColumns(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "b.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err := s.DB().Exec(`SELECT external_id, pay_url, pay_amount, pay_currency FROM orders`); err != nil {
+		t.Fatalf("provider columns: %v", err)
+	}
+}

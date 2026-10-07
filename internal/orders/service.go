@@ -12,22 +12,24 @@ import (
 
 	"vpn-control-bot/internal/billing"
 	"vpn-control-bot/internal/config"
+	"vpn-control-bot/internal/payments"
 	"vpn-control-bot/internal/store"
 	"vpn-control-bot/internal/vpnctl"
 )
 
 type Service struct {
-	DB      *sql.DB
-	Chats   ChatStates
-	API     vpnctl.Client
-	PayMode config.PayMode
-	Manual  bool
-	Details string
-	TTL     time.Duration
-	Notify  Notifier
-	Now     func() time.Time
-	Log     *slog.Logger
-	NewID   func() string // order id source; nil: UUIDs (tests use a counter)
+	DB        *sql.DB
+	Chats     ChatStates
+	API       vpnctl.Client
+	PayMode   config.PayMode
+	Manual    bool
+	Providers *payments.Registry // online payment providers; nil: none
+	Details   string
+	TTL       time.Duration
+	Notify    Notifier
+	Now       func() time.Time
+	Log       *slog.Logger
+	NewID     func() string // order id source; nil: UUIDs (tests use a counter)
 }
 
 // Quote prices r for c on the server; nothing the client sends but the
@@ -43,13 +45,21 @@ func (s *Service) Quote(ctx context.Context, c *vpnctl.Customer, r Request) (Quo
 	} else {
 		q.ToPay = q.Price
 	}
+	q.Methods = []Method{}
 	switch {
 	case q.ToPay == 0:
 		q.Methods = []Method{MethodBalance}
-	case s.Manual:
-		q.Methods = []Method{MethodManual}
 	default:
-		q.Methods = []Method{}
+		if s.Manual {
+			q.Methods = append(q.Methods, MethodManual)
+		}
+		for _, p := range s.Providers.Enabled() {
+			q.Methods = append(q.Methods, Method(p.ID()))
+			if q.Titles == nil {
+				q.Titles = map[string]string{}
+			}
+			q.Titles[p.ID()] = p.Title()
+		}
 	}
 	return q, nil
 }
@@ -166,24 +176,11 @@ func itemTitle(c *vpnctl.Customer, kind string, id int) (string, bool) {
 	return "", false
 }
 
-// Create stores an order with the quoted price. Fully covered by the
-// balance → StatusNew (method balance, Fulfill via PayFromBalance);
-// otherwise a manual order waiting for its receipt.
+// Create is CreateWith the default method: the balance when it covers the
+// whole price, manual payment when it is on, otherwise an undecided order the
+// customer pays with Pay.
 func (s *Service) Create(ctx context.Context, c *vpnctl.Customer, chatID int64, r Request) (*Order, error) {
-	q, err := s.Quote(ctx, c, r)
-	if err != nil {
-		return nil, err
-	}
-	if len(q.Methods) == 0 {
-		return nil, ErrManualOff
-	}
-	r.Amount = 0
-	o := &Order{CustomerID: c.ID, ChatID: chatID, Request: r, Title: q.Title, Price: q.Price,
-		FromBalance: q.FromBalance, ToPay: q.ToPay, Method: q.Methods[0], Status: StatusNew}
-	if o.Method == MethodManual {
-		o.Status = StatusAwaitingReceipt
-	}
-	return o, s.insert(ctx, o)
+	return s.CreateWith(ctx, c, chatID, r, "")
 }
 
 // RequestReceipt makes the customer's chat wait for this order's receipt
@@ -247,7 +244,7 @@ func (s *Service) Cancel(ctx context.Context, customerID int, id string) error {
 	if err != nil {
 		return err
 	}
-	if err := s.move(ctx, o.ID, []Status{StatusNew, StatusAwaitingReceipt}, StatusCancelled, nil); err != nil {
+	if err := s.move(ctx, o.ID, []Status{StatusNew, StatusAwaitingReceipt, StatusAwaitingPayment}, StatusCancelled, nil); err != nil {
 		return err
 	}
 	if st, ok, _ := s.Chats.GetChatState(ctx, o.ChatID); ok && st.OrderID == o.ID {

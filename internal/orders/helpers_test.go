@@ -20,6 +20,7 @@ var now = time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
 type spy struct {
 	mu                         sync.Mutex
 	pay, posted, updated, sent []Order
+	alerts                     []string
 }
 
 func (s *spy) PayScreen(_ context.Context, o Order, _ string) error {
@@ -44,6 +45,13 @@ func (s *spy) Customer(_ context.Context, o Order) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sent = append(s.sent, o)
+	return nil
+}
+
+func (s *spy) Alert(_ context.Context, text string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.alerts = append(s.alerts, text)
 	return nil
 }
 

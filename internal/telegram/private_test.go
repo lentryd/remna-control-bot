@@ -32,3 +32,14 @@ func TestPrivateOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestAllowedPreCheckout(t *testing.T) {
+	u := &models.Update{PreCheckoutQuery: &models.PreCheckoutQuery{ID: "1", From: &models.User{ID: 5}}}
+	if !allowed(u, -100) {
+		t.Fatal("pre_checkout_query must reach the bot: Telegram wants an answer within 10 s")
+	}
+	u.PreCheckoutQuery.From = nil
+	if allowed(u, -100) {
+		t.Fatal("a query without a sender is not ours")
+	}
+}

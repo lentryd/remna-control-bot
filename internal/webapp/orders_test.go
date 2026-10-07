@@ -3,8 +3,10 @@ package webapp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
@@ -13,6 +15,7 @@ import (
 
 	"vpn-control-bot/internal/config"
 	"vpn-control-bot/internal/orders"
+	"vpn-control-bot/internal/payments"
 	"vpn-control-bot/internal/store"
 	"vpn-control-bot/internal/vpnctl"
 )
@@ -240,5 +243,157 @@ func TestOrdersListPagination(t *testing.T) {
 	}
 	if _, got := list("?page=5"); len(got) != 0 {
 		t.Errorf("page past the end: %+v", got)
+	}
+}
+
+// withProvider attaches a fake provider to the service.
+func withProvider(d *Deps) *payments.Fake {
+	fp := &payments.Fake{Name: "fake"}
+	d.Orders.Providers = payments.NewRegistry(fp)
+	return fp
+}
+
+func hook(t *testing.T, d *Deps, provider, body string) (int, string) {
+	t.Helper()
+	req := httptest.NewRequest("POST", "/pay/"+provider, strings.NewReader(body))
+	req.Header.Set("X-Test-Signature", "ok")
+	resp, err := New(*d).Test(req, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(b)
+}
+
+func TestCreateOrderWithProvider(t *testing.T) {
+	f := ordersFake()
+	d := app(f)
+	withOrders(t, f, d)
+	fp := withProvider(d)
+
+	code, out := do(t, d, "POST", "/bot/api/orders/quote", tma(77), `{"kind":"renew","item_kind":"subscription","item_id":3,"months":1}`)
+	if code != 200 || !strings.Contains(out, `"methods":["manual","fake"]`) || !strings.Contains(out, `"titles":{"fake":"Fake pay"}`) {
+		t.Fatalf("quote %d %s", code, out)
+	}
+	code, out = do(t, d, "POST", "/bot/api/orders", tma(77), `{"kind":"renew","item_kind":"subscription","item_id":3,"months":1,"method":"fake"}`)
+	if code != 201 || !strings.Contains(out, `"status":"awaiting_payment"`) || !strings.Contains(out, `"method":"fake"`) || !strings.Contains(out, `"pay_url":"https://pay.test/`) {
+		t.Fatalf("create %d %s", code, out)
+	}
+	if code, _ := do(t, d, "POST", "/bot/api/orders", tma(77), `{"kind":"topup","amount":100,"method":"nope"}`); code != 400 {
+		t.Errorf("unknown method: %d", code)
+	}
+	fp.Err = errors.New("provider is down")
+	code, out = do(t, d, "POST", "/bot/api/orders", tma(77), `{"kind":"topup","amount":100,"method":"fake"}`)
+	if code != 424 || !strings.Contains(out, `"provider_failed"`) || strings.Contains(out, "down") {
+		t.Errorf("provider failure: %d %s", code, out)
+	}
+}
+
+func TestPayWebhookStatusCodes(t *testing.T) {
+	f := ordersFake()
+	d := app(f)
+	withOrders(t, f, d)
+	fp := withProvider(d)
+	id := newOrder(t, d, `{"kind":"topup","amount":100,"method":"fake"}`)
+	ev := payments.Event{Provider: "fake", OrderID: id, ExternalID: "ext-1", Paid: true, Amount: 100, Currency: "RUB"}
+	fp.Hook = func(h http.Header, body []byte) (payments.Event, bool, error) {
+		switch string(body) {
+		case "forged":
+			return payments.Event{}, false, payments.ErrBadSignature
+		case "garbage":
+			return payments.Event{}, false, payments.ErrBadBody
+		case "ignore":
+			return payments.Event{}, false, nil
+		case "boom":
+			return payments.Event{}, false, errors.New("provider api down")
+		case "stranger":
+			e := ev
+			e.OrderID = "00000000-0000-4000-8000-000000000000"
+			return e, true, nil
+		}
+		if h.Get("X-Test-Signature") != "ok" {
+			t.Errorf("headers were not passed on: %v", h)
+		}
+		return ev, true, nil
+	}
+	for body, want := range map[string]int{"forged": 401, "garbage": 400, "ignore": 200, "boom": 500, "stranger": 200} {
+		if code, _ := hook(t, d, "fake", body); code != want {
+			t.Errorf("%s: %d, want %d", body, code, want)
+		}
+	}
+	if code, _ := hook(t, d, "nope", "x"); code != 404 {
+		t.Errorf("unconfigured provider: %d", code)
+	}
+	if code, _ := hook(t, d, "fake", strings.Repeat("x", 70<<10)); code != 413 {
+		t.Errorf("oversized body: %d", code)
+	}
+	if code, _ := hook(t, d, "fake", "paid"); code != 200 {
+		t.Fatalf("paid: %d", code)
+	}
+	if cur, _ := d.Orders.Get(t.Context(), id); cur.Status != orders.StatusApproved {
+		t.Fatalf("order %s", cur.Status)
+	}
+}
+
+// A body over Fiber's BodyLimit is refused before any handler or middleware
+// runs: an anonymous caller cannot make the server buffer megabytes.
+func TestBodyLimit(t *testing.T) {
+	f := ordersFake()
+	d := app(f)
+	withOrders(t, f, d)
+	fp := withProvider(d)
+	reached := 0
+	fp.Hook = func(http.Header, []byte) (payments.Event, bool, error) {
+		reached++
+		return payments.Event{}, false, nil
+	}
+	huge := strings.Repeat("x", 2<<20)
+	// fasthttp refuses the request while reading it; Fiber's Test reports
+	// that as an error, a live server answers 413.
+	refused := func(path string) {
+		t.Helper()
+		resp, err := New(*d).Test(httptest.NewRequest("POST", path, strings.NewReader(huge)), -1)
+		switch {
+		case err != nil && strings.Contains(err.Error(), "body size exceeds"):
+		case err == nil && resp.StatusCode == 413:
+		default:
+			t.Errorf("%s: 2 MiB body not refused: %v %v", path, resp, err)
+		}
+	}
+	refused("/pay/fake")
+	if reached != 0 {
+		t.Errorf("the provider saw an oversized webhook")
+	}
+	// Past the limit even an unauthenticated API call is cut off at the door
+	// (without the limit it would get as far as the 401 of the auth check).
+	refused("/bot/api/orders")
+	if code, _ := hook(t, d, "fake", "small"); code != 200 || reached != 1 {
+		t.Errorf("a normal webhook still works: %d, reached %d", code, reached)
+	}
+}
+
+func TestPayWebhookDuplicate(t *testing.T) {
+	f := ordersFake()
+	d := app(f)
+	withOrders(t, f, d)
+	fp := withProvider(d)
+	id := newOrder(t, d, `{"kind":"topup","amount":100,"method":"fake"}`)
+	fp.Hook = func(http.Header, []byte) (payments.Event, bool, error) {
+		return payments.Event{Provider: "fake", OrderID: id, ExternalID: "ext-1", Paid: true, Amount: 100, Currency: "RUB"}, true, nil
+	}
+	for i := range 3 {
+		if code, _ := hook(t, d, "fake", "x"); code != 200 {
+			t.Fatalf("delivery %d: %d (providers keep retrying anything but 200)", i, code)
+		}
+	}
+	if len(f.Payments) != 1 {
+		t.Fatalf("the panel got %d payments for one order", len(f.Payments))
+	}
+}
+
+func TestPayWebhookNeedsOrders(t *testing.T) {
+	d := app(ordersFake()) // no order service
+	if code, _ := hook(t, d, "fake", "x"); code != 404 {
+		t.Errorf("%d", code)
 	}
 }

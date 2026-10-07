@@ -22,6 +22,7 @@ interface WebApp {
     openTelegramLink(url: string): void
     showAlert(message: string): void
     openLink(url: string): void
+    openInvoice(url: string, cb?: (status: 'paid' | 'cancelled' | 'failed' | 'pending') => void): void
     close(): void
 }
 declare global {

@@ -39,12 +39,43 @@ and `REF_SECRET`, nothing is stored.
 | `NOTIFY_INTERVAL` | no | `1h` | how often to check for notifications; `0` turns them off |
 | `TRAFFIC_ALERT_PCT` | no | `80` | traffic share of the limit that triggers an alert (with the reset date and a tariff with more traffic) |
 | `REMIND_DAYS` | no | `3,1` | days before the end to remind about payment (plus one reminder right after it ends) |
+| `YOOKASSA_SHOP_ID` | no | | YooKassa shop id; YooKassa turns on when this and the secret key are set |
+| `YOOKASSA_SECRET_KEY` | no | | YooKassa secret key |
+| `YOOKASSA_RETURN_URL` | no | WebApp URL (`PUBLIC_URL + WEBAPP_PATH + /`) | where the customer lands after paying |
+| `YOOKASSA_RECEIPT_EMAIL` | no | | customer e-mail for the fiscal receipt; no receipt when empty |
+| `YOOKASSA_VAT_CODE` | no | `1` | VAT code of the receipt item, `1`..`6` |
+| `CRYPTOBOT_TOKEN` | no | | Crypto Pay app token; turns CryptoBot on |
+| `CRYPTOBOT_TESTNET` | no | `false` | use the CryptoBot testnet (@CryptoTestnetBot) |
+| `CRYPTOBOT_ASSETS` | no | | accepted assets, e.g. `USDT,TON` (empty: all) |
+| `HELEKET_MERCHANT_ID` | no | | Heleket merchant id; Heleket turns on when this and the API key are set |
+| `HELEKET_API_KEY` | no | | Heleket payment API key |
+| `HELEKET_TO_CURRENCY` | no | | fixed asset the customer pays in (empty: customer chooses) |
+| `HELEKET_NETWORK` | no | | fixed network (empty: customer chooses) |
+| `STARS_RUB_RATE` | no | | roubles per Telegram Star; `> 0` turns Stars on |
 
 **Panel token:** vpn-control → Settings → API tokens → preset **Telegram bot**
 (`customers:lookup`, `customers:get`, `customers:create`, `customers:update`, `customers:list`,
 `subscriptions:list`, `tariffs:list`; the two lists are for notifications, plus the payment scopes).
 Manual payment turns on only when `ADMIN_CHAT_ID`, `ADMIN_IDS` and `MANUAL_PAY_DETAILS` are all set.
 Create the vpn-control token with the *bot* preset (it now includes payment scopes) — re-issue the existing token.
+
+## Payment providers
+
+Customers can pay with **Telegram Stars**, **YooKassa** (cards, SBP), **CryptoBot** and **Heleket** (crypto) next to
+manual transfer and the balance. A provider appears in the checkout when its keys are set. The payment is confirmed
+automatically and applied exactly once; a payment that arrives for an expired or cancelled order is still applied, and
+a wrong amount goes to the admin chat as a card.
+
+Webhooks: the bot serves `POST {PUBLIC_URL}/pay/yookassa`, `/pay/cryptobot`, `/pay/heleket` (not under `WEBAPP_PATH`) —
+route `/pay/*` to the bot's `HTTP_ADDR` in your reverse proxy, and register the URL in the provider's cabinet
+(YooKassa: HTTP notifications for `payment.succeeded`; CryptoBot: Crypto Pay → My Apps → Webhooks; Heleket sends to
+the callback URL the bot passes with every invoice). Stars need no webhook. If a webhook is lost, the bot asks the
+provider about waiting invoices every minute.
+
+Smoke test per provider (use the provider's test mode): YooKassa — a test shop and test card; CryptoBot — `CRYPTOBOT_TESTNET=true`
+with @CryptoTestnetBot; Heleket — a test-mode merchant; Stars — pay a small order from a test account. Create a top-up
+of the smallest amount, pay it, and check that the order turns *Оплачен*, the panel has a payment with the provider's
+name as its method, and a second delivery of the webhook changes nothing.
 
 ## Local development
 
@@ -70,5 +101,5 @@ plus the WebApp dev server; it stops the bot container, and traefik then routes 
 ## Production
 
 Put `compose.yml` and `.env` next to the panel and run `docker compose up -d --build`. The container joins
-the panel's docker network; its Traefik labels route `Host(APP_DOMAIN) && PathPrefix(WEBAPP_PATH)` to the bot
-with a higher priority than the panel's router. With another balancer, route that path to port 8090.
+the panel's docker network; its Traefik labels route `Host(APP_DOMAIN)` with `PathPrefix(WEBAPP_PATH)` or `PathPrefix(/pay/)` (provider webhooks) to the bot
+with a higher priority than the panel's router. With another balancer, route both paths to port 8090.

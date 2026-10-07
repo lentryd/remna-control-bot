@@ -23,6 +23,7 @@ type Status string
 const (
 	StatusNew             Status = "new"
 	StatusAwaitingReceipt Status = "awaiting_receipt"
+	StatusAwaitingPayment Status = "awaiting_payment" // an invoice is issued, the provider will confirm
 	StatusPendingReview   Status = "pending_review"
 	StatusApproving       Status = "approving"
 	StatusApproved        Status = "approved"
@@ -39,6 +40,9 @@ const (
 	MethodManual  Method = "manual"
 	MethodBalance Method = "balance"
 )
+
+// IsProvider: the method is an online payment provider's id ("yookassa", …).
+func (m Method) IsProvider() bool { return m != "" && m != MethodManual && m != MethodBalance }
 
 type ReceiptKind string
 
@@ -59,11 +63,12 @@ type Request struct {
 }
 
 type Quote struct {
-	Title       string   `json:"title"`
-	Price       float64  `json:"price"`
-	FromBalance float64  `json:"from_balance"`
-	ToPay       float64  `json:"to_pay"`
-	Methods     []Method `json:"methods"`
+	Title       string            `json:"title"`
+	Price       float64           `json:"price"`
+	FromBalance float64           `json:"from_balance"`
+	ToPay       float64           `json:"to_pay"`
+	Methods     []Method          `json:"methods"`
+	Titles      map[string]string `json:"titles,omitempty"` // provider id → button label
 }
 
 type Order struct {
@@ -88,6 +93,10 @@ type Order struct {
 	PanelPaymentID int
 	ResultUntil    *time.Time
 	Error          string
+	ExternalID     string  // provider's payment/invoice id
+	PayURL         string  // where the customer pays
+	PayAmount      float64 // what was invoiced, in PayCurrency (roubles, or stars for Stars)
+	PayCurrency    string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
@@ -123,6 +132,11 @@ type Notifier interface {
 	Customer(ctx context.Context, o Order) error // decision notice to the customer
 }
 
+// Alerter is an optional Notifier capability: a plain message to the admin chat.
+type Alerter interface {
+	Alert(ctx context.Context, text string) error
+}
+
 type ChatStates interface { // implemented by *store.Store
 	SetChatState(ctx context.Context, chatID int64, st store.ChatState) error
 	GetChatState(ctx context.Context, chatID int64) (store.ChatState, bool, error)
@@ -135,4 +149,5 @@ var (
 	ErrBadRequest   = errors.New("orders: bad request")
 	ErrManualOff    = errors.New("orders: manual payment is off")
 	ErrUnderpaid    = errors.New("orders: received less than to pay")
+	ErrProvider     = errors.New("orders: payment provider failed")
 )

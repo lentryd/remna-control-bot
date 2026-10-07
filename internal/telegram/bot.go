@@ -51,7 +51,7 @@ type Bot struct {
 func New(ctx context.Context, token string, d Deps) (*Bot, error) {
 	b := &Bot{Deps: d, links: view.Links{WebApp: d.WebAppURL}}
 	tg, err := tgbot.New(token,
-		tgbot.WithDefaultHandler(b.onText),
+		tgbot.WithDefaultHandler(b.onUpdate),
 		tgbot.WithMiddlewares(gate(d.AdminChatID)),
 		tgbot.WithErrorsHandler(func(err error) { d.Log.Error("telegram", "err", err) }),
 	)
@@ -71,7 +71,7 @@ func New(ctx context.Context, token string, d Deps) (*Bot, error) {
 	for _, p := range []string{"m:", view.CbSub, view.CbSubsPage, view.CbTariffsPage, view.CbRenew, view.CbOrdersPage} {
 		tg.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, p, tgbot.MatchTypePrefix, b.onCallback)
 	}
-	for _, p := range []string{view.CbRenewPick, view.CbOrderPay, view.CbOrderBal, view.CbOrderCancel} {
+	for _, p := range []string{view.CbRenewPick, view.CbOrderPay, view.CbOrderBal, view.CbOrderCancel, view.CbOrderProvider} {
 		tg.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, p, tgbot.MatchTypePrefix, b.onOrderCallback)
 	}
 	tg.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, "o", tgbot.MatchTypePrefix, b.onAdmin)
@@ -204,6 +204,18 @@ func (b *Bot) onHelp(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 		return
 	}
 	b.show(ctx, u.Message.Chat.ID, 0, view.Notice(view.TxtHelp))
+}
+
+// onUpdate routes what no handler matched: Stars' payment events, else text.
+func (b *Bot) onUpdate(ctx context.Context, tb *tgbot.Bot, u *models.Update) {
+	switch {
+	case u.PreCheckoutQuery != nil:
+		b.onPreCheckout(ctx, u.PreCheckoutQuery)
+	case u.Message != nil && u.Message.SuccessfulPayment != nil:
+		b.onStarsPaid(ctx, u.Message)
+	default:
+		b.onText(ctx, tb, u)
+	}
 }
 
 // onText handles any other message: a subscription link while we wait for

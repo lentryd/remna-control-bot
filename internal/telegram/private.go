@@ -31,6 +31,8 @@ func allowed(u *models.Update, adminChat int64) bool {
 			return true
 		}
 		return adminChat != 0 && m.Chat.ID == adminChat && strings.HasPrefix(u.CallbackQuery.Data, "o")
+	case u.PreCheckoutQuery != nil:
+		return u.PreCheckoutQuery.From != nil
 	}
 	return false
 }

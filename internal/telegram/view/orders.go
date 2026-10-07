@@ -11,13 +11,13 @@ import (
 )
 
 var statusIcon = map[orders.Status]string{
-	orders.StatusAwaitingReceipt: "📎", orders.StatusPendingReview: "⏳", orders.StatusApproving: "⏳",
+	orders.StatusAwaitingReceipt: "📎", orders.StatusAwaitingPayment: "💳", orders.StatusPendingReview: "⏳", orders.StatusApproving: "⏳",
 	orders.StatusApproved: "✅", orders.StatusCredited: "💰", orders.StatusFailed: "⚠️",
 	orders.StatusRejected: "❌", orders.StatusExpired: "⌛", orders.StatusCancelled: "✖️",
 }
 
 var statusText = map[orders.Status]string{
-	orders.StatusAwaitingReceipt: "ждёт квитанцию", orders.StatusPendingReview: "на проверке", orders.StatusApproving: "проводится",
+	orders.StatusAwaitingReceipt: "ждёт квитанцию", orders.StatusAwaitingPayment: "ждёт оплату", orders.StatusPendingReview: "на проверке", orders.StatusApproving: "проводится",
 	orders.StatusApproved: "оплачен", orders.StatusCredited: "зачислен на баланс", orders.StatusFailed: "ошибка, разбираемся",
 	orders.StatusRejected: "отклонён", orders.StatusExpired: "истёк", orders.StatusCancelled: "отменён",
 }
@@ -41,14 +41,31 @@ func PayScreen(o orders.Order, details string) Screen {
 	return Screen{Text: text, Keyboard: kb([]btn{cb(BtnCancel, CbOrderCancel+o.ID)})}
 }
 
-// Confirm is the pay screen before the receipt is asked for (bot renew flow).
-func Confirm(o orders.Order) Screen {
+// ProviderButton is an online payment method offered on the confirm screen.
+type ProviderButton struct{ ID, Title string }
+
+// Confirm is the pay screen before payment is chosen (bot renew flow): a
+// receipt for manual orders, one button per provider, cancel.
+func Confirm(o orders.Order, providers ...ProviderButton) Screen {
 	if o.Method == orders.MethodBalance {
 		return Screen{Text: summary(o) + "\n\nВся сумма спишется с баланса.", Keyboard: kb(
 			[]btn{cb(BtnPayBalance, CbOrderBal+o.ID)}, []btn{cb(BtnCancel, CbOrderCancel+o.ID)})}
 	}
-	return Screen{Text: summary(o), Keyboard: kb(
-		[]btn{cb(BtnSendReceipt, CbOrderPay+o.ID)}, []btn{cb(BtnCancel, CbOrderCancel+o.ID)})}
+	var rows [][]btn
+	if o.Method == orders.MethodManual {
+		rows = append(rows, []btn{cb(BtnSendReceipt, CbOrderPay+o.ID)})
+	}
+	for _, p := range providers {
+		rows = append(rows, []btn{cb("💳 "+p.Title, CbOrderProvider+p.ID+":"+o.ID)})
+	}
+	rows = append(rows, []btn{cb(BtnCancel, CbOrderCancel+o.ID)})
+	return Screen{Text: summary(o), Keyboard: kb(rows...)}
+}
+
+// ProviderPay carries the payment link of a provider order.
+func ProviderPay(o orders.Order, title string) Screen {
+	text := summary(o) + "\n\n💳 <b>Оплата:</b> " + Esc(title) + "\nНажмите кнопку — после оплаты всё применится автоматически."
+	return Screen{Text: text, Keyboard: kb([]btn{{Text: BtnPay, URL: o.PayURL}}, []btn{cb(BtnCancel, CbOrderCancel+o.ID)})}
 }
 
 type RenewOption struct {

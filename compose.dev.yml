@@ -50,7 +50,7 @@ services:
         depends_on: [vpn-control]
         labels:
             - 'traefik.enable=true'
-            - 'traefik.http.routers.bot.rule=Host(`${LOCAL_DOMAIN}`) && PathPrefix(`${WEBAPP_PATH:-/bot}`)'
+            - 'traefik.http.routers.bot.rule=Host(`${LOCAL_DOMAIN}`) && (PathPrefix(`${WEBAPP_PATH:-/bot}`) || PathPrefix(`/pay/`))'
             - 'traefik.http.routers.bot.priority=100'
             - 'traefik.http.routers.bot.entrypoints=websecure'
             - 'traefik.http.routers.bot.tls=true'

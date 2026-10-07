@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"slices"
 	"sort"
@@ -47,7 +48,31 @@ type Config struct {
 	AdminIDs         []int64       // who may decide on them
 	ManualPayDetails string        // where to send money, shown with the amount
 	OrderTTL         time.Duration // unpaid orders expire after this
+	Pay              PayConfig
 }
+
+// PayConfig holds the online payment providers' credentials. A provider is
+// on when its required keys are set.
+type PayConfig struct {
+	YooKassaShopID, YooKassaSecret string
+	YooKassaReturnURL              string // where the customer lands after paying
+	YooKassaReceiptEmail           string // fiscal receipt customer; no receipt when empty
+	YooKassaVAT                    int    // 1..6
+
+	CryptoBotToken   string
+	CryptoBotTestnet bool
+	CryptoBotAssets  string // accepted assets, e.g. "USDT,TON"; empty: all
+
+	HeleketMerchantID, HeleketAPIKey  string
+	HeleketToCurrency, HeleketNetwork string // optional fixed asset / network
+
+	StarsRubRate float64 // roubles per star; > 0 enables Stars
+}
+
+func (p PayConfig) YooKassaOn() bool  { return p.YooKassaShopID != "" && p.YooKassaSecret != "" }
+func (p PayConfig) CryptoBotOn() bool { return p.CryptoBotToken != "" }
+func (p PayConfig) HeleketOn() bool   { return p.HeleketMerchantID != "" && p.HeleketAPIKey != "" }
+func (p PayConfig) StarsOn() bool     { return p.StarsRubRate > 0 }
 
 // WebAppURL is where Telegram opens the WebApp.
 func (c Config) WebAppURL() string { return c.PublicURL + c.WebAppPath }
@@ -128,6 +153,33 @@ func load(get func(string) string) (Config, error) {
 	c.ManualPayDetails = strings.ReplaceAll(or("MANUAL_PAY_DETAILS", ""), `\n`, "\n")
 	if c.OrderTTL, err = time.ParseDuration(or("ORDER_TTL", "48h")); err != nil || c.OrderTTL <= 0 {
 		return Config{}, fmt.Errorf("config: ORDER_TTL must be a positive duration like 48h")
+	}
+	c.Pay = PayConfig{
+		YooKassaShopID:       or("YOOKASSA_SHOP_ID", ""),
+		YooKassaSecret:       or("YOOKASSA_SECRET_KEY", ""),
+		YooKassaReturnURL:    or("YOOKASSA_RETURN_URL", c.WebAppURL()+"/"),
+		YooKassaReceiptEmail: or("YOOKASSA_RECEIPT_EMAIL", ""),
+		CryptoBotToken:       or("CRYPTOBOT_TOKEN", ""),
+		CryptoBotAssets:      or("CRYPTOBOT_ASSETS", ""),
+		HeleketMerchantID:    or("HELEKET_MERCHANT_ID", ""),
+		HeleketAPIKey:        or("HELEKET_API_KEY", ""),
+		HeleketToCurrency:    or("HELEKET_TO_CURRENCY", ""),
+		HeleketNetwork:       or("HELEKET_NETWORK", ""),
+	}
+	if (c.Pay.YooKassaShopID == "") != (c.Pay.YooKassaSecret == "") {
+		return Config{}, fmt.Errorf("config: YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY go together")
+	}
+	if (c.Pay.HeleketMerchantID == "") != (c.Pay.HeleketAPIKey == "") {
+		return Config{}, fmt.Errorf("config: HELEKET_MERCHANT_ID and HELEKET_API_KEY go together")
+	}
+	if c.Pay.YooKassaVAT, err = strconv.Atoi(or("YOOKASSA_VAT_CODE", "1")); err != nil || c.Pay.YooKassaVAT < 1 || c.Pay.YooKassaVAT > 6 {
+		return Config{}, fmt.Errorf("config: YOOKASSA_VAT_CODE must be 1..6")
+	}
+	if c.Pay.CryptoBotTestnet, err = strconv.ParseBool(or("CRYPTOBOT_TESTNET", "false")); err != nil {
+		return Config{}, fmt.Errorf("config: CRYPTOBOT_TESTNET must be true or false")
+	}
+	if c.Pay.StarsRubRate, err = strconv.ParseFloat(or("STARS_RUB_RATE", "0"), 64); err != nil || c.Pay.StarsRubRate < 0 || math.IsNaN(c.Pay.StarsRubRate) || math.IsInf(c.Pay.StarsRubRate, 0) {
+		return Config{}, fmt.Errorf("config: STARS_RUB_RATE must be a number ≥ 0")
 	}
 	if c.Mode != ModeOpen && c.Mode != ModeClosed {
 		return Config{}, fmt.Errorf("config: BOT_MODE must be open or closed, got %q", c.Mode)

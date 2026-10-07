@@ -2,7 +2,7 @@
 // add-ons, tariff changes and top-ups. Prices come from the server (quote).
 import { Alert, Button, Card, CopyButton, Group, NumberInput, Select, SimpleGrid, Skeleton, Stack, Text, ThemeIcon, Title, UnstyledButton } from '@mantine/core'
 import { useDebouncedValue } from '@mantine/hooks'
-import { IconAlertTriangle, IconBuildingBank, IconCheck, IconClockHour4, IconCopy, IconInfoCircle, IconPaperclip, IconReceipt, IconWallet } from '@tabler/icons-react'
+import { IconAlertTriangle, IconBuildingBank, IconCheck, IconClockHour4, IconCopy, IconCreditCard, IconInfoCircle, IconPaperclip, IconReceipt, IconWallet } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -11,7 +11,7 @@ import { useNavigate, useSearchParams } from 'react-router'
 
 import { fmtMoney } from '@shared/format'
 import { ApiError, cancelOrder, createOrder, payFromBalance, requestReceipt, useOrderQuote, useTariffs } from '../api'
-import { haptic, tg } from '../telegram'
+import { haptic, openExternal, tg } from '../telegram'
 import type { Order, OrderKind, OrderRequest, Period, Profile } from '../types'
 import { CtaButton } from '../ui/CtaButton'
 import { ErrorScreen } from '../ui/ErrorScreen'
@@ -146,7 +146,7 @@ export function Checkout({ p }: { p: Profile }) {
                 setDown(true)
                 return
             }
-            setFailed(e instanceof ApiError && e.code === 'manual_off' ? t('checkout.manual_off') : t('checkout.unavailable'))
+            setFailed(e.code === 'manual_off' ? t('checkout.manual_off') : e.code === 'provider_failed' ? t('checkout.provider_failed') : t('checkout.unavailable'))
         } finally {
             setBusy(false)
         }
@@ -181,6 +181,30 @@ export function Checkout({ p }: { p: Profile }) {
         run(async () => {
             setManual(await createOrder(request!))
             qc.invalidateQueries({ queryKey: ['orders'] })
+        })
+    // An online provider: the order is created together with its invoice, then the customer pays on the provider's page
+    // (Stars: Telegram's own invoice sheet) and finds the result in the history.
+    const payProvider = (method: string) =>
+        run(async () => {
+            const { order } = await createOrder({ ...request!, method })
+            const url = order.pay_url!
+            const refresh = () => {
+                qc.invalidateQueries({ queryKey: ['me'] })
+                qc.invalidateQueries({ queryKey: ['orders'] })
+            }
+            refresh()
+            if (method === 'stars' && tg?.openInvoice) {
+                tg.openInvoice(url, (status) => {
+                    if (status === 'paid') {
+                        haptic()
+                        refresh()
+                        navigate('/balance')
+                    }
+                })
+                return
+            }
+            openExternal(url)
+            navigate('/balance')
         })
     const sendReceipt = () =>
         run(async () => {
@@ -343,6 +367,23 @@ export function Checkout({ p }: { p: Profile }) {
                                     {t('checkout.pay_manual')}
                                 </Button>
                             )}
+                            {q.methods
+                                .filter((m) => m !== 'balance' && m !== 'manual')
+                                .map((m) => (
+                                    <Button
+                                        disabled={settling || locked}
+                                        fullWidth
+                                        key={m}
+                                        leftSection={<IconCreditCard size={20} />}
+                                        loading={busy}
+                                        onClick={() => payProvider(m)}
+                                        radius="xl"
+                                        size="lg"
+                                        variant="light"
+                                    >
+                                        {q.titles?.[m] ?? m}
+                                    </Button>
+                                ))}
                             {locked && (
                                 <Button color="gray" disabled={busy} fullWidth onClick={abandon} radius="xl" variant="subtle">
                                     {t('orders.cancel')}

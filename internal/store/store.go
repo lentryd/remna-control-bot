@@ -57,6 +57,10 @@ func Open(path string) (*Store, error) {
 		panel_payment_id INTEGER NOT NULL DEFAULT 0,
 		result_until TIMESTAMP,
 		error TEXT NOT NULL DEFAULT '',
+		external_id TEXT NOT NULL DEFAULT '',
+		pay_url TEXT NOT NULL DEFAULT '',
+		pay_amount REAL NOT NULL DEFAULT 0,
+		pay_currency TEXT NOT NULL DEFAULT '',
 		created_at TIMESTAMP NOT NULL,
 		updated_at TIMESTAMP NOT NULL);
 	CREATE INDEX IF NOT EXISTS orders_customer ON orders (customer_id, created_at);

@@ -24,13 +24,14 @@ type orderView struct {
 	Status      string     `json:"status"`
 	Reason      string     `json:"reason,omitempty"`
 	Until       *time.Time `json:"until,omitempty"`
+	PayURL      string     `json:"pay_url,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 }
 
 func orderJSON(o orders.Order) orderView {
 	return orderView{ID: o.ID, Number: o.Short(), Kind: string(o.Kind), Title: o.Title, Price: o.Price, FromBalance: o.FromBalance, ToPay: o.ToPay,
 		Paid: o.Paid(), Method: string(o.Method), Status: string(o.Status), Reason: o.RejectReason,
-		Until: o.ResultUntil, CreatedAt: o.CreatedAt}
+		Until: o.ResultUntil, PayURL: o.PayURL, CreatedAt: o.CreatedAt}
 }
 
 // ordersOn answers 503 while manual payments are not wired in.
@@ -51,6 +52,9 @@ func (s *server) orderErr(c *fiber.Ctx, err error) error {
 		return fail(c, fiber.StatusConflict, "state_changed")
 	case errors.Is(err, orders.ErrManualOff):
 		return fail(c, fiber.StatusConflict, "manual_off")
+	case errors.Is(err, orders.ErrProvider):
+		s.Log.Warn("webapp orders", "err", err)
+		return fail(c, fiber.StatusFailedDependency, "provider_failed")
 	}
 	s.Log.Error("webapp orders", "err", err)
 	return fail(c, fiber.StatusServiceUnavailable, "unavailable")
@@ -69,11 +73,14 @@ func (s *server) quoteOrder(c *fiber.Ctx) error {
 }
 
 func (s *server) createOrder(c *fiber.Ctx) error {
-	var r orders.Request
+	var r struct {
+		orders.Request
+		Method string `json:"method"`
+	}
 	if err := c.BodyParser(&r); err != nil {
 		return fail(c, fiber.StatusBadRequest, "bad_request")
 	}
-	o, err := s.Orders.Create(c.UserContext(), c.Locals("customer").(*vpnctl.Customer), c.Locals("tg").(int64), r)
+	o, err := s.Orders.CreateWith(c.UserContext(), c.Locals("customer").(*vpnctl.Customer), c.Locals("tg").(int64), r.Request, orders.Method(r.Method))
 	if err != nil {
 		return s.orderErr(c, err)
 	}

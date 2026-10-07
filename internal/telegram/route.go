@@ -66,3 +66,19 @@ func parseOrderID(data, prefix string) (string, bool) {
 func RefLink(username string, codec *refcode.Codec, customerID int) string {
 	return "https://t.me/" + username + "?start=ref_" + codec.Encode(customerID)
 }
+
+// parseProviderCallback parses "pp:<provider>:<order uuid>".
+func parseProviderCallback(data string) (provider, orderID string, ok bool) {
+	rest, ok := strings.CutPrefix(data, view.CbOrderProvider)
+	if !ok {
+		return "", "", false
+	}
+	provider, orderID, ok = strings.Cut(rest, ":")
+	if !ok || provider == "" || len(provider) > 20 || strings.ContainsAny(provider, ": ") || len(orderID) != 36 {
+		return "", "", false
+	}
+	if _, err := uuid.Parse(orderID); err != nil {
+		return "", "", false
+	}
+	return provider, orderID, true
+}

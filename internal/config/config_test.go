@@ -119,3 +119,42 @@ func TestManualPayment(t *testing.T) {
 		}
 	}
 }
+
+func TestPayProviders(t *testing.T) {
+	c, err := load(env(base()))
+	if err != nil || c.Pay.YooKassaOn() || c.Pay.CryptoBotOn() || c.Pay.HeleketOn() || c.Pay.StarsOn() || c.Pay.YooKassaVAT != 1 {
+		t.Fatalf("defaults: %+v %v", c.Pay, err)
+	}
+	m := base()
+	for k, v := range map[string]string{
+		"YOOKASSA_SHOP_ID": "123", "YOOKASSA_SECRET_KEY": "sk", "YOOKASSA_VAT_CODE": "4", "YOOKASSA_RECEIPT_EMAIL": "a@b.c",
+		"CRYPTOBOT_TOKEN": "tok", "CRYPTOBOT_TESTNET": "true", "CRYPTOBOT_ASSETS": "USDT,TON",
+		"HELEKET_MERCHANT_ID": "m", "HELEKET_API_KEY": "k", "HELEKET_TO_CURRENCY": "USDT", "STARS_RUB_RATE": "1.5",
+	} {
+		m[k] = v
+	}
+	c, err = load(env(m))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := c.Pay
+	if !p.YooKassaOn() || !p.CryptoBotOn() || !p.HeleketOn() || !p.StarsOn() || p.YooKassaVAT != 4 || !p.CryptoBotTestnet ||
+		p.CryptoBotAssets != "USDT,TON" || p.StarsRubRate != 1.5 || p.HeleketToCurrency != "USDT" || p.YooKassaReceiptEmail != "a@b.c" {
+		t.Fatalf("configured: %+v", p)
+	}
+	if p.YooKassaReturnURL != "https://vpn.example.com/bot/" {
+		t.Errorf("default return url %q", p.YooKassaReturnURL)
+	}
+	for _, bad := range []map[string]string{
+		{"YOOKASSA_SHOP_ID": "1"}, {"YOOKASSA_SECRET_KEY": "s"}, {"HELEKET_MERCHANT_ID": "m"}, {"HELEKET_API_KEY": "k"},
+		{"YOOKASSA_VAT_CODE": "9"}, {"CRYPTOBOT_TESTNET": "maybe"}, {"STARS_RUB_RATE": "-1"}, {"STARS_RUB_RATE": "abc"},
+	} {
+		m := base()
+		for k, v := range bad {
+			m[k] = v
+		}
+		if _, err := load(env(m)); err == nil {
+			t.Errorf("%v: want error", bad)
+		}
+	}
+}
