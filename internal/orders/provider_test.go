@@ -629,3 +629,125 @@ func TestProviderRefusedWhileCurrencyUnconfirmed(t *testing.T) {
 		t.Fatalf("CreateWith when known: %v", err)
 	}
 }
+
+func TestInvoiceRequestCarriesCustomerID(t *testing.T) {
+	s, _, _, c, fp := setupP(t)
+	providerOrder(t, s, c)
+	if len(fp.Invoices) != 1 || fp.Invoices[0].CustomerID != c.ID || c.ID == 0 {
+		t.Fatalf("invoice request %+v, customer %d", fp.Invoices, c.ID)
+	}
+}
+
+// fixedEvent is a confirmation from a provider that does not report the amount or currency.
+func fixedEvent(o *Order) payments.Event {
+	return payments.Event{Provider: "fake", OrderID: o.ID, ExternalID: o.ExternalID, Paid: true, Fixed: true}
+}
+
+func TestPaidFixedAppliesInFull(t *testing.T) {
+	s, f, sp, c, _ := setupP(t)
+	ctx := context.Background()
+	o := providerOrder(t, s, c)
+	ev := fixedEvent(o)
+
+	got, err := s.Paid(ctx, ev)
+	if err != nil || got.Status != StatusApproved || got.Admin != "provider:fake" || got.Decision != DecideFull {
+		t.Fatalf("%+v %v", got, err)
+	}
+	if len(f.Payments) != 1 || f.Payments[0].Amount != o.ToPay || f.Payments[0].Amount != 800 {
+		t.Fatalf("panel payments %+v", f.Payments)
+	}
+	if len(sp.sent) != 1 || sp.sent[0].Status != StatusApproved {
+		t.Errorf("the customer must be told once: %+v", sp.sent)
+	}
+	if len(sp.posted) != 0 {
+		t.Errorf("a clean provider payment needs no admin card: %d", len(sp.posted))
+	}
+	for range 3 {
+		if _, err := s.Paid(ctx, ev); !errors.Is(err, ErrStateChanged) {
+			t.Fatalf("replay: %v", err)
+		}
+	}
+	if len(f.Payments) != 1 {
+		t.Fatalf("replays moved money again: %d payments", len(f.Payments))
+	}
+}
+
+func TestPaidFixedStillChecked(t *testing.T) {
+	s, f, _, c, _ := setupP(t)
+	ctx := context.Background()
+	o := providerOrder(t, s, c)
+	for name, mod := range map[string]func(*payments.Event){
+		"other provider": func(e *payments.Event) { e.Provider = "yookassa" },
+		"other invoice":  func(e *payments.Event) { e.ExternalID = "zzz" },
+		"unknown order":  func(e *payments.Event) { e.OrderID = "00000000-0000-4000-8000-000000000000" },
+	} {
+		ev := fixedEvent(o)
+		mod(&ev)
+		if _, err := s.Paid(ctx, ev); !errors.Is(err, ErrNotFound) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	ev := fixedEvent(o)
+	ev.Paid = false
+	if got, err := s.Paid(ctx, ev); err != nil || got != nil {
+		t.Errorf("fixed but neither paid nor review: %+v %v", got, err)
+	}
+	if len(f.Payments) != 0 {
+		t.Fatalf("nothing may be applied: %+v", f.Payments)
+	}
+	if cur, _ := s.Get(ctx, o.ID); cur.Status != StatusAwaitingPayment {
+		t.Fatalf("order moved: %s", cur.Status)
+	}
+
+	t.Run("fixed together with review is still a review", func(t *testing.T) {
+		s, f, sp, c, _ := setupP(t)
+		o := providerOrder(t, s, c)
+		ev := fixedEvent(o)
+		ev.Review = true
+		got, err := s.Paid(ctx, ev)
+		if err != nil || got.Status != StatusPendingReview {
+			t.Fatalf("%+v %v", got, err)
+		}
+		if len(f.Payments) != 0 || len(sp.posted) != 1 {
+			t.Fatalf("payments=%d cards=%d", len(f.Payments), len(sp.posted))
+		}
+	})
+}
+
+func TestPaidZeroWithoutFixedNeedsReview(t *testing.T) {
+	// Regression pin: zero is not "unreported". Only Fixed vouches for the invoice.
+	s, f, sp, c, _ := setupP(t)
+	o := providerOrder(t, s, c)
+	ev := paidEvent(o)
+	ev.Amount, ev.Currency = 0, ""
+	got, err := s.Paid(context.Background(), ev)
+	if err != nil || got.Status != StatusPendingReview {
+		t.Fatalf("%+v %v", got, err)
+	}
+	if len(f.Payments) != 0 || len(sp.posted) != 1 {
+		t.Fatalf("payments=%d cards=%d", len(f.Payments), len(sp.posted))
+	}
+}
+
+func TestPaidFixedAfterExpiredOrCancelled(t *testing.T) {
+	for name, prep := range map[string]func(*Service, *vpnctl.Customer, *Order) error{
+		"expired": func(s *Service, _ *vpnctl.Customer, o *Order) error {
+			return s.move(context.Background(), o.ID, []Status{StatusAwaitingPayment}, StatusExpired, nil)
+		},
+		"cancelled": func(s *Service, c *vpnctl.Customer, o *Order) error {
+			return s.Cancel(context.Background(), c.ID, o.ID)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s, f, _, c, _ := setupP(t)
+			o := providerOrder(t, s, c)
+			if err := prep(s, c, o); err != nil {
+				t.Fatal(err)
+			}
+			got, err := s.Paid(context.Background(), fixedEvent(o))
+			if err != nil || got.Status != StatusApproved || len(f.Payments) != 1 {
+				t.Fatalf("%+v %v payments=%d", got, err, len(f.Payments))
+			}
+		})
+	}
+}

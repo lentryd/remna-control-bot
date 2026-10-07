@@ -51,6 +51,15 @@ and `REF_SECRET`, nothing is stored.
 | `HELEKET_API_KEY` | no | | Heleket payment API key |
 | `HELEKET_TO_CURRENCY` | no | | fixed asset the customer pays in (empty: customer chooses) |
 | `HELEKET_NETWORK` | no | | fixed network (empty: customer chooses) |
+| `PAL24_API_TOKEN` | no | | PayPalych API token; PayPalych turns on when this and the shop id are set |
+| `PAL24_SHOP_ID` | no | | PayPalych shop id |
+| `PAL24_SIGNATURE_TOKEN` | no | API token | token that signs PayPalych postbacks (empty: the API token) |
+| `PLATEGA_MERCHANT_ID` | no | | Platega merchant id; Platega turns on when this and the secret are set |
+| `PLATEGA_SECRET` | no | | Platega secret |
+| `PLATEGA_PAYMENT_METHOD` | no | `2` | Platega payment method: `2` SBP QR, `11` cards, `12` international cards, `13` crypto |
+| `PLATEGA_API_VERSION` | no | `v1` | Platega API version, `v1` or `v2` (`v2` for merchants whose card cascades only work in v2) |
+| `PLATEGA_RETURN_URL` | no | WebApp URL (`PUBLIC_URL + WEBAPP_PATH + /`) | where the customer lands after paying |
+| `PLATEGA_FAILED_URL` | no | | where the customer lands after a failed payment |
 | `BASE_CURRENCY` | no | `RUB` | fallback ISO code while the panel can't tell its base currency (the bot reads `base_currency` from the panel) |
 | `STARS_RATE` | no | | base-currency units per Telegram Star; `> 0` turns Stars on |
 
@@ -64,7 +73,7 @@ A token issued before `stats:settings` was added to the preset must be re-issued
 
 ## Payment providers
 
-Customers can pay with **Telegram Stars**, **YooKassa** (cards, SBP), **CryptoBot** and **Heleket** (crypto) next to
+Customers can pay with **Telegram Stars**, **YooKassa** (cards, SBP), **CryptoBot** and **Heleket** (crypto), **PayPalych** and **Platega** next to
 manual transfer and the balance. A provider appears in the checkout when its keys are set. The payment is confirmed
 automatically and applied exactly once; a payment that arrives for an expired or cancelled order is still applied, and
 a wrong amount goes to the admin chat as a card.
@@ -76,16 +85,22 @@ Provider invoices need the base currency to be confirmed: either the panel answe
 `BASE_CURRENCY` is set explicitly. Otherwise the bot logs an error and provider payments stay disabled — manual
 payment and the balance are unaffected.
 
-Webhooks: the bot serves `POST {PUBLIC_URL}/pay/yookassa`, `/pay/cryptobot`, `/pay/heleket` (not under `WEBAPP_PATH`) —
+Webhooks: the bot serves `POST {PUBLIC_URL}/pay/yookassa`, `/pay/cryptobot`, `/pay/heleket`, `/pay/pal24`, `/pay/platega` (not under `WEBAPP_PATH`) —
 route `/pay/*` to the bot's `HTTP_ADDR` in your reverse proxy, and register the URL in the provider's cabinet
 (YooKassa: HTTP notifications for `payment.succeeded`; CryptoBot: Crypto Pay → My Apps → Webhooks; Heleket sends to
-the callback URL the bot passes with every invoice). Stars need no webhook. If a webhook is lost, the bot asks the
+the callback URL the bot passes with every invoice; PayPalych: set `{PUBLIC_URL}/pay/pal24` as the **Result URL** in
+the PayPalych cabinet — its postback signature does not cover the status, so the postback is only a pre-filter and every
+confirmation is checked against the bill (`bill/status`); a postback that carries no `bill_id` is ignored and the payment is
+confirmed by the background check within about a minute; Platega: set `{PUBLIC_URL}/pay/platega` as the **callback URL** in the Platega merchant
+settings — it authenticates with the `X-MerchantId`/`X-Secret` headers). Stars need no webhook. If a webhook is lost, the bot asks the
 provider about waiting invoices every minute.
 
 Smoke test per provider (use the provider's test mode): YooKassa — a test shop and test card; CryptoBot — `CRYPTOBOT_TESTNET=true`
-with @CryptoTestnetBot; Heleket — a test-mode merchant; Stars — pay a small order from a test account. Create a top-up
+with @CryptoTestnetBot; Heleket — a test-mode merchant; PayPalych — create a small bill, pay it and check *Оплачен*; Platega — the same with the configured payment method; Stars — pay a small order from a test account. Create a top-up
 of the smallest amount, pay it, and check that the order turns *Оплачен*, the panel has a payment with the provider's
 name as its method, and a second delivery of the webhook changes nothing.
+
+PayPalych and Platega are written from Bedolaga's reference and have not been run against the live services.
 
 ## Local development
 

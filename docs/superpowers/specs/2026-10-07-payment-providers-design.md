@@ -249,3 +249,19 @@ the scope `stats:settings`. `InvoiceRequest` carries `Currency`, and each adapte
 `STARS_RATE` (base-currency units per Star; replaces `STARS_RUB_RATE`). `received` is recorded only when the event's
 currency equals the base currency. A currency a provider does not support is rejected by the provider and the
 customer sees the generic invoice error; providers are not hidden by currency.
+
+## Update: PayPalych and Platega
+
+Two more adapters, `Pal24` (PayPalych) and `Platega`. Pal24 postbacks carry an MD5 signature over
+`OutSum:InvId:token` (the signature token, defaulting to the API token), but it does not cover `Status`, `bill_id` or
+`CurrencyIn`, so it is only a pre-filter: the authority is `bill/status`. A SUCCESS/OVERPAID/UNDERPAID postback with a
+`bill_id` is re-read through the bill and the event is built from the API's answer (external id = the bill id asked
+about, order id from the bill, falling back to `InvId`); repeated `InvId`/`OutSum`/`SignatureValue`/`Status`/`bill_id`
+keys are refused. A postback without `bill_id` is ignored and the one-minute `SweepProviders` loop confirms the payment
+through the stored bill id, at most about a minute later. Platega webhooks carry the merchant id and
+secret in the `X-MerchantId`/`X-Secret` headers, and the bot re-reads the transaction through the API before trusting
+the event. `Event.Fixed` marks a paid event that reports neither amount nor currency: the provider vouches for the
+invoice as issued, so the order's own amount is recorded; it may be set only for a paid event with both fields absent.
+`InvoiceRequest.CustomerID` carries the bot's customer id for providers that need a payer identity (Platega).
+Config: `PAL24_API_TOKEN`, `PAL24_SHOP_ID`, `PAL24_SIGNATURE_TOKEN`, `PLATEGA_MERCHANT_ID`, `PLATEGA_SECRET`,
+`PLATEGA_PAYMENT_METHOD`, `PLATEGA_API_VERSION`, `PLATEGA_RETURN_URL`, `PLATEGA_FAILED_URL`.

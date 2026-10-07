@@ -77,6 +77,13 @@ func run() error {
 		provs = append(provs, &payments.Heleket{MerchantID: pc.HeleketMerchantID, APIKey: pc.HeleketAPIKey, ToCurrency: pc.HeleketToCurrency,
 			Network: pc.HeleketNetwork, CallbackURL: cfg.PublicURL + "/pay/heleket"})
 	}
+	if pc.Pal24On() {
+		provs = append(provs, &payments.Pal24{APIToken: pc.Pal24APIToken, ShopID: pc.Pal24ShopID, SignatureToken: pc.Pal24SignatureToken})
+	}
+	if pc.PlategaOn() {
+		provs = append(provs, &payments.Platega{MerchantID: pc.PlategaMerchantID, Secret: pc.PlategaSecret, PaymentMethod: pc.PlategaPaymentMethod,
+			APIVersion: pc.PlategaAPIVersion, ReturnURL: pc.PlategaReturnURL, FailedURL: pc.PlategaFailedURL})
+	}
 	if pc.StarsOn() {
 		stars = &payments.Stars{PerStar: pc.StarsRate}
 		provs = append(provs, stars)

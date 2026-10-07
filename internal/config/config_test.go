@@ -192,3 +192,47 @@ func TestBaseCurrency(t *testing.T) {
 		}
 	}
 }
+
+func TestPal24PlategaConfig(t *testing.T) {
+	c, err := load(env(base()))
+	if err != nil || c.Pay.Pal24On() || c.Pay.PlategaOn() || c.Pay.PlategaPaymentMethod != 2 || c.Pay.PlategaAPIVersion != "v1" {
+		t.Fatalf("defaults: %+v %v", c.Pay, err)
+	}
+	if c.Pay.PlategaReturnURL != "https://vpn.example.com/bot/" {
+		t.Errorf("default return url %q", c.Pay.PlategaReturnURL)
+	}
+
+	m := base()
+	for k, v := range map[string]string{
+		"PAL24_API_TOKEN": "tok", "PAL24_SHOP_ID": "shop", "PAL24_SIGNATURE_TOKEN": "sig",
+		"PLATEGA_MERCHANT_ID": "mid", "PLATEGA_SECRET": "sec", "PLATEGA_PAYMENT_METHOD": "11", "PLATEGA_API_VERSION": " V2 ",
+		"PLATEGA_RETURN_URL": "https://r.example/ok", "PLATEGA_FAILED_URL": "https://r.example/fail",
+	} {
+		m[k] = v
+	}
+	c, err = load(env(m))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := c.Pay
+	if !p.Pal24On() || !p.PlategaOn() || p.Pal24APIToken != "tok" || p.Pal24ShopID != "shop" || p.Pal24SignatureToken != "sig" ||
+		p.PlategaMerchantID != "mid" || p.PlategaSecret != "sec" || p.PlategaPaymentMethod != 11 || p.PlategaAPIVersion != "v2" ||
+		p.PlategaReturnURL != "https://r.example/ok" || p.PlategaFailedURL != "https://r.example/fail" {
+		t.Fatalf("configured: %+v", p)
+	}
+
+	for _, bad := range []map[string]string{
+		{"PAL24_API_TOKEN": "t"}, {"PAL24_SHOP_ID": "s"},
+		{"PLATEGA_MERCHANT_ID": "m"}, {"PLATEGA_SECRET": "s"},
+		{"PLATEGA_PAYMENT_METHOD": "0"}, {"PLATEGA_PAYMENT_METHOD": "-1"}, {"PLATEGA_PAYMENT_METHOD": "x"},
+		{"PLATEGA_API_VERSION": "v3"},
+	} {
+		m := base()
+		for k, v := range bad {
+			m[k] = v
+		}
+		if _, err := load(env(m)); err == nil {
+			t.Errorf("%v: want error", bad)
+		}
+	}
+}

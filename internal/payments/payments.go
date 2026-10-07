@@ -20,11 +20,12 @@ var (
 
 // InvoiceRequest is what a provider needs to bill an order.
 type InvoiceRequest struct {
-	OrderID   string // our order UUID; comes back in the webhook
-	Title     string
-	Amount    float64 // in Currency
-	Currency  string  // ISO 4217 code of Amount: the base currency of the panel
-	ExpiresIn time.Duration
+	OrderID    string // our order UUID; comes back in the webhook
+	Title      string
+	Amount     float64 // in Currency
+	Currency   string  // ISO 4217 code of Amount: the base currency of the panel
+	ExpiresIn  time.Duration
+	CustomerID int // the bot's customer id, for providers that require a payer identity
 }
 
 // Invoice is the provider's answer: where to send the customer and what it asks.
@@ -44,6 +45,10 @@ type Event struct {
 	Review     bool    // the provider flags a wrong amount: a human decides
 	Amount     float64 // in the invoice's own unit
 	Currency   string
+	// Fixed: the provider vouches that the invoice was paid as issued but does not report the amount and/or
+	// currency (so Amount/Currency are not compared); set it only for that reason, never to skip a check on
+	// data that was reported.
+	Fixed bool
 }
 
 type Provider interface {

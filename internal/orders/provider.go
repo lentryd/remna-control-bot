@@ -84,7 +84,7 @@ func (s *Service) issue(ctx context.Context, o *Order, p payments.Provider) (*Or
 	if s.CurrencyKnown != nil && !s.CurrencyKnown() {
 		return nil, fmt.Errorf("%w: base currency not confirmed by the panel", ErrProvider)
 	}
-	inv, err := p.Invoice(ctx, payments.InvoiceRequest{OrderID: o.ID, Title: o.Title, Amount: o.ToPay, Currency: s.base(ctx), ExpiresIn: s.TTL})
+	inv, err := p.Invoice(ctx, payments.InvoiceRequest{OrderID: o.ID, Title: o.Title, Amount: o.ToPay, Currency: s.base(ctx), ExpiresIn: s.TTL, CustomerID: o.CustomerID})
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s: %v", ErrProvider, p.ID(), err)
 	}
@@ -124,7 +124,7 @@ func (s *Service) Paid(ctx context.Context, ev payments.Event) (*Order, error) {
 		return nil, ErrNotFound // somebody else's order or invoice
 	}
 	set := map[string]any{"external_id": cmp.Or(ev.ExternalID, o.ExternalID)}
-	full := ev.Paid && !ev.Review && strings.EqualFold(ev.Currency, o.PayCurrency) && ev.Amount+0.005 >= o.PayAmount
+	full := ev.Paid && !ev.Review && (ev.Fixed || (strings.EqualFold(ev.Currency, o.PayCurrency) && ev.Amount+0.005 >= o.PayAmount))
 	if full {
 		set["admin"], set["decision"] = "provider:"+ev.Provider, string(DecideFull)
 		if err := s.move(ctx, o.ID, paidFrom, StatusApproving, set); err != nil {

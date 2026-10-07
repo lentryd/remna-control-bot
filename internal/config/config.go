@@ -70,12 +70,22 @@ type PayConfig struct {
 	HeleketMerchantID, HeleketAPIKey  string
 	HeleketToCurrency, HeleketNetwork string // optional fixed asset / network
 
+	Pal24APIToken, Pal24ShopID string // both required to enable PayPalych
+	Pal24SignatureToken        string // optional; postback signing token, empty: the API token
+
+	PlategaMerchantID, PlategaSecret   string // both required to enable Platega
+	PlategaPaymentMethod               int    // 2 SBP QR (default), 11 cards, 12 international cards, 13 crypto
+	PlategaAPIVersion                  string // "v1" (default) | "v2"
+	PlategaReturnURL, PlategaFailedURL string // optional; return default = WebAppURL()+"/"
+
 	StarsRate float64 // base-currency units per Telegram Star; > 0 enables Stars
 }
 
 func (p PayConfig) YooKassaOn() bool  { return p.YooKassaShopID != "" && p.YooKassaSecret != "" }
 func (p PayConfig) CryptoBotOn() bool { return p.CryptoBotToken != "" }
 func (p PayConfig) HeleketOn() bool   { return p.HeleketMerchantID != "" && p.HeleketAPIKey != "" }
+func (p PayConfig) Pal24On() bool     { return p.Pal24APIToken != "" && p.Pal24ShopID != "" }
+func (p PayConfig) PlategaOn() bool   { return p.PlategaMerchantID != "" && p.PlategaSecret != "" }
 func (p PayConfig) StarsOn() bool     { return p.StarsRate > 0 }
 
 // WebAppURL is where Telegram opens the WebApp.
@@ -176,12 +186,33 @@ func load(get func(string) string) (Config, error) {
 		HeleketAPIKey:        or("HELEKET_API_KEY", ""),
 		HeleketToCurrency:    or("HELEKET_TO_CURRENCY", ""),
 		HeleketNetwork:       or("HELEKET_NETWORK", ""),
+
+		Pal24APIToken:       or("PAL24_API_TOKEN", ""),
+		Pal24ShopID:         or("PAL24_SHOP_ID", ""),
+		Pal24SignatureToken: or("PAL24_SIGNATURE_TOKEN", ""),
+		PlategaMerchantID:   or("PLATEGA_MERCHANT_ID", ""),
+		PlategaSecret:       or("PLATEGA_SECRET", ""),
+		PlategaAPIVersion:   strings.ToLower(or("PLATEGA_API_VERSION", "v1")),
+		PlategaReturnURL:    or("PLATEGA_RETURN_URL", c.WebAppURL()+"/"),
+		PlategaFailedURL:    or("PLATEGA_FAILED_URL", ""),
 	}
 	if (c.Pay.YooKassaShopID == "") != (c.Pay.YooKassaSecret == "") {
 		return Config{}, fmt.Errorf("config: YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY go together")
 	}
 	if (c.Pay.HeleketMerchantID == "") != (c.Pay.HeleketAPIKey == "") {
 		return Config{}, fmt.Errorf("config: HELEKET_MERCHANT_ID and HELEKET_API_KEY go together")
+	}
+	if (c.Pay.Pal24APIToken == "") != (c.Pay.Pal24ShopID == "") {
+		return Config{}, fmt.Errorf("config: PAL24_API_TOKEN and PAL24_SHOP_ID go together")
+	}
+	if (c.Pay.PlategaMerchantID == "") != (c.Pay.PlategaSecret == "") {
+		return Config{}, fmt.Errorf("config: PLATEGA_MERCHANT_ID and PLATEGA_SECRET go together")
+	}
+	if c.Pay.PlategaPaymentMethod, err = strconv.Atoi(or("PLATEGA_PAYMENT_METHOD", "2")); err != nil || c.Pay.PlategaPaymentMethod < 1 {
+		return Config{}, fmt.Errorf("config: PLATEGA_PAYMENT_METHOD must be a positive integer (2 SBP QR, 11 cards, 12 international cards, 13 crypto)")
+	}
+	if c.Pay.PlategaAPIVersion != "v1" && c.Pay.PlategaAPIVersion != "v2" {
+		return Config{}, fmt.Errorf("config: PLATEGA_API_VERSION must be v1 or v2, got %q", c.Pay.PlategaAPIVersion)
 	}
 	if c.Pay.YooKassaVAT, err = strconv.Atoi(or("YOOKASSA_VAT_CODE", "1")); err != nil || c.Pay.YooKassaVAT < 1 || c.Pay.YooKassaVAT > 6 {
 		return Config{}, fmt.Errorf("config: YOOKASSA_VAT_CODE must be 1..6")
