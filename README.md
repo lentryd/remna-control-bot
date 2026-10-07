@@ -32,13 +32,19 @@ and `REF_SECRET`, nothing is stored.
 | `LOG_LEVEL` | no | `info` | `debug` / `info` / `warn` / `error` |
 | `REF_SECRET` | yes | | referral code secret; changing it invalidates every issued link |
 | `BALANCE_PAY_MODE` | no | `mixed` | renewals from the balance: `mixed` — own + referral money; `referral_full` — referral money only if it covers the whole price |
+| `ADMIN_CHAT_ID` | no | | chat (private or group) that receives payment receipts; add the bot to the group |
+| `ADMIN_IDS` | no | | comma-separated Telegram ids allowed to approve/reject (e.g. `12345,67890`) |
+| `MANUAL_PAY_DETAILS` | no | | how to pay, shown with the amount; `\n` for line breaks (e.g. `Карта 2200 0000 0000 0000\nСБП +7…`) |
+| `ORDER_TTL` | no | `48h` | unpaid orders expire after this |
 | `NOTIFY_INTERVAL` | no | `1h` | how often to check for notifications; `0` turns them off |
 | `TRAFFIC_ALERT_PCT` | no | `80` | traffic share of the limit that triggers an alert (with the reset date and a tariff with more traffic) |
 | `REMIND_DAYS` | no | `3,1` | days before the end to remind about payment (plus one reminder right after it ends) |
 
 **Panel token:** vpn-control → Settings → API tokens → preset **Telegram bot**
 (`customers:lookup`, `customers:get`, `customers:create`, `customers:update`, `customers:list`,
-`subscriptions:list`, `tariffs:list`; the two lists are for notifications).
+`subscriptions:list`, `tariffs:list`; the two lists are for notifications, plus the payment scopes).
+Manual payment turns on only when `ADMIN_CHAT_ID`, `ADMIN_IDS` and `MANUAL_PAY_DETAILS` are all set.
+Create the vpn-control token with the *bot* preset (it now includes payment scopes) — re-issue the existing token.
 
 ## Local development
 

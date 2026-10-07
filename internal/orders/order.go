@@ -1,0 +1,138 @@
+package orders
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"vpn-control-bot/internal/store"
+)
+
+type Kind string
+
+const (
+	KindRenew        Kind = "renew"
+	KindSubscribe    Kind = "subscribe"
+	KindAddon        Kind = "addon"
+	KindChangeTariff Kind = "change_tariff"
+	KindTopup        Kind = "topup"
+)
+
+type Status string
+
+const (
+	StatusNew             Status = "new"
+	StatusAwaitingReceipt Status = "awaiting_receipt"
+	StatusPendingReview   Status = "pending_review"
+	StatusApproving       Status = "approving"
+	StatusApproved        Status = "approved"
+	StatusCredited        Status = "credited"
+	StatusFailed          Status = "failed"
+	StatusRejected        Status = "rejected"
+	StatusExpired         Status = "expired"
+	StatusCancelled       Status = "cancelled"
+)
+
+type Method string
+
+const (
+	MethodManual  Method = "manual"
+	MethodBalance Method = "balance"
+)
+
+type ReceiptKind string
+
+const (
+	ReceiptPhoto    ReceiptKind = "photo"
+	ReceiptDocument ReceiptKind = "document"
+	ReceiptText     ReceiptKind = "text"
+)
+
+type Request struct {
+	Kind     Kind    `json:"kind"`
+	ItemKind string  `json:"item_kind"` // renew, change_tariff: subscription | addon
+	ItemID   int     `json:"item_id"`   // renew, change_tariff: the item; addon: the subscription
+	TariffID int     `json:"tariff_id"` // subscribe, addon, change_tariff
+	Months   int     `json:"months"`
+	Days     int     `json:"days"`
+	Amount   float64 `json:"amount"` // topup only
+}
+
+type Quote struct {
+	Title       string   `json:"title"`
+	Price       float64  `json:"price"`
+	FromBalance float64  `json:"from_balance"`
+	ToPay       float64  `json:"to_pay"`
+	Methods     []Method `json:"methods"`
+}
+
+type Order struct {
+	ID             string
+	CustomerID     int
+	ChatID         int64
+	Request        // embedded: Kind, ItemKind, ItemID, TariffID, Months, Days, Amount (Amount unused after creation)
+	Title          string
+	Price          float64
+	FromBalance    float64
+	ToPay          float64
+	Received       *float64
+	Method         Method
+	Status         Status
+	ReceiptKind    ReceiptKind
+	ReceiptFileID  string
+	Comment        string
+	RejectReason   string
+	Admin          string
+	AdminMsgID     int
+	Decision       Decision
+	PanelPaymentID int
+	ResultUntil    *time.Time
+	Error          string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+// Final statuses never change again.
+func (s Status) Final() bool {
+	switch s {
+	case StatusApproved, StatusCredited, StatusRejected, StatusExpired, StatusCancelled:
+		return true
+	}
+	return false
+}
+
+func (o Order) Paid() float64 {
+	if o.Received != nil {
+		return *o.Received
+	}
+	return o.ToPay
+}
+
+// Note links the panel payment back to the order.
+func (o Order) Note() string { return "bot order #" + o.ID }
+
+// Short is the order number people see and quote: the start of the UUID.
+func (o Order) Short() string { return ShortID(o.ID) }
+
+func ShortID(id string) string { return id[:min(len(id), 8)] }
+
+type Notifier interface {
+	PayScreen(ctx context.Context, o Order, details string) error // customer chat: amount + details + buttons
+	PostCard(ctx context.Context, o Order) (msgID int, err error) // admin chat
+	UpdateCard(ctx context.Context, o Order) error
+	Customer(ctx context.Context, o Order) error // decision notice to the customer
+}
+
+type ChatStates interface { // implemented by *store.Store
+	SetChatState(ctx context.Context, chatID int64, st store.ChatState) error
+	GetChatState(ctx context.Context, chatID int64) (store.ChatState, bool, error)
+	ClearChatState(ctx context.Context, chatID int64) error
+}
+
+var (
+	ErrStateChanged = errors.New("orders: state changed")
+	ErrNotFound     = errors.New("orders: not found")
+	ErrBadRequest   = errors.New("orders: bad request")
+	ErrManualOff    = errors.New("orders: manual payment is off")
+	ErrUnderpaid    = errors.New("orders: received less than to pay")
+)

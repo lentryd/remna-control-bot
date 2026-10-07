@@ -29,6 +29,7 @@ type Profile struct {
 type Subscription struct {
 	ID          int        `json:"id"`
 	Title       string     `json:"title"`
+	TariffID    *int       `json:"tariff_id"`
 	Tariff      string     `json:"tariff"`
 	Price       float64    `json:"price"`
 	Status      string     `json:"status"`
@@ -80,7 +81,7 @@ func Build(c *vpnctl.Customer, refLink string, mode config.PayMode) Profile {
 		if s.RwUser != nil && s.RwUser.Deleted {
 			continue
 		}
-		v := Subscription{ID: s.ID, Title: s.Title, Tariff: s.TariffName, Price: s.Price, Status: "PENDING", Addons: []Addon{}}
+		v := Subscription{ID: s.ID, Title: s.Title, TariffID: s.TariffID, Tariff: s.TariffName, Price: s.Price, Status: "PENDING", Addons: []Addon{}}
 		if u := s.RwUser; u != nil {
 			v.Status, v.ExpireAt, v.Unlimited = u.Status, u.ExpireAt, u.Unlimited
 			v.UsedBytes, v.LimitBytes, v.DeviceLimit, v.URL = u.UsedTrafficBytes, u.TrafficLimitBytes, u.HwidDeviceLimit, u.SubscriptionURL

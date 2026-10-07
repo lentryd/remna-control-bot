@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router'
 import { ApiError, useProfile } from './api'
 import { AppShell } from './layout/AppShell'
 import { Balance } from './pages/Balance'
+import { Checkout } from './pages/Checkout'
 import { Overview } from './pages/Overview'
 import { Referrals } from './pages/Referrals'
 import { SubscriptionDetails } from './pages/SubscriptionDetails'
@@ -31,6 +32,7 @@ export function App() {
                 <Route element={<Balance p={p} />} path="/balance" />
                 <Route element={<Referrals p={p} />} path="/referrals" />
                 <Route element={<Tariffs />} path="/tariffs" />
+                <Route element={<Checkout p={p} />} path="/checkout" />
                 <Route element={<Overview p={p} />} path="*" />
             </Routes>
         </AppShell>

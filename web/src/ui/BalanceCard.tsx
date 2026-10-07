@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
 import { fmtDate, fmtMoney } from '@shared/format'
-import { daysLeftText, isExpired, needsRenewal, pay } from '../renew'
+import { daysLeftText, isExpired, needsRenewal, checkoutRenew } from '../renew'
 import type { Profile } from '../types'
 import { CtaButton } from './CtaButton'
 
@@ -45,7 +45,7 @@ export function BalanceCard({ p }: { p: Profile }) {
                                 </Text>
                             </Stack>
                         </Group>
-                        <CtaButton leftSection={<IconBolt size={18} />} onClick={pay}>
+                        <CtaButton leftSection={<IconBolt size={18} />} onClick={() => navigate(checkoutRenew(urgent.id))}>
                             {t('renew.button')}
                         </CtaButton>
                     </Group>

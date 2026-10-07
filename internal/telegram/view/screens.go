@@ -60,6 +60,7 @@ func Home(p profile.Profile, l Links, now time.Time) Screen {
 	return Screen{Text: b.String(), Keyboard: kb(append(rows,
 		[]btn{cb(BtnSubs, CbSubs), cb(BtnBalance, CbBalance)},
 		[]btn{cb(BtnRefs, CbRefs), cb(BtnTariffs, CbTariffs)},
+		[]btn{cb(BtnOrders, CbOrders)},
 	)...)}
 }
 

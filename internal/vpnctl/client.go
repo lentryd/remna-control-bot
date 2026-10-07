@@ -30,6 +30,13 @@ type Client interface {
 	// ListCustomers returns every customer without details (no subscriptions).
 	ListCustomers(ctx context.Context) ([]Customer, error)
 	ListSubscriptions(ctx context.Context) ([]Subscription, error)
+	QuoteExtend(ctx context.Context, kind string, id, months, days int) (*ExtendQuote, error)
+	Extend(ctx context.Context, kind string, id int, in ExtendInput) (*Extension, error)
+	QuoteTariff(ctx context.Context, kind string, id, tariffID int) (*TariffQuote, error)
+	ChangeTariff(ctx context.Context, kind string, id int, in ChangeTariffInput) error
+	Pay(ctx context.Context, customerID int, in PaymentInput) (*PaymentResult, error)
+	Provision(ctx context.Context, in ProvisionInput) (int, error)
+	ConnectAddon(ctx context.Context, subscriptionID int, in ConnectAddonInput) (int, error)
 }
 
 // APIError is a non-2xx answer; vpn-control sends {"message","code"}.

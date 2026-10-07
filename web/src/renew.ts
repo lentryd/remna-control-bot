@@ -1,7 +1,6 @@
 // Renewal: which subscriptions to offer and what the button does until
 // payments exist (mirrors internal/profile.NeedsRenewal: 7 days).
 import i18n from './i18n'
-import { tg } from './telegram'
 import type { Subscription } from './types'
 
 const WINDOW_MS = 7 * 24 * 3600 * 1000
@@ -16,8 +15,4 @@ export function daysLeftText(s: Subscription) {
     return days < 1 ? i18n.t('renew.today') : i18n.t('renew.in_days', { count: days })
 }
 
-export function pay() {
-    const text = i18n.t('tariffs.pay_soon')
-    if (tg) tg.showAlert(text)
-    else window.alert(text)
-}
+export const checkoutRenew = (subId: number) => `/checkout?kind=renew&item_kind=subscription&item_id=${subId}`

@@ -13,6 +13,7 @@ export interface Addon {
 export interface Subscription {
     id: number
     title: string
+    tariff_id: number | null
     tariff: string
     price: number
     status: string
@@ -70,4 +71,36 @@ export interface Tariff {
     traffic_limit_bytes: number
     hwid_limit: number | null
     periods: Period[] | null
+}
+export type OrderKind = 'renew' | 'subscribe' | 'addon' | 'change_tariff' | 'topup'
+export interface OrderRequest {
+    kind: OrderKind
+    item_kind?: 'subscription' | 'addon'
+    item_id?: number
+    tariff_id?: number
+    months?: number
+    days?: number
+    amount?: number
+}
+export interface OrderQuote {
+    title: string
+    price: number
+    from_balance: number
+    to_pay: number
+    methods: ('manual' | 'balance')[]
+}
+export interface Order {
+    id: string
+    number: string // short form to show people
+    kind: OrderKind
+    title: string
+    price: number
+    from_balance: number
+    to_pay: number
+    paid: number
+    method: 'manual' | 'balance'
+    status: 'new' | 'awaiting_receipt' | 'pending_review' | 'approving' | 'approved' | 'credited' | 'failed' | 'rejected' | 'expired' | 'cancelled'
+    reason?: string
+    until?: string
+    created_at: string
 }

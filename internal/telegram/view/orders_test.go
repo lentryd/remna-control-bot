@@ -1,0 +1,92 @@
+package view
+
+import (
+	"strings"
+	"testing"
+
+	"vpn-control-bot/internal/orders"
+)
+
+func order() orders.Order {
+	return orders.Order{ID: "0c6f2b3a-5d4e-4f1a-9b7c-8e2d1a3f4b5c", CustomerID: 5, ChatID: 77, Request: orders.Request{Kind: orders.KindRenew, ItemKind: "subscription", ItemID: 3, Months: 3},
+		Title: "Продление «Дом» · 3 мес.", Price: 900, FromBalance: 100, ToPay: 800, Method: orders.MethodManual,
+		Status: orders.StatusPendingReview, ReceiptKind: orders.ReceiptPhoto, Comment: "перевёл <сбер>", CreatedAt: now}
+}
+
+func TestPayScreen(t *testing.T) {
+	s := PayScreen(order(), "Карта 2200 <b>")
+	for _, want := range []string{"Заказ №0c6f2b3a", "900", "100", "<b>800 ₽</b>", "Карта 2200 &lt;b&gt;"} {
+		if !strings.Contains(s.Text, want) {
+			t.Errorf("no %q in\n%s", want, s.Text)
+		}
+	}
+	if b := buttons(s); !has(b, CbOrderCancel+order().ID) {
+		t.Errorf("buttons %v", b)
+	}
+}
+
+func TestAdminCard(t *testing.T) {
+	o := order()
+	c := AdminCard(o, AdminCustomer{Name: "Ann", Username: "ann", TelegramID: 77})
+	if !strings.Contains(c.Text, "перевёл &lt;сбер&gt;") || !strings.Contains(c.Text, "@ann") || len(c.Text) > 1024 {
+		t.Fatalf("card:\n%s", c.Text)
+	}
+	if b := buttons(c); !has(b, CbAdminApprove+o.ID) || !has(b, CbAdminEdit+o.ID) || !has(b, CbAdminReject+o.ID) {
+		t.Fatalf("buttons %v", b)
+	}
+	r := 500.0
+	o.Received = &r
+	b := buttons(AdminCard(o, AdminCustomer{Name: "Ann"}))
+	if has(b, CbAdminApprove+o.ID) || !has(b, CbAdminDebt+o.ID) || !has(b, CbAdminCredit+o.ID) {
+		t.Fatalf("underpaid buttons %v", b)
+	}
+	o.Kind = orders.KindSubscribe
+	if has(buttons(AdminCard(o, AdminCustomer{})), CbAdminDebt+o.ID) {
+		t.Fatal("debt offered for a new subscription")
+	}
+	o.Status, o.Admin = orders.StatusApproved, "@boss"
+	done := AdminCard(o, AdminCustomer{})
+	if done.Keyboard != nil || !strings.Contains(done.Text, "@boss") || !strings.Contains(done.Text, "800 → 500") {
+		t.Fatalf("decided card:\n%s %v", done.Text, done.Keyboard)
+	}
+	o.Status, o.Error = orders.StatusFailed, "no squad"
+	if !has(buttons(AdminCard(o, AdminCustomer{})), CbAdminRetry+o.ID) {
+		t.Fatal("no retry on a failed order")
+	}
+}
+
+func TestOrderNotice(t *testing.T) {
+	o := order()
+	for st, want := range map[orders.Status]string{
+		orders.StatusApproved: "подтверждена", orders.StatusRejected: "отклонён", orders.StatusFailed: "Администратор проверит",
+		orders.StatusCredited: "зачислено на баланс",
+	} {
+		o.Status = st
+		r := 500.0
+		if st == orders.StatusCredited {
+			o.Received = &r
+		}
+		if s := OrderNotice(o); !strings.Contains(s.Text, want) {
+			t.Errorf("%s: %s", st, s.Text)
+		}
+	}
+}
+
+func TestOrdersHistory(t *testing.T) {
+	list := []orders.Order{order(), order()}
+	list[1].ID, list[1].Status = "b1b1b1b1-0000-4000-8000-000000000000", orders.StatusApproved
+	s := Orders(list, 0, 2)
+	if !strings.Contains(s.Text, "⏳") || !strings.Contains(s.Text, "✅") || !strings.Contains(s.Text, "№b1b1b1b1") {
+		t.Fatal(s.Text)
+	}
+	if e := Orders(nil, 0, 0); !strings.Contains(e.Text, "пока нет") {
+		t.Fatal(e.Text)
+	}
+}
+
+func TestRenewPeriods(t *testing.T) {
+	s := RenewPeriods(3, "Дом", []RenewOption{{Months: 1, Price: 300}, {Months: 3, Price: 800}})
+	if b := buttons(s); !has(b, CbRenewPick+"3:1:0") || !has(b, CbRenewPick+"3:3:0") {
+		t.Fatalf("%v", b)
+	}
+}

@@ -3,7 +3,6 @@ package telegram
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"strings"
 	"time"
@@ -12,23 +11,34 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"vpn-control-bot/internal/access"
-	"vpn-control-bot/internal/billing"
 	"vpn-control-bot/internal/config"
 	"vpn-control-bot/internal/notify"
+	"vpn-control-bot/internal/orders"
 	"vpn-control-bot/internal/profile"
 	"vpn-control-bot/internal/refcode"
+	"vpn-control-bot/internal/store"
 	"vpn-control-bot/internal/telegram/view"
 	"vpn-control-bot/internal/vpnctl"
 )
+
+// PromptStore keeps the admin questions awaiting a reply (*store.Store).
+type PromptStore interface {
+	SavePrompt(ctx context.Context, chatID int64, msgID int, p store.Prompt) error
+	TakePrompt(ctx context.Context, chatID int64, msgID int) (store.Prompt, bool, error)
+}
 
 type Deps struct {
 	Access    *access.Service
 	API       vpnctl.Client
 	Codec     *refcode.Codec
-	Billing   billing.Billing
 	WebAppURL string
 	PayMode   config.PayMode
 	Log       *slog.Logger
+
+	Orders      *orders.Service // nil: payments in the bot are off
+	Prompts     PromptStore
+	AdminChatID int64
+	IsAdmin     func(int64) bool
 }
 
 type Bot struct {
@@ -42,7 +52,7 @@ func New(ctx context.Context, token string, d Deps) (*Bot, error) {
 	b := &Bot{Deps: d, links: view.Links{WebApp: d.WebAppURL}}
 	tg, err := tgbot.New(token,
 		tgbot.WithDefaultHandler(b.onText),
-		tgbot.WithMiddlewares(privateMiddleware),
+		tgbot.WithMiddlewares(gate(d.AdminChatID)),
 		tgbot.WithErrorsHandler(func(err error) { d.Log.Error("telegram", "err", err) }),
 	)
 	if err != nil {
@@ -58,9 +68,13 @@ func New(ctx context.Context, token string, d Deps) (*Bot, error) {
 	tg.RegisterHandler(tgbot.HandlerTypeMessageText, "start", tgbot.MatchTypeCommand, b.onStart)
 	tg.RegisterHandler(tgbot.HandlerTypeMessageText, "menu", tgbot.MatchTypeCommand, b.onMenu)
 	tg.RegisterHandler(tgbot.HandlerTypeMessageText, "help", tgbot.MatchTypeCommand, b.onHelp)
-	for _, p := range []string{"m:", view.CbSub, view.CbSubsPage, view.CbTariffsPage, view.CbRenew} {
+	for _, p := range []string{"m:", view.CbSub, view.CbSubsPage, view.CbTariffsPage, view.CbRenew, view.CbOrdersPage} {
 		tg.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, p, tgbot.MatchTypePrefix, b.onCallback)
 	}
+	for _, p := range []string{view.CbRenewPick, view.CbOrderPay, view.CbOrderBal, view.CbOrderCancel} {
+		tg.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, p, tgbot.MatchTypePrefix, b.onOrderCallback)
+	}
+	tg.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, "o", tgbot.MatchTypePrefix, b.onAdmin)
 
 	if _, err := tg.SetMyCommands(ctx, &tgbot.SetMyCommandsParams{Commands: []models.BotCommand{
 		{Command: "menu", Description: "Главное меню"},
@@ -156,6 +170,9 @@ func (b *Bot) home(r access.Result, prefix string) view.Screen {
 
 func (b *Bot) onStart(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 	m := u.Message
+	if m.Chat.Type != models.ChatTypePrivate {
+		return
+	}
 	payload := strings.TrimSpace(strings.TrimPrefix(m.Text, "/start"))
 	r, err := b.Access.Start(ctx, user(m.From), payload)
 	if s, done := b.outcome(r, err); done {
@@ -171,6 +188,9 @@ func (b *Bot) onStart(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 
 func (b *Bot) onMenu(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 	m := u.Message
+	if m.Chat.Type != models.ChatTypePrivate {
+		return
+	}
 	r, err := b.Access.Start(ctx, user(m.From), "")
 	if s, done := b.outcome(r, err); done {
 		b.show(ctx, m.Chat.ID, 0, s)
@@ -180,6 +200,9 @@ func (b *Bot) onMenu(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 }
 
 func (b *Bot) onHelp(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
+	if u.Message.Chat.Type != models.ChatTypePrivate {
+		return
+	}
 	b.show(ctx, u.Message.Chat.ID, 0, view.Notice(view.TxtHelp))
 }
 
@@ -188,6 +211,17 @@ func (b *Bot) onHelp(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 func (b *Bot) onText(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 	m := u.Message
 	if m == nil {
+		return
+	}
+	if m.Chat.Type != models.ChatTypePrivate {
+		b.onAdminReply(ctx, m) // the gate lets only admin-chat replies through
+		return
+	}
+	// A private admin chat may answer a prompt; anything else is a customer's.
+	if b.AdminChatID != 0 && m.Chat.ID == b.AdminChatID && m.ReplyToMessage != nil && b.onAdminReply(ctx, m) {
+		return
+	}
+	if b.onReceipt(ctx, m) {
 		return
 	}
 	who := user(m.From)
@@ -248,9 +282,16 @@ func (b *Bot) onCallback(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 		}
 		b.show(ctx, chatID, msgID, view.Tariffs(profile.Tariffs(ts), rt.id, b.links))
 	case view.CbRenew:
-		_, err := b.Billing.Quote(ctx, r.Customer.ID, billing.Item{Kind: "subscription", ID: rt.id})
-		if errors.Is(err, billing.ErrNotImplemented) {
+		if b.Orders == nil {
 			answer.Text, answer.ShowAlert = view.TxtSoon, true
+			return
 		}
+		b.renewPeriods(ctx, chatID, msgID, r.Customer, rt.id)
+	case view.CbOrders, view.CbOrdersPage:
+		if b.Orders == nil {
+			answer.Text, answer.ShowAlert = view.TxtSoon, true
+			return
+		}
+		b.showOrders(ctx, chatID, msgID, r.Customer.ID, rt.id)
 	}
 }

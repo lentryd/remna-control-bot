@@ -27,8 +27,8 @@ func TestPrivateOnly(t *testing.T) {
 		{"nothing", &models.Update{}, false},
 	}
 	for _, c := range cases {
-		if got := privateOnly(c.u); got != c.ok {
-			t.Errorf("%s: privateOnly = %v, want %v", c.name, got, c.ok)
+		if got := allowed(c.u, 0); got != c.ok {
+			t.Errorf("%s: allowed = %v, want %v", c.name, got, c.ok)
 		}
 	}
 }

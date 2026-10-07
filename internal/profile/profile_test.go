@@ -19,7 +19,7 @@ func TestBuild(t *testing.T) {
 	c := &vpnctl.Customer{
 		ID: 1, Name: "Ann", Notes: "SECRET-NOTE", Contact: "SECRET-CONTACT", Balance: 10,
 		Subscriptions: []vpnctl.Subscription{
-			{ID: 1, Title: "Main", TariffName: "Std", RwUser: &vpnctl.RwUser{SubscriptionURL: "https://s/a", Status: "ACTIVE"},
+			{ID: 1, Title: "Main", TariffID: ptr(4), TariffName: "Std", RwUser: &vpnctl.RwUser{SubscriptionURL: "https://s/a", Status: "ACTIVE"},
 				Addons: []vpnctl.Addon{{ID: 3, AddonName: "YouTube", RwUser: &vpnctl.RwUser{Status: "ACTIVE"}}}},
 			{ID: 2, Title: "Gone", RwUser: &vpnctl.RwUser{Deleted: true}},
 		},
@@ -34,6 +34,12 @@ func TestBuild(t *testing.T) {
 
 	if len(p.Subscriptions) != 1 || p.Subscriptions[0].URL != "https://s/a" || len(p.Subscriptions[0].Addons) != 1 {
 		t.Fatalf("subscriptions: %+v", p.Subscriptions)
+	}
+	if got := p.Subscriptions[0].TariffID; got == nil || *got != 4 {
+		t.Fatalf("tariff id: %v", got)
+	}
+	if !strings.Contains(string(mustJSON(t, p.Subscriptions[0])), `"tariff_id":4`) {
+		t.Fatal("tariff_id not in JSON")
 	}
 	if p.Ledger[0].Amount != -50 { // newest first
 		t.Fatalf("ledger order: %+v", p.Ledger)
@@ -133,4 +139,13 @@ func TestRenewalUsesPayMode(t *testing.T) {
 	if full != (billing.Payment{Price: 300, FromOwn: 100, ToPay: 200}) {
 		t.Fatalf("referral_full: %+v", full)
 	}
+}
+
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }

@@ -22,6 +22,7 @@ type Runner struct {
 	Rules    Rules
 	Interval time.Duration
 	Log      *slog.Logger
+	Sweep    func(ctx context.Context) error // housekeeping on every tick (expired orders); optional
 }
 
 // Run checks right away, then every Interval, until ctx is done.
@@ -41,6 +42,11 @@ func (r *Runner) Run(ctx context.Context) {
 // RunOnce sends every planned notice that wasn't sent before. A failed send
 // isn't recorded, so it is retried on the next run.
 func (r *Runner) RunOnce(ctx context.Context, now time.Time) {
+	if r.Sweep != nil {
+		if err := r.Sweep(ctx); err != nil {
+			r.Log.Error("notify: sweep", "err", err)
+		}
+	}
 	customers, err := r.API.ListCustomers(ctx)
 	if err != nil {
 		r.Log.Error("notify: customers", "err", err)

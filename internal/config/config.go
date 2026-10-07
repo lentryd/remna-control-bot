@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -41,10 +42,23 @@ type Config struct {
 	NotifyInterval  time.Duration // 0 disables notifications
 	TrafficAlertPct int           // traffic share that triggers an alert
 	RemindDays      []int         // days before the end to remind about payment, descending
+
+	AdminChatID      int64         // where receipts go; 0 disables manual payment
+	AdminIDs         []int64       // who may decide on them
+	ManualPayDetails string        // where to send money, shown with the amount
+	OrderTTL         time.Duration // unpaid orders expire after this
 }
 
 // WebAppURL is where Telegram opens the WebApp.
 func (c Config) WebAppURL() string { return c.PublicURL + c.WebAppPath }
+
+// ManualEnabled: receipts need somewhere to go, someone to decide and
+// details to pay by.
+func (c Config) ManualEnabled() bool {
+	return c.AdminChatID != 0 && len(c.AdminIDs) > 0 && c.ManualPayDetails != ""
+}
+
+func (c Config) IsAdmin(id int64) bool { return slices.Contains(c.AdminIDs, id) }
 
 func Load() (Config, error) { return load(os.Getenv) }
 
@@ -96,6 +110,25 @@ func load(get func(string) string) (Config, error) {
 		c.RemindDays = append(c.RemindDays, d)
 	}
 	sort.Sort(sort.Reverse(sort.IntSlice(c.RemindDays)))
+	if v := or("ADMIN_CHAT_ID", ""); v != "" {
+		if c.AdminChatID, err = strconv.ParseInt(v, 10, 64); err != nil {
+			return Config{}, fmt.Errorf("config: ADMIN_CHAT_ID must be a chat id")
+		}
+	}
+	for _, f := range strings.Split(or("ADMIN_IDS", ""), ",") {
+		if f = strings.TrimSpace(f); f == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(f, 10, 64)
+		if err != nil {
+			return Config{}, fmt.Errorf("config: ADMIN_IDS must be Telegram ids like 5,7")
+		}
+		c.AdminIDs = append(c.AdminIDs, id)
+	}
+	c.ManualPayDetails = strings.ReplaceAll(or("MANUAL_PAY_DETAILS", ""), `\n`, "\n")
+	if c.OrderTTL, err = time.ParseDuration(or("ORDER_TTL", "48h")); err != nil || c.OrderTTL <= 0 {
+		return Config{}, fmt.Errorf("config: ORDER_TTL must be a positive duration like 48h")
+	}
 	if c.Mode != ModeOpen && c.Mode != ModeClosed {
 		return Config{}, fmt.Errorf("config: BOT_MODE must be open or closed, got %q", c.Mode)
 	}

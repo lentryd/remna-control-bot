@@ -29,6 +29,21 @@ const (
 	CbRenew       = "r:"  // + subscription id
 	CbSubsPage    = "ps:" // + page number, from 0
 	CbTariffsPage = "pt:" // + page number, from 0
+
+	CbOrders      = "m:pay"
+	CbOrdersPage  = "po:" // + page number, from 0
+	CbRenewPick   = "rp:" // + subID:months:days
+	CbOrderPay    = "pr:" // + order id: send the receipt
+	CbOrderBal    = "pb:" // + order id: pay from the balance
+	CbOrderCancel = "pc:" // + order id
+
+	CbAdminApprove  = "oa:" // + order id
+	CbAdminDebt     = "od:"
+	CbAdminCredit   = "oc:"
+	CbAdminEdit     = "oe:"
+	CbAdminReject   = "ox:"
+	CbAdminNoReason = "on:"
+	CbAdminRetry    = "oy:"
 )
 
 type btn = models.InlineKeyboardButton

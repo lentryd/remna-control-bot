@@ -22,6 +22,7 @@ interface WebApp {
     openTelegramLink(url: string): void
     showAlert(message: string): void
     openLink(url: string): void
+    close(): void
 }
 declare global {
     interface Window {

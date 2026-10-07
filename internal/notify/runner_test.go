@@ -58,3 +58,14 @@ func TestRunOncePanelDown(t *testing.T) {
 		t.Fatal("sent while the panel is down")
 	}
 }
+
+func TestRunOnceCallsSweep(t *testing.T) {
+	r := &Runner{API: vpnctl.NewFake(), Store: memSent{}, Rules: rules, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Send: func(context.Context, Notice) error { return nil }}
+	called := false
+	r.Sweep = func(context.Context) error { called = true; return nil }
+	r.RunOnce(context.Background(), now)
+	if !called {
+		t.Fatal("sweep not called")
+	}
+}

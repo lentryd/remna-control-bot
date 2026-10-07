@@ -1,3 +1,4 @@
+// Package billing decides how a price is covered by the customer's balance.
 package billing
 
 import (

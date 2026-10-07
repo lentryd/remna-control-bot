@@ -2,13 +2,13 @@
 // included, savings for longer terms and a bright "connect" button.
 import { Badge, Card, Group, List, Stack, Text, ThemeIcon, Title } from '@mantine/core'
 import { IconBolt, IconCheck, IconDevices, IconGauge, IconPuzzle } from '@tabler/icons-react'
-import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router'
 
 import { fmtBytes, fmtMoney } from '@shared/format'
 import { useTariffs } from '../api'
-import { pay } from '../renew'
 import type { Period, Tariff } from '../types'
+import { term } from '../term'
 import { CtaButton } from '../ui/CtaButton'
 import { Empty } from '../ui/Empty'
 import { PageSkeleton } from '../ui/PageSkeleton'
@@ -26,6 +26,7 @@ function TariffCard({ tf }: { tf: Tariff }) {
     const periods = (tf.periods ?? []).filter((p) => p.months > 0 || p.days > 0)
     const best = Math.max(0, ...periods.map((p) => saving(tf, p)))
     const addon = tf.kind === 'addon'
+    const navigate = useNavigate()
     return (
         <Card className={classes.card} data-addon={addon || undefined} padding="lg" radius="lg" withBorder>
             <Stack gap="md">
@@ -78,16 +79,12 @@ function TariffCard({ tf }: { tf: Tariff }) {
                     </Group>
                 )}
 
-                <CtaButton fullWidth leftSection={<IconBolt size={20} />} onClick={pay} size="lg">
+                <CtaButton fullWidth leftSection={<IconBolt size={20} />} onClick={() => navigate(`/checkout?kind=${addon ? 'addon' : 'subscribe'}&tariff_id=${tf.id}`)} size="lg">
                     {t('tariffs.connect')}
                 </CtaButton>
             </Stack>
         </Card>
     )
-}
-
-function term(p: Period, t: TFunction) {
-    return [p.months && t('tariffs.months', { count: p.months }), p.days && t('tariffs.days', { count: p.days })].filter(Boolean).join(' ')
 }
 
 export function Tariffs() {

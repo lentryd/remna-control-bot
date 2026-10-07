@@ -2,24 +2,54 @@ package vpnctl
 
 import (
 	"context"
+	"math"
 	"sort"
+	"strconv"
 	"sync"
+	"time"
 )
 
 // Fake is an in-memory Client that behaves like vpn-control's lookup rules.
 type Fake struct {
-	mu        sync.Mutex
-	customers map[int]*Customer
-	nextID    int
-	Tariffs   []Tariff
-	Creates   []CustomerInput
-	Updates   []Update
-	Err       error // returned by every call when set
+	mu            sync.Mutex
+	customers     map[int]*Customer
+	nextID        int
+	Tariffs       []Tariff
+	Creates       []CustomerInput
+	Updates       []Update
+	Err           error // returned by every call when set
+	Quotes        map[string]ExtendQuote
+	TariffQuotes  map[string]TariffQuote
+	Payments      []PaymentInput
+	Extends       []ExtendCall
+	Provisions    []ProvisionInput
+	AddonCalls    []AddonCall
+	TariffChanges []TariffCall
+	FailExtend    string
+	FailStep      error
+	nextPaymentID int
 }
 
 type Update struct {
 	ID int
 	In CustomerInput
+}
+
+type ExtendCall struct {
+	Kind string
+	ID   int
+	In   ExtendInput
+}
+
+type AddonCall struct {
+	SubscriptionID int
+	In             ConnectAddonInput
+}
+
+type TariffCall struct {
+	Kind string
+	ID   int
+	In   ChangeTariffInput
 }
 
 var _ Client = (*Fake)(nil)
@@ -173,4 +203,113 @@ func (f *Fake) ListSubscriptions(ctx context.Context) ([]Subscription, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out, nil
+}
+
+func itemKey(kind string, id int) string { return kind + ":" + strconv.Itoa(id) }
+
+func (f *Fake) QuoteExtend(_ context.Context, kind string, id, months, days int) (*ExtendQuote, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.Err != nil {
+		return nil, f.Err
+	}
+	q, ok := f.Quotes[itemKey(kind, id)]
+	if !ok {
+		return nil, &APIError{Status: 404}
+	}
+	q.Amount *= float64(months) + float64(days)/30 // Quotes hold the one-month price
+	q.Amount = math.Round(q.Amount*100) / 100
+	return &q, nil
+}
+
+func (f *Fake) extension(kind string, id, months, days int, amount float64) Extension {
+	e := Extension{Kind: kind, ID: id, Months: months, Days: days, Amount: amount, OK: f.FailExtend == ""}
+	if e.OK {
+		to := time.Date(2027, 1, 12, 0, 0, 0, 0, time.UTC)
+		e.To = &to
+	} else {
+		e.Error = f.FailExtend
+	}
+	return e
+}
+
+func (f *Fake) Extend(_ context.Context, kind string, id int, in ExtendInput) (*Extension, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.Err != nil {
+		return nil, f.Err
+	}
+	f.Extends = append(f.Extends, ExtendCall{Kind: kind, ID: id, In: in})
+	e := f.extension(kind, id, in.Months, in.Days, in.Amount)
+	if !e.OK {
+		return nil, &APIError{Status: 400, Message: e.Error}
+	}
+	return &e, nil
+}
+
+func (f *Fake) QuoteTariff(_ context.Context, kind string, id, tariffID int) (*TariffQuote, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.Err != nil {
+		return nil, f.Err
+	}
+	q, ok := f.TariffQuotes[itemKey(kind, id)+":"+strconv.Itoa(tariffID)]
+	if !ok {
+		return nil, &APIError{Status: 400}
+	}
+	return &q, nil
+}
+
+func (f *Fake) ChangeTariff(_ context.Context, kind string, id int, in ChangeTariffInput) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.Err != nil {
+		return f.Err
+	}
+	if f.FailStep != nil {
+		return f.FailStep
+	}
+	f.TariffChanges = append(f.TariffChanges, TariffCall{Kind: kind, ID: id, In: in})
+	return nil
+}
+
+func (f *Fake) Pay(_ context.Context, customerID int, in PaymentInput) (*PaymentResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.Err != nil {
+		return nil, f.Err
+	}
+	f.Payments = append(f.Payments, in)
+	f.nextPaymentID++
+	res := &PaymentResult{PaymentID: f.nextPaymentID}
+	for _, a := range in.Allocations {
+		res.Extensions = append(res.Extensions, f.extension(a.Kind, a.ID, a.Months, a.Days, a.Amount))
+	}
+	return res, nil
+}
+
+func (f *Fake) Provision(_ context.Context, in ProvisionInput) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.Err != nil {
+		return 0, f.Err
+	}
+	if f.FailStep != nil {
+		return 0, f.FailStep
+	}
+	f.Provisions = append(f.Provisions, in)
+	return 100 + len(f.Provisions), nil
+}
+
+func (f *Fake) ConnectAddon(_ context.Context, subscriptionID int, in ConnectAddonInput) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.Err != nil {
+		return 0, f.Err
+	}
+	if f.FailStep != nil {
+		return 0, f.FailStep
+	}
+	f.AddonCalls = append(f.AddonCalls, AddonCall{SubscriptionID: subscriptionID, In: in})
+	return 200 + len(f.AddonCalls), nil
 }

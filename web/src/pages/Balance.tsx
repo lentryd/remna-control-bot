@@ -3,16 +3,18 @@ import { Box, Button, Card, Group, SimpleGrid, Stack, Text, ThemeIcon, Title } f
 import { IconPlus, IconReceipt, IconWallet } from '@tabler/icons-react'
 import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router'
 
 import { fmtDate, fmtMoney } from '@shared/format'
 import { SectionCard } from '@shared/ui/section-card'
-import { pay } from '../renew'
 import type { LedgerEntry, Profile } from '../types'
 import { Empty } from '../ui/Empty'
+import { OrdersList } from '../ui/OrdersList'
 import classes from './balance.module.css'
 
 export function Balance({ p }: { p: Profile }) {
     const { t } = useTranslation()
+    const navigate = useNavigate()
     const months = new Map<string, LedgerEntry[]>()
     for (const e of p.ledger) {
         const key = dayjs(e.date).format('MMMM YYYY')
@@ -41,10 +43,11 @@ export function Balance({ p }: { p: Profile }) {
                         <Text c={p.balance_referral > 0 ? 'teal' : undefined} fw={600}>{fmtMoney(p.balance_referral, 2)}</Text>
                     </Box>
                 </SimpleGrid>
-                <Button fullWidth leftSection={<IconPlus size={18} />} mt="md" onClick={pay} radius="md" size="md">
+                <Button fullWidth leftSection={<IconPlus size={18} />} mt="md" onClick={() => navigate('/checkout?kind=topup')} radius="md" size="md">
                     {t('balance.top_up')}
                 </Button>
             </Card>
+            <OrdersList />
             <Text fw={600}>{t('balance.history')}</Text>
             {p.ledger.length === 0 ? (
                 <Empty icon={<IconReceipt />} title={t('empty.ledger')} />

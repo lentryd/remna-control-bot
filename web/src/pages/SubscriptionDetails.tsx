@@ -2,12 +2,12 @@
 import { Button, Group, Progress, Stack, Text, Title } from '@mantine/core'
 import { IconBolt, IconExternalLink } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
-import { Navigate, useParams } from 'react-router'
+import { Navigate, useNavigate, useParams } from 'react-router'
 
 import { fmtBytes, fmtDate, fmtMoney } from '@shared/format'
 import { CopyableFieldShared } from '@shared/ui/copyable-field/copyable-field'
 import { SectionCard } from '@shared/ui/section-card'
-import { isExpired, pay } from '../renew'
+import { checkoutRenew, isExpired } from '../renew'
 import { haptic, openExternal } from '../telegram'
 import type { Profile } from '../types'
 import { CtaButton } from '../ui/CtaButton'
@@ -19,6 +19,7 @@ const pct = (used: number, limit: number) => (limit > 0 ? Math.min(100, (used / 
 export function SubscriptionDetails({ p }: { p: Profile }) {
     const { t } = useTranslation()
     const { id } = useParams()
+    const navigate = useNavigate()
     const s = p.subscriptions.find((x) => x.id === Number(id))
     if (!s) return <Navigate replace to="/subscriptions" />
     const until = s.unlimited ? t('sub.forever') : t('sub.until', { date: fmtDate(s.expire_at) })
@@ -47,9 +48,20 @@ export function SubscriptionDetails({ p }: { p: Profile }) {
             </SectionCard.Root>
             {!s.unlimited && s.renewal.price > 0 && <RenewalSplit r={s.renewal} />}
             {!s.unlimited && (
-                <CtaButton fullWidth leftSection={<IconBolt size={20} />} onClick={pay} size="lg">
+                <CtaButton fullWidth leftSection={<IconBolt size={20} />} onClick={() => navigate(checkoutRenew(s.id))} size="lg">
                     {isExpired(s) ? t('renew.button_expired') : t('renew.button')}
                 </CtaButton>
+            )}
+            {!s.unlimited && (
+                <Button
+                    fullWidth
+                    onClick={() => navigate(`/checkout?kind=change_tariff&item_kind=subscription&item_id=${s.id}`)}
+                    radius="xl"
+                    size="md"
+                    variant="default"
+                >
+                    {t('sub.change_tariff')}
+                </Button>
             )}
             {s.url && (
                 <Stack gap="xs">

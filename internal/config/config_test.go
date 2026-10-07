@@ -92,3 +92,30 @@ func TestNotifyAndPayParsing(t *testing.T) {
 		}
 	}
 }
+
+func TestManualPayment(t *testing.T) {
+	base := map[string]string{"BOT_TOKEN": "t", "VPNCTL_URL": "u", "VPNCTL_TOKEN": "k", "PUBLIC_URL": "p", "REF_SECRET": "s"}
+	env := func(extra map[string]string) func(string) string {
+		m := map[string]string{}
+		for k, v := range base {
+			m[k] = v
+		}
+		for k, v := range extra {
+			m[k] = v
+		}
+		return func(k string) string { return m[k] }
+	}
+	c, err := load(env(nil))
+	if err != nil || c.ManualEnabled() || c.OrderTTL != 48*time.Hour {
+		t.Fatalf("defaults: %+v %v", c, err)
+	}
+	c, err = load(env(map[string]string{"ADMIN_CHAT_ID": "-100123", "ADMIN_IDS": "5, 7", "MANUAL_PAY_DETAILS": "Карта 2200", "ORDER_TTL": "24h"}))
+	if err != nil || !c.ManualEnabled() || c.AdminChatID != -100123 || !c.IsAdmin(7) || c.IsAdmin(8) || c.OrderTTL != 24*time.Hour {
+		t.Fatalf("manual: %+v %v", c, err)
+	}
+	for _, bad := range []map[string]string{{"ADMIN_IDS": "x"}, {"ADMIN_CHAT_ID": "x"}, {"ORDER_TTL": "-1h"}} {
+		if _, err := load(env(bad)); err == nil {
+			t.Errorf("%v: want error", bad)
+		}
+	}
+}
