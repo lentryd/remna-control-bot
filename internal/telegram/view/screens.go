@@ -34,13 +34,13 @@ func until(exp *time.Time, unlimited bool) string {
 func Home(p profile.Profile, l Links, now time.Time) Screen {
 	var b strings.Builder
 	fmt.Fprintf(&b, "👋 <b>%s</b>\n\n", Esc(clip(p.Name, maxTitle)))
-	fmt.Fprintf(&b, "💰 Баланс: <b>%s</b>\n", Rub(p.Balance))
+	fmt.Fprintf(&b, "💰 Баланс: <b>%s</b>\n", Money(p.Balance))
 	if len(p.Subscriptions) == 0 {
 		b.WriteString("📦 Подписок пока нет — загляните в «Тарифы».")
 	} else {
 		fmt.Fprintf(&b, "📦 Подписок: <b>%d</b>", len(p.Subscriptions))
 		if p.Monthly > 0 {
-			fmt.Fprintf(&b, " · %s/мес", Rub(p.Monthly))
+			fmt.Fprintf(&b, " · %s/мес", Money(p.Monthly))
 		}
 	}
 	rows := [][]btn{{{Text: BtnApp, WebApp: l.Page("/")}}}
@@ -104,7 +104,7 @@ func Subscription(p profile.Profile, id int, l Links, now time.Time) (Screen, bo
 		var b strings.Builder
 		fmt.Fprintf(&b, "%s <b>%s</b>\n\n", stateIcon(profile.Expiry(s.ExpireAt, s.Unlimited, now)), Esc(clip(s.Title, maxTitle)))
 		if s.Tariff != "" {
-			fmt.Fprintf(&b, "🏷 Тариф: %s · %s/мес\n", Esc(clip(s.Tariff, maxTitle)), Rub(s.Price))
+			fmt.Fprintf(&b, "🏷 Тариф: %s · %s/мес\n", Esc(clip(s.Tariff, maxTitle)), Money(s.Price))
 		}
 		fmt.Fprintf(&b, "📅 Действует до: <b>%s</b>\n", until(s.ExpireAt, s.Unlimited))
 		fmt.Fprintf(&b, "📊 Трафик: %s из %s\n", Bytes(s.UsedBytes), Bytes(s.LimitBytes))
@@ -126,12 +126,12 @@ func Subscription(p profile.Profile, id int, l Links, now time.Time) (Screen, bo
 			}
 		}
 		if r := s.Renewal; !s.Unlimited && r.Price > 0 {
-			fmt.Fprintf(&b, "\n💳 Продление на месяц: <b>%s</b>\n", Rub(r.Price))
+			fmt.Fprintf(&b, "\n💳 Продление на месяц: <b>%s</b>\n", Money(r.Price))
 			switch fromBalance := r.FromOwn + r.FromReferral; {
 			case r.ToPay == 0:
 				b.WriteString("Вся сумма спишется с баланса\n")
 			case fromBalance > 0:
-				fmt.Fprintf(&b, "с баланса %s · к оплате <b>%s</b>\n", Rub(fromBalance), Rub(r.ToPay))
+				fmt.Fprintf(&b, "с баланса %s · к оплате <b>%s</b>\n", Money(fromBalance), Money(r.ToPay))
 			}
 		}
 		rows := [][]btn{}
@@ -155,12 +155,12 @@ var ledgerTypes = map[string]string{
 
 func Balance(p profile.Profile, l Links) Screen {
 	var b strings.Builder
-	fmt.Fprintf(&b, "💰 <b>Баланс: %s</b>\n", Rub(p.Balance))
+	fmt.Fprintf(&b, "💰 <b>Баланс: %s</b>\n", Money(p.Balance))
 	if p.BalanceReferral != 0 {
-		fmt.Fprintf(&b, "из них реферальных: %s\n", Rub(p.BalanceReferral))
+		fmt.Fprintf(&b, "из них реферальных: %s\n", Money(p.BalanceReferral))
 	}
 	if p.Monthly > 0 {
-		fmt.Fprintf(&b, "Ежемесячно: %s\n", Rub(p.Monthly))
+		fmt.Fprintf(&b, "Ежемесячно: %s\n", Money(p.Monthly))
 	}
 	if len(p.Ledger) == 0 {
 		b.WriteString("\nОпераций пока не было.")
@@ -175,7 +175,7 @@ func Balance(p profile.Profile, l Links) Screen {
 				name = e.Type
 			}
 			d := e.Date
-			fmt.Fprintf(&b, "%s · %s · <b>%s</b>\n", Date(&d), name, Rub(e.Amount))
+			fmt.Fprintf(&b, "%s · %s · <b>%s</b>\n", Date(&d), name, Money(e.Amount))
 		}
 	}
 	return Screen{Text: strings.TrimRight(b.String(), "\n"), Keyboard: kb(
@@ -191,7 +191,7 @@ func Referrals(p profile.Profile, l Links) Screen {
 	if len(p.Referrals) == 0 {
 		b.WriteString("Пока никого. Поделитесь ссылкой — за оплаты приглашённых вы получаете процент на баланс.")
 	} else {
-		fmt.Fprintf(&b, "Приглашено: <b>%d</b> · заработано: <b>%s</b>\n\n<b>Топ по доходу</b>\n", len(p.Referrals), Rub(p.ReferralsEarned))
+		fmt.Fprintf(&b, "Приглашено: <b>%d</b> · заработано: <b>%s</b>\n\n<b>Топ по доходу</b>\n", len(p.Referrals), Money(p.ReferralsEarned))
 		for i, r := range p.Referrals {
 			if i == 5 {
 				break
@@ -200,7 +200,7 @@ func Referrals(p profile.Profile, l Links) Screen {
 			if !r.Active {
 				icon = "⚪️"
 			}
-			fmt.Fprintf(&b, "%s %s — %s\n", icon, Esc(clip(r.Name, maxTitle)), Rub(r.Earned))
+			fmt.Fprintf(&b, "%s %s — %s\n", icon, Esc(clip(r.Name, maxTitle)), Money(r.Earned))
 		}
 	}
 	share := "https://t.me/share/url?url=" + url.QueryEscape(p.RefLink) + "&text=" + url.QueryEscape(TxtShare)
@@ -226,7 +226,7 @@ func Tariffs(ts []profile.Tariff, n int, l Links) Screen {
 			name = t.AddonName + " · " + t.Name
 		}
 		name = clip(name, maxTitle)
-		fmt.Fprintf(&b, "\n<b>%s</b> — %s/мес", Esc(name), Rub(t.MonthlyPrice))
+		fmt.Fprintf(&b, "\n<b>%s</b> — %s/мес", Esc(name), Money(t.MonthlyPrice))
 		if t.Description != "" {
 			fmt.Fprintf(&b, "\n%s", Esc(clip(t.Description, maxDescription)))
 		}

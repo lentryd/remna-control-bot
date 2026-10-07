@@ -44,7 +44,7 @@ func TestHeleketInvoice(t *testing.T) {
 		w.Write([]byte(`{"state":0,"result":{"uuid":"hk-1","order_id":"ord-1","url":"https://pay.heleket.com/pay/hk-1","payment_status":"check"}}`))
 	})
 	h.ToCurrency, h.Network = "USDT", "tron"
-	inv, err := h.Invoice(t.Context(), InvoiceRequest{OrderID: "ord-1", Title: "t", Amount: 800, ExpiresIn: 48 * time.Hour}) // lifetime is clamped to 12 h
+	inv, err := h.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "ord-1", Title: "t", Amount: 800, ExpiresIn: 48 * time.Hour}) // lifetime is clamped to 12 h
 	if err != nil || inv.ExternalID != "hk-1" || inv.URL != "https://pay.heleket.com/pay/hk-1" || inv.Amount != 800 || inv.Currency != "RUB" {
 		t.Fatalf("%+v %v", inv, err)
 	}
@@ -52,7 +52,7 @@ func TestHeleketInvoice(t *testing.T) {
 
 func TestHeleketInvoiceErrors(t *testing.T) {
 	h := hkServer(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"state":1,"message":"bad merchant"}`)) })
-	if _, err := h.Invoice(t.Context(), InvoiceRequest{OrderID: "o", Title: "t", Amount: 1}); err == nil || !strings.Contains(err.Error(), "bad merchant") {
+	if _, err := h.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "o", Title: "t", Amount: 1}); err == nil || !strings.Contains(err.Error(), "bad merchant") {
 		t.Fatalf("want the provider's message, got %v", err)
 	}
 }
@@ -126,5 +126,33 @@ func TestHeleketStatus(t *testing.T) {
 	ev, err := h.Status(t.Context(), "hk-1")
 	if err != nil || !ev.Paid || ev.OrderID != "ord-1" || ev.Amount != 800 {
 		t.Fatalf("%+v %v", ev, err)
+	}
+}
+
+func TestHeleketInvoiceCurrency(t *testing.T) {
+	var got map[string]any
+	h := hkServer(t, func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&got)
+		w.Write([]byte(`{"state":0,"result":{"uuid":"hk-1","order_id":"o","url":"https://pay.heleket.com/pay/hk-1","payment_status":"check"}}`))
+	})
+	inv, err := h.Invoice(t.Context(), InvoiceRequest{Currency: "USD", OrderID: "o", Title: "t", Amount: 9.5})
+	if err != nil || inv.Currency != "USD" || inv.Amount != 9.5 {
+		t.Fatalf("%+v %v", inv, err)
+	}
+	if got["currency"] != "USD" || got["amount"] != "9.50" {
+		t.Errorf("body %v", got)
+	}
+}
+
+func TestHeleketInvoiceRejectsBadCurrency(t *testing.T) {
+	calls := 0
+	h := hkServer(t, func(w http.ResponseWriter, r *http.Request) { calls++ })
+	for _, cur := range []string{"", "usd", "US", "RUBL"} {
+		if _, err := h.Invoice(t.Context(), InvoiceRequest{Currency: cur, OrderID: "o", Title: "t", Amount: 1}); err == nil {
+			t.Errorf("currency %q: want an error", cur)
+		}
+	}
+	if calls != 0 {
+		t.Errorf("a bad currency must not reach the provider: %d requests", calls)
 	}
 }

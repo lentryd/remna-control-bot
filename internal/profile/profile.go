@@ -24,6 +24,8 @@ type Profile struct {
 	Referrals       []Referral     `json:"referrals"`
 	ReferralsEarned float64        `json:"referrals_earned"`
 	RefLink         string         `json:"ref_link"`
+	// Currency is the base currency every amount is in (the WebApp formats with it).
+	Currency string `json:"currency"`
 }
 
 type Subscription struct {

@@ -27,6 +27,7 @@ type Fake struct {
 	TariffChanges []TariffCall
 	FailExtend    string
 	FailStep      error
+	Currency      string // the panel's base currency; "RUB" when empty
 	nextPaymentID int
 }
 
@@ -312,4 +313,16 @@ func (f *Fake) ConnectAddon(_ context.Context, subscriptionID int, in ConnectAdd
 	}
 	f.AddonCalls = append(f.AddonCalls, AddonCall{SubscriptionID: subscriptionID, In: in})
 	return 200 + len(f.AddonCalls), nil
+}
+
+func (f *Fake) BaseCurrency(context.Context) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.Err != nil {
+		return "", f.Err
+	}
+	if f.Currency == "" {
+		return "RUB", nil
+	}
+	return f.Currency, nil
 }

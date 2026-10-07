@@ -51,13 +51,16 @@ and `REF_SECRET`, nothing is stored.
 | `HELEKET_API_KEY` | no | | Heleket payment API key |
 | `HELEKET_TO_CURRENCY` | no | | fixed asset the customer pays in (empty: customer chooses) |
 | `HELEKET_NETWORK` | no | | fixed network (empty: customer chooses) |
-| `STARS_RUB_RATE` | no | | roubles per Telegram Star; `> 0` turns Stars on |
+| `BASE_CURRENCY` | no | `RUB` | fallback ISO code while the panel can't tell its base currency (the bot reads `base_currency` from the panel) |
+| `STARS_RATE` | no | | base-currency units per Telegram Star; `> 0` turns Stars on |
 
 **Panel token:** vpn-control → Settings → API tokens → preset **Telegram bot**
 (`customers:lookup`, `customers:get`, `customers:create`, `customers:update`, `customers:list`,
-`subscriptions:list`, `tariffs:list`; the two lists are for notifications, plus the payment scopes).
+`subscriptions:list`, `tariffs:list`; the two lists are for notifications, plus the payment scopes and
+`stats:settings`, read only, which gives the base currency).
 Manual payment turns on only when `ADMIN_CHAT_ID`, `ADMIN_IDS` and `MANUAL_PAY_DETAILS` are all set.
 Create the vpn-control token with the *bot* preset (it now includes payment scopes) — re-issue the existing token.
+A token issued before `stats:settings` was added to the preset must be re-issued too; until then the bot uses `BASE_CURRENCY`.
 
 ## Payment providers
 
@@ -65,6 +68,13 @@ Customers can pay with **Telegram Stars**, **YooKassa** (cards, SBP), **CryptoBo
 manual transfer and the balance. A provider appears in the checkout when its keys are set. The payment is confirmed
 automatically and applied exactly once; a payment that arrives for an expired or cancelled order is still applied, and
 a wrong amount goes to the admin chat as a card.
+
+Invoices are issued in the panel's base currency. A provider that does not support that currency rejects the invoice
+and the customer sees "could not create an invoice". Stars are converted with `STARS_RATE` (base-currency units per Star).
+
+Provider invoices need the base currency to be confirmed: either the panel answers (a token with `stats:settings`) or
+`BASE_CURRENCY` is set explicitly. Otherwise the bot logs an error and provider payments stay disabled — manual
+payment and the balance are unaffected.
 
 Webhooks: the bot serves `POST {PUBLIC_URL}/pay/yookassa`, `/pay/cryptobot`, `/pay/heleket` (not under `WEBAPP_PATH`) —
 route `/pay/*` to the bot's `HTTP_ADDR` in your reverse proxy, and register the URL in the provider's cabinet

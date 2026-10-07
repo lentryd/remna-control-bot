@@ -15,8 +15,8 @@ import (
 	"strings"
 )
 
-// CryptoBot (Crypto Pay API): invoices are issued in fiat (RUB); the customer
-// pays in USDT/TON/… and CryptoBot converts.
+// CryptoBot (Crypto Pay API): invoices are issued in fiat, in the order's base
+// currency; the customer pays in USDT/TON/… and CryptoBot converts.
 type CryptoBot struct {
 	Token   string
 	Testnet bool
@@ -100,8 +100,11 @@ func (c *CryptoBot) call(ctx context.Context, method, path string, in, out any) 
 }
 
 func (c *CryptoBot) Invoice(ctx context.Context, in InvoiceRequest) (Invoice, error) {
+	if err := checkCurrency(in.Currency); err != nil {
+		return Invoice{}, fmt.Errorf("cryptobot: %w", err)
+	}
 	req := map[string]any{
-		"currency_type": "fiat", "fiat": "RUB", "amount": money(in.Amount),
+		"currency_type": "fiat", "fiat": in.Currency, "amount": money(in.Amount),
 		"description": clip(in.Title, 1024), "payload": in.OrderID,
 	}
 	if secs := int(in.ExpiresIn.Seconds()); secs > 0 {
@@ -117,7 +120,7 @@ func (c *CryptoBot) Invoice(ctx context.Context, in InvoiceRequest) (Invoice, er
 	if !r.OK || r.Result.InvoiceID == 0 || r.Result.BotInvoiceURL == "" {
 		return Invoice{}, fmt.Errorf("cryptobot: createInvoice failed: %v", r.Error)
 	}
-	return Invoice{ExternalID: strconv.FormatInt(r.Result.InvoiceID, 10), URL: r.Result.BotInvoiceURL, Amount: in.Amount, Currency: "RUB"}, nil
+	return Invoice{ExternalID: strconv.FormatInt(r.Result.InvoiceID, 10), URL: r.Result.BotInvoiceURL, Amount: in.Amount, Currency: in.Currency}, nil
 }
 
 func (c *CryptoBot) Status(ctx context.Context, externalID string) (Event, error) {

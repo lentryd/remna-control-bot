@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/go-telegram/bot/models"
+
+	"vpn-control-bot/internal/telegram/view"
 )
 
 func TestParseAmount(t *testing.T) {
@@ -16,6 +18,25 @@ func TestParseAmount(t *testing.T) {
 		if _, ok := parseAmount(in); ok {
 			t.Errorf("%q accepted", in)
 		}
+	}
+}
+
+func TestParseAmountCurrency(t *testing.T) {
+	t.Cleanup(func() { view.SetCurrency("RUB") })
+	view.SetCurrency("USD")
+	for in, want := range map[string]float64{"$500,50": 500.5, "500 usd": 500, "500.50 USD": 500.5, "700": 700, "1 200 ₽": 1200} {
+		if got, ok := parseAmount(in); !ok || got != want {
+			t.Errorf("%q = %v %v, want %v", in, got, ok, want)
+		}
+	}
+	for _, in := range []string{"", "abc", "$", "usd", "$0", "-$5", "0 usd", "1e9 usd", "5 eur"} {
+		if _, ok := parseAmount(in); ok {
+			t.Errorf("%q accepted", in)
+		}
+	}
+	view.SetCurrency("CHF")
+	if got, ok := parseAmount("12,5 chf"); !ok || got != 12.5 {
+		t.Errorf("chf = %v %v", got, ok)
 	}
 }
 

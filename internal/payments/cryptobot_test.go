@@ -41,7 +41,7 @@ func TestCryptoBotInvoice(t *testing.T) {
 		w.Write([]byte(`{"ok":true,"result":{"invoice_id":77,"status":"active","bot_invoice_url":"https://t.me/CryptoBot?start=IVabc"}}`))
 	})
 	c.Assets = "USDT,TON"
-	inv, err := c.Invoice(t.Context(), InvoiceRequest{OrderID: "ord-1", Title: "Продление", Amount: 800, ExpiresIn: time.Hour})
+	inv, err := c.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "ord-1", Title: "Продление", Amount: 800, ExpiresIn: time.Hour})
 	if err != nil || inv.ExternalID != "77" || inv.URL != "https://t.me/CryptoBot?start=IVabc" || inv.Amount != 800 || inv.Currency != "RUB" {
 		t.Fatalf("%+v %v", inv, err)
 	}
@@ -51,7 +51,7 @@ func TestCryptoBotInvoiceErrors(t *testing.T) {
 	c := cbServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"ok":false,"error":{"code":400,"name":"AMOUNT_TOO_SMALL"}}`))
 	})
-	if _, err := c.Invoice(t.Context(), InvoiceRequest{OrderID: "o", Title: "t", Amount: 1}); err == nil {
+	if _, err := c.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "o", Title: "t", Amount: 1}); err == nil {
 		t.Fatal("want an error when ok=false")
 	}
 }
@@ -113,5 +113,33 @@ func TestCryptoBotStatus(t *testing.T) {
 	empty := cbServer(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"ok":true,"result":{"items":[]}}`)) })
 	if _, err := empty.Status(t.Context(), "77"); err == nil {
 		t.Fatal("want an error for an unknown invoice")
+	}
+}
+
+func TestCryptoBotInvoiceCurrency(t *testing.T) {
+	var got map[string]any
+	c := cbServer(t, func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&got)
+		w.Write([]byte(`{"ok":true,"result":{"invoice_id":77,"status":"active","bot_invoice_url":"https://t.me/CryptoBot?start=IVabc"}}`))
+	})
+	inv, err := c.Invoice(t.Context(), InvoiceRequest{Currency: "USD", OrderID: "o", Title: "t", Amount: 9.5})
+	if err != nil || inv.Currency != "USD" || inv.Amount != 9.5 {
+		t.Fatalf("%+v %v", inv, err)
+	}
+	if got["fiat"] != "USD" || got["currency_type"] != "fiat" || got["amount"] != "9.50" {
+		t.Errorf("body %v", got)
+	}
+}
+
+func TestCryptoBotInvoiceRejectsBadCurrency(t *testing.T) {
+	calls := 0
+	c := cbServer(t, func(w http.ResponseWriter, r *http.Request) { calls++ })
+	for _, cur := range []string{"", "usd", "US", "RUBL"} {
+		if _, err := c.Invoice(t.Context(), InvoiceRequest{Currency: cur, OrderID: "o", Title: "t", Amount: 1}); err == nil {
+			t.Errorf("currency %q: want an error", cur)
+		}
+	}
+	if calls != 0 {
+		t.Errorf("a bad currency must not reach the provider: %d requests", calls)
 	}
 }

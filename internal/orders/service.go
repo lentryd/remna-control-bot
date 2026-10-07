@@ -30,6 +30,22 @@ type Service struct {
 	Now       func() time.Time
 	Log       *slog.Logger
 	NewID     func() string // order id source; nil: UUIDs (tests use a counter)
+	// BaseCurrency is the currency of the panel's prices and balances (ISO
+	// code); nil or empty means RUB. Invoices are issued in it.
+	BaseCurrency func(context.Context) string
+	// CurrencyKnown says whether BaseCurrency is confirmed (by the panel or by the operator) rather than a blind
+	// default; provider invoices are refused while it is false. nil: always known.
+	CurrencyKnown func() bool
+}
+
+// base is the upper-cased base currency, "RUB" when unknown.
+func (s *Service) base(ctx context.Context) string {
+	if s.BaseCurrency != nil {
+		if c := strings.ToUpper(strings.TrimSpace(s.BaseCurrency(ctx))); c != "" {
+			return c
+		}
+	}
+	return "RUB"
 }
 
 // Quote prices r for c on the server; nothing the client sends but the

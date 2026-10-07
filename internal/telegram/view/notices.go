@@ -25,7 +25,7 @@ func TrafficAlert(n notify.Notice, l Links, now time.Time) Screen {
 		if u.TrafficLimitBytes > 0 {
 			traffic = Bytes(u.TrafficLimitBytes) + " трафика"
 		}
-		fmt.Fprintf(&b, "\n\n✨ Нужно больше? Тариф <b>%s</b> — %s за %s/мес.", Esc(u.Name), traffic, Rub(u.MonthlyPrice))
+		fmt.Fprintf(&b, "\n\n✨ Нужно больше? Тариф <b>%s</b> — %s за %s/мес.", Esc(u.Name), traffic, Money(u.MonthlyPrice))
 	}
 	return Screen{Text: b.String(), Keyboard: kb(
 		[]btn{{Text: BtnTariffsApp, WebApp: l.Page("/tariffs")}},

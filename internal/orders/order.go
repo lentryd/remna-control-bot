@@ -95,7 +95,7 @@ type Order struct {
 	Error          string
 	ExternalID     string  // provider's payment/invoice id
 	PayURL         string  // where the customer pays
-	PayAmount      float64 // what was invoiced, in PayCurrency (roubles, or stars for Stars)
+	PayAmount      float64 // what was invoiced, in PayCurrency (the base currency, or stars for Stars)
 	PayCurrency    string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time

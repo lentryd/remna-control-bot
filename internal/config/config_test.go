@@ -129,7 +129,7 @@ func TestPayProviders(t *testing.T) {
 	for k, v := range map[string]string{
 		"YOOKASSA_SHOP_ID": "123", "YOOKASSA_SECRET_KEY": "sk", "YOOKASSA_VAT_CODE": "4", "YOOKASSA_RECEIPT_EMAIL": "a@b.c",
 		"CRYPTOBOT_TOKEN": "tok", "CRYPTOBOT_TESTNET": "true", "CRYPTOBOT_ASSETS": "USDT,TON",
-		"HELEKET_MERCHANT_ID": "m", "HELEKET_API_KEY": "k", "HELEKET_TO_CURRENCY": "USDT", "STARS_RUB_RATE": "1.5",
+		"HELEKET_MERCHANT_ID": "m", "HELEKET_API_KEY": "k", "HELEKET_TO_CURRENCY": "USDT", "STARS_RATE": "1.5",
 	} {
 		m[k] = v
 	}
@@ -139,7 +139,7 @@ func TestPayProviders(t *testing.T) {
 	}
 	p := c.Pay
 	if !p.YooKassaOn() || !p.CryptoBotOn() || !p.HeleketOn() || !p.StarsOn() || p.YooKassaVAT != 4 || !p.CryptoBotTestnet ||
-		p.CryptoBotAssets != "USDT,TON" || p.StarsRubRate != 1.5 || p.HeleketToCurrency != "USDT" || p.YooKassaReceiptEmail != "a@b.c" {
+		p.CryptoBotAssets != "USDT,TON" || p.StarsRate != 1.5 || p.HeleketToCurrency != "USDT" || p.YooKassaReceiptEmail != "a@b.c" {
 		t.Fatalf("configured: %+v", p)
 	}
 	if p.YooKassaReturnURL != "https://vpn.example.com/bot/" {
@@ -147,7 +147,7 @@ func TestPayProviders(t *testing.T) {
 	}
 	for _, bad := range []map[string]string{
 		{"YOOKASSA_SHOP_ID": "1"}, {"YOOKASSA_SECRET_KEY": "s"}, {"HELEKET_MERCHANT_ID": "m"}, {"HELEKET_API_KEY": "k"},
-		{"YOOKASSA_VAT_CODE": "9"}, {"CRYPTOBOT_TESTNET": "maybe"}, {"STARS_RUB_RATE": "-1"}, {"STARS_RUB_RATE": "abc"},
+		{"YOOKASSA_VAT_CODE": "9"}, {"CRYPTOBOT_TESTNET": "maybe"}, {"STARS_RATE": "-1"}, {"STARS_RATE": "abc"},
 	} {
 		m := base()
 		for k, v := range bad {
@@ -155,6 +155,40 @@ func TestPayProviders(t *testing.T) {
 		}
 		if _, err := load(env(m)); err == nil {
 			t.Errorf("%v: want error", bad)
+		}
+	}
+}
+
+func TestBaseCurrencySet(t *testing.T) {
+	c, err := load(env(base()))
+	if err != nil || c.BaseCurrencySet {
+		t.Fatalf("unset: set=%v %v", c.BaseCurrencySet, err)
+	}
+	m := base()
+	m["BASE_CURRENCY"] = "   "
+	if c, err = load(env(m)); err != nil || c.BaseCurrencySet || c.BaseCurrency != "RUB" {
+		t.Fatalf("blank: set=%v %q %v", c.BaseCurrencySet, c.BaseCurrency, err)
+	}
+	m["BASE_CURRENCY"] = " usd "
+	if c, err = load(env(m)); err != nil || !c.BaseCurrencySet || c.BaseCurrency != "USD" {
+		t.Fatalf("set: set=%v %q %v", c.BaseCurrencySet, c.BaseCurrency, err)
+	}
+}
+
+func TestBaseCurrency(t *testing.T) {
+	c, err := load(env(base()))
+	if err != nil || c.BaseCurrency != "RUB" {
+		t.Fatalf("default: %q %v", c.BaseCurrency, err)
+	}
+	m := base()
+	m["BASE_CURRENCY"] = " usd "
+	if c, err = load(env(m)); err != nil || c.BaseCurrency != "USD" {
+		t.Fatalf("normalised: %q %v", c.BaseCurrency, err)
+	}
+	for _, bad := range []string{"US", "USDT", "1"} {
+		m["BASE_CURRENCY"] = bad
+		if _, err := load(env(m)); err == nil {
+			t.Errorf("BASE_CURRENCY=%q: want error", bad)
 		}
 	}
 }

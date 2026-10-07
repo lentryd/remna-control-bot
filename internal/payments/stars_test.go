@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"math"
+	"strings"
 	"testing"
 )
 
 func TestStarsCount(t *testing.T) {
-	s := &Stars{RubPerStar: 1.5}
+	s := &Stars{PerStar: 1.5}
 	for rub, want := range map[float64]int{150: 100, 100.01: 67, 1: 1, 0.5: 1, 800: 534, 1.5: 1} {
 		if got := s.Count(rub); got != want {
 			t.Errorf("Count(%v) = %d, want %d", rub, got, want)
@@ -19,11 +20,11 @@ func TestStarsCount(t *testing.T) {
 func TestStarsInvoice(t *testing.T) {
 	var gotTitle, gotDesc, gotPayload string
 	var gotStars int
-	s := &Stars{RubPerStar: 2, Link: func(_ context.Context, title, desc, payload string, stars int) (string, error) {
+	s := &Stars{PerStar: 2, Link: func(_ context.Context, title, desc, payload string, stars int) (string, error) {
 		gotTitle, gotDesc, gotPayload, gotStars = title, desc, payload, stars
 		return "https://t.me/$abc", nil
 	}}
-	inv, err := s.Invoice(t.Context(), InvoiceRequest{OrderID: "ord-1", Title: "Продление «Дом» · 3 мес.", Amount: 800})
+	inv, err := s.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "ord-1", Title: "Продление «Дом» · 3 мес.", Amount: 800})
 	if err != nil || inv.URL != "https://t.me/$abc" || inv.Amount != 400 || inv.Currency != "XTR" || inv.ExternalID != "" {
 		t.Fatalf("%+v %v", inv, err)
 	}
@@ -33,10 +34,10 @@ func TestStarsInvoice(t *testing.T) {
 	s.Link = func(context.Context, string, string, string, int) (string, error) {
 		return "", errors.New("telegram down")
 	}
-	if _, err := s.Invoice(t.Context(), InvoiceRequest{OrderID: "o", Title: "t", Amount: 10}); err == nil {
+	if _, err := s.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "o", Title: "t", Amount: 10}); err == nil {
 		t.Error("want the link error")
 	}
-	if _, err := (&Stars{RubPerStar: 2}).Invoice(t.Context(), InvoiceRequest{OrderID: "o", Title: "t", Amount: 10}); err == nil {
+	if _, err := (&Stars{PerStar: 2}).Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "o", Title: "t", Amount: 10}); err == nil {
 		t.Error("want an error before the bot is wired")
 	}
 }
@@ -62,8 +63,8 @@ func TestStarsInvoiceRejectsUnusableInput(t *testing.T) {
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			s := &Stars{RubPerStar: c.rate, Link: link}
-			if inv, err := s.Invoice(t.Context(), InvoiceRequest{OrderID: "o", Title: "t", Amount: c.amount}); err == nil {
+			s := &Stars{PerStar: c.rate, Link: link}
+			if inv, err := s.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "o", Title: "t", Amount: c.amount}); err == nil {
 				t.Fatalf("want an error, got %+v", inv)
 			}
 		})
@@ -71,13 +72,28 @@ func TestStarsInvoiceRejectsUnusableInput(t *testing.T) {
 	if calls != 0 {
 		t.Errorf("a rejected invoice must not reach Telegram: %d link calls", calls)
 	}
-	s := &Stars{RubPerStar: 1, Link: link}
-	inv, err := s.Invoice(t.Context(), InvoiceRequest{OrderID: "o", Title: "t", Amount: 2_500_000})
+	s := &Stars{PerStar: 1, Link: link}
+	inv, err := s.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "o", Title: "t", Amount: 2_500_000})
 	if err != nil || inv.Amount != 2_500_000 {
 		t.Errorf("the cap itself is allowed: %+v %v", inv, err)
 	}
-	inv, err = s.Invoice(t.Context(), InvoiceRequest{OrderID: "o", Title: "t", Amount: 0.01})
+	inv, err = s.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "o", Title: "t", Amount: 0.01})
 	if err != nil || inv.Amount != 1 {
 		t.Errorf("a positive amount costs at least one star: %+v %v", inv, err)
+	}
+}
+
+func TestStarsErrorsNameTheGivenCurrency(t *testing.T) {
+	s := &Stars{PerStar: 1, Link: func(context.Context, string, string, string, int) (string, error) {
+		return "https://t.me/$abc", nil
+	}}
+	_, err := s.Invoice(t.Context(), InvoiceRequest{Currency: "USD", OrderID: "o", Title: "t", Amount: 3_000_000})
+	if err == nil || !strings.Contains(err.Error(), "USD") || strings.Contains(err.Error(), "RUB") {
+		t.Errorf("the cap error must name the given currency: %v", err)
+	}
+	// The invoice itself is in stars whatever the base currency is.
+	inv, err := s.Invoice(t.Context(), InvoiceRequest{Currency: "USD", OrderID: "o", Title: "t", Amount: 5})
+	if err != nil || inv.Currency != "XTR" || inv.Amount != 5 {
+		t.Errorf("%+v %v", inv, err)
 	}
 }

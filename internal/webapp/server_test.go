@@ -1,6 +1,7 @@
 package webapp
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -75,6 +76,19 @@ func TestMe(t *testing.T) {
 	json.Unmarshal([]byte(body), &p)
 	if p.Name != "Ann" || !strings.HasPrefix(p.RefLink, "https://t.me/vpnbot?start=ref_") {
 		t.Fatalf("profile %+v", p)
+	}
+}
+
+func TestMeCurrency(t *testing.T) {
+	f := vpnctl.NewFake()
+	f.Add(vpnctl.Customer{ID: 1, Name: "Ann", TelegramID: ptr(int64(42))})
+	d := app(f)
+	if _, body := get(t, d, "/bot/api/me", tma(42)); !strings.Contains(body, `"currency":"RUB"`) {
+		t.Fatalf("nil Currency should fall back to RUB: %s", body)
+	}
+	d.Currency = func(context.Context) string { return "USD" }
+	if _, body := get(t, d, "/bot/api/me", tma(42)); !strings.Contains(body, `"currency":"USD"`) {
+		t.Fatalf("currency from the source: %s", body)
 	}
 }
 

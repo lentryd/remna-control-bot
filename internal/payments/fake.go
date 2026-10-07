@@ -10,7 +10,7 @@ import (
 // Fake is an in-memory provider for the tests of packages that use providers.
 type Fake struct {
 	Name      string // default "fake"
-	Currency  string // invoice currency, default "RUB"
+	Currency  string // invoice currency; default: the request's
 	Err       error  // Invoice fails with it
 	StatusErr error  // Status fails with it
 	Statuses  map[string]Event
@@ -44,7 +44,7 @@ func (f *Fake) Invoice(_ context.Context, in InvoiceRequest) (Invoice, error) {
 	f.Invoices = append(f.Invoices, in)
 	cur := f.Currency
 	if cur == "" {
-		cur = "RUB"
+		cur = in.Currency
 	}
 	return Invoice{ExternalID: fmt.Sprintf("ext-%d", len(f.Invoices)), URL: "https://pay.test/" + in.OrderID, Amount: in.Amount, Currency: cur}, nil
 }

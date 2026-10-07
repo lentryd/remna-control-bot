@@ -22,7 +22,8 @@ var (
 type InvoiceRequest struct {
 	OrderID   string // our order UUID; comes back in the webhook
 	Title     string
-	Amount    float64 // roubles
+	Amount    float64 // in Currency
+	Currency  string  // ISO 4217 code of Amount: the base currency of the panel
 	ExpiresIn time.Duration
 }
 
@@ -30,8 +31,8 @@ type InvoiceRequest struct {
 type Invoice struct {
 	ExternalID string
 	URL        string
-	Amount     float64 // in Currency (roubles for fiat providers, stars for Stars)
-	Currency   string  // "RUB", "XTR"
+	Amount     float64 // in Currency (the order's base currency for fiat providers, stars for Stars)
+	Currency   string  // the base currency ("RUB", "USD", …) or "XTR"
 }
 
 // Event is a provider's statement about one invoice.
@@ -135,6 +136,20 @@ func clip(s string, n int) string {
 		return string(r[:n])
 	}
 	return s
+}
+
+// checkCurrency accepts exactly three upper-case ASCII letters (an ISO 4217
+// code); providers must not be sent anything else as an invoice currency.
+func checkCurrency(c string) error {
+	if len(c) != 3 {
+		return fmt.Errorf("payments: bad currency %q", c)
+	}
+	for i := 0; i < 3; i++ {
+		if c[i] < 'A' || c[i] > 'Z' {
+			return fmt.Errorf("payments: bad currency %q", c)
+		}
+	}
+	return nil
 }
 
 func money(v float64) string { return fmt.Sprintf("%.2f", v) }

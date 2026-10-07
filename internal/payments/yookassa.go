@@ -13,7 +13,8 @@ import (
 
 const yooKassaAPI = "https://api.yookassa.ru/v3"
 
-// YooKassa: cards and SBP in roubles. The webhook body is never trusted — the
+// YooKassa: cards and SBP. Invoices are issued in the order's base currency
+// (the shop must accept it). The webhook body is never trusted — the
 // payment is re-read from the API (Bedolaga does the same: its IP check is only
 // a first barrier, the API read is the authority).
 type YooKassa struct {
@@ -91,7 +92,10 @@ func (y *YooKassa) do(ctx context.Context, method, path, idempotence string, in,
 }
 
 func (y *YooKassa) Invoice(ctx context.Context, in InvoiceRequest) (Invoice, error) {
-	amount := map[string]string{"value": money(in.Amount), "currency": "RUB"}
+	if err := checkCurrency(in.Currency); err != nil {
+		return Invoice{}, fmt.Errorf("yookassa: %w", err)
+	}
+	amount := map[string]string{"value": money(in.Amount), "currency": in.Currency}
 	req := map[string]any{
 		"amount":       amount,
 		"capture":      true,
@@ -116,7 +120,7 @@ func (y *YooKassa) Invoice(ctx context.Context, in InvoiceRequest) (Invoice, err
 	if p.ID == "" || p.Confirmation.URL == "" {
 		return Invoice{}, fmt.Errorf("yookassa: no confirmation url in the response")
 	}
-	return Invoice{ExternalID: p.ID, URL: p.Confirmation.URL, Amount: in.Amount, Currency: "RUB"}, nil
+	return Invoice{ExternalID: p.ID, URL: p.Confirmation.URL, Amount: in.Amount, Currency: in.Currency}, nil
 }
 
 func (y *YooKassa) get(ctx context.Context, id string) (ykPayment, error) {

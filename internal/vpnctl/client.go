@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -37,6 +38,8 @@ type Client interface {
 	Pay(ctx context.Context, customerID int, in PaymentInput) (*PaymentResult, error)
 	Provision(ctx context.Context, in ProvisionInput) (int, error)
 	ConnectAddon(ctx context.Context, subscriptionID int, in ConnectAddonInput) (int, error)
+	// BaseCurrency is the panel's base currency (ISO 4217, upper case); needs the stats:settings scope.
+	BaseCurrency(ctx context.Context) (string, error)
 }
 
 // APIError is a non-2xx answer; vpn-control sends {"message","code"}.
@@ -98,6 +101,21 @@ func (c *HTTPClient) UpdateCustomer(ctx context.Context, id int, in CustomerInpu
 func (c *HTTPClient) ListTariffs(ctx context.Context) ([]Tariff, error) {
 	var out []Tariff
 	return out, c.do(ctx, http.MethodGet, "/tariffs", nil, &out)
+}
+
+var currencyCode = regexp.MustCompile(`^[A-Z]{3}$`)
+
+// BaseCurrency reads the panel's base_currency setting.
+func (c *HTTPClient) BaseCurrency(ctx context.Context) (string, error) {
+	var out map[string]string
+	if err := c.do(ctx, http.MethodGet, "/settings", nil, &out); err != nil {
+		return "", err
+	}
+	code := strings.ToUpper(strings.TrimSpace(out["base_currency"]))
+	if !currencyCode.MatchString(code) {
+		return "", fmt.Errorf("vpnctl: panel base_currency %q is not an ISO 4217 code", out["base_currency"])
+	}
+	return code, nil
 }
 
 func (c *HTTPClient) ListCustomers(ctx context.Context) ([]Customer, error) {

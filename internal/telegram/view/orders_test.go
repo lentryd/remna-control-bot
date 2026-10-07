@@ -134,3 +134,17 @@ func TestProviderPay(t *testing.T) {
 		t.Fatalf("url %q buttons %v", url, buttons(s))
 	}
 }
+
+func TestAdminCardCurrency(t *testing.T) {
+	t.Cleanup(func() { SetCurrency("RUB") })
+	SetCurrency("USD")
+	o := order()
+	o.ToPay = 700
+	r := 500.0
+	o.Received = &r
+	o.Status, o.Admin = orders.StatusApproved, "@boss"
+	txt := AdminCard(o, AdminCustomer{}).Text
+	if !strings.Contains(txt, "700 → 500 $") || strings.Contains(txt, "₽") {
+		t.Fatalf("card:\n%s", txt)
+	}
+}

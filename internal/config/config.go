@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -28,16 +29,19 @@ const (
 )
 
 type Config struct {
-	BotToken    string
-	Mode        Mode
-	VpnctlURL   string
-	VpnctlToken string
-	PublicURL   string
-	WebAppPath  string // "" or "/x[/y]", no trailing slash
-	HTTPAddr    string
-	DBPath      string
-	LogLevel    string
-	RefSecret   string
+	BotToken     string
+	Mode         Mode
+	VpnctlURL    string
+	VpnctlToken  string
+	PublicURL    string
+	WebAppPath   string // "" or "/x[/y]", no trailing slash
+	HTTPAddr     string
+	DBPath       string
+	LogLevel     string
+	RefSecret    string
+	BaseCurrency string // fallback while the panel can't tell its base currency
+	// BaseCurrencySet: BASE_CURRENCY was given explicitly, i.e. the operator vouches for the currency.
+	BaseCurrencySet bool
 
 	PayMode         PayMode
 	NotifyInterval  time.Duration // 0 disables notifications
@@ -66,13 +70,13 @@ type PayConfig struct {
 	HeleketMerchantID, HeleketAPIKey  string
 	HeleketToCurrency, HeleketNetwork string // optional fixed asset / network
 
-	StarsRubRate float64 // roubles per star; > 0 enables Stars
+	StarsRate float64 // base-currency units per Telegram Star; > 0 enables Stars
 }
 
 func (p PayConfig) YooKassaOn() bool  { return p.YooKassaShopID != "" && p.YooKassaSecret != "" }
 func (p PayConfig) CryptoBotOn() bool { return p.CryptoBotToken != "" }
 func (p PayConfig) HeleketOn() bool   { return p.HeleketMerchantID != "" && p.HeleketAPIKey != "" }
-func (p PayConfig) StarsOn() bool     { return p.StarsRubRate > 0 }
+func (p PayConfig) StarsOn() bool     { return p.StarsRate > 0 }
 
 // WebAppURL is where Telegram opens the WebApp.
 func (c Config) WebAppURL() string { return c.PublicURL + c.WebAppPath }
@@ -84,6 +88,8 @@ func (c Config) ManualEnabled() bool {
 }
 
 func (c Config) IsAdmin(id int64) bool { return slices.Contains(c.AdminIDs, id) }
+
+var currencyRe = regexp.MustCompile(`^[A-Z]{3}$`)
 
 func Load() (Config, error) { return load(os.Getenv) }
 
@@ -113,6 +119,11 @@ func load(get func(string) string) (Config, error) {
 		if v == "" {
 			return Config{}, fmt.Errorf("config: %s is required", k)
 		}
+	}
+	c.BaseCurrency = strings.ToUpper(or("BASE_CURRENCY", "RUB"))
+	c.BaseCurrencySet = strings.TrimSpace(get("BASE_CURRENCY")) != ""
+	if !currencyRe.MatchString(c.BaseCurrency) {
+		return Config{}, fmt.Errorf("config: BASE_CURRENCY must be a 3-letter ISO 4217 code like RUB, got %q", c.BaseCurrency)
 	}
 	c.PayMode = PayMode(or("BALANCE_PAY_MODE", string(PayMixed)))
 	if c.PayMode != PayMixed && c.PayMode != PayReferralFull {
@@ -178,8 +189,8 @@ func load(get func(string) string) (Config, error) {
 	if c.Pay.CryptoBotTestnet, err = strconv.ParseBool(or("CRYPTOBOT_TESTNET", "false")); err != nil {
 		return Config{}, fmt.Errorf("config: CRYPTOBOT_TESTNET must be true or false")
 	}
-	if c.Pay.StarsRubRate, err = strconv.ParseFloat(or("STARS_RUB_RATE", "0"), 64); err != nil || c.Pay.StarsRubRate < 0 || math.IsNaN(c.Pay.StarsRubRate) || math.IsInf(c.Pay.StarsRubRate, 0) {
-		return Config{}, fmt.Errorf("config: STARS_RUB_RATE must be a number ≥ 0")
+	if c.Pay.StarsRate, err = strconv.ParseFloat(or("STARS_RATE", "0"), 64); err != nil || c.Pay.StarsRate < 0 || math.IsNaN(c.Pay.StarsRate) || math.IsInf(c.Pay.StarsRate, 0) {
+		return Config{}, fmt.Errorf("config: STARS_RATE must be a number ≥ 0 (base currency per Telegram Star)")
 	}
 	if c.Mode != ModeOpen && c.Mode != ModeClosed {
 		return Config{}, fmt.Errorf("config: BOT_MODE must be open or closed, got %q", c.Mode)

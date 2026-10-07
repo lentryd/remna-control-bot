@@ -210,7 +210,7 @@ func TestPaidNeedsReview(t *testing.T) {
 				t.Errorf("received %v", got.Received)
 			}
 			if name != "less money" && got.Received != nil {
-				t.Errorf("received must stay empty when the rouble amount is unknown: %v", *got.Received)
+				t.Errorf("received must stay empty when the base-currency amount is unknown: %v", *got.Received)
 			}
 			// The admin decides with the existing flow.
 			if _, err := s.Approve(ctx, o.ID, "@adm", DecideCredit); err != nil && name == "less money" {
@@ -486,3 +486,146 @@ func TestCancelAwaitingPayment(t *testing.T) {
 }
 
 var _ = store.ChatState{} // keep the import used by helpers in this file
+
+func useUSD(s *Service) { s.BaseCurrency = func(context.Context) string { return "USD" } }
+
+func TestInvoiceCarriesBaseCurrency(t *testing.T) {
+	s, _, _, c, fp := setupP(t)
+	o := providerOrder(t, s, c)
+	if len(fp.Invoices) != 1 || fp.Invoices[0].Currency != "RUB" || o.PayCurrency != "RUB" {
+		t.Fatalf("default base is RUB: %+v / %q", fp.Invoices, o.PayCurrency)
+	}
+
+	s, _, _, c, fp = setupP(t)
+	useUSD(s)
+	o = providerOrder(t, s, c)
+	if len(fp.Invoices) != 1 || fp.Invoices[0].Currency != "USD" || fp.Invoices[0].Amount != 800 || o.PayCurrency != "USD" {
+		t.Fatalf("invoice request %+v, order currency %q", fp.Invoices, o.PayCurrency)
+	}
+
+	// Whatever the source returns is normalised; an empty answer falls back to RUB.
+	for got, want := range map[string]string{"usd": "USD", "": "RUB"} {
+		s, _, _, c, fp = setupP(t)
+		s.BaseCurrency = func(context.Context) string { return got }
+		providerOrder(t, s, c)
+		if fp.Invoices[0].Currency != want {
+			t.Errorf("source %q: invoice currency %q, want %q", got, fp.Invoices[0].Currency, want)
+		}
+	}
+}
+
+func TestPaidReceivedFollowsBaseCurrency(t *testing.T) {
+	// base USD: an underpaid USD event records what was received, a RUB one does not.
+	for cur, want := range map[string]bool{"USD": true, "RUB": false, "XTR": false} {
+		s, _, _, c, _ := setupP(t)
+		useUSD(s)
+		o := providerOrder(t, s, c)
+		ev := paidEvent(o)
+		ev.Currency, ev.Amount = cur, 500
+		got, err := s.Paid(context.Background(), ev)
+		if err != nil || got.Status != StatusPendingReview {
+			t.Fatalf("%s: %+v %v", cur, got, err)
+		}
+		if want != (got.Received != nil) || want && *got.Received != 500 {
+			t.Errorf("base USD, %s event: received=%v, recorded want %v", cur, got.Received, want)
+		}
+	}
+	// default base (RUB): a RUB event is recorded, as before.
+	s, _, _, c, _ := setupP(t)
+	o := providerOrder(t, s, c)
+	ev := paidEvent(o)
+	ev.Amount = 500
+	got, err := s.Paid(context.Background(), ev)
+	if err != nil || got.Received == nil || *got.Received != 500 {
+		t.Errorf("default base, RUB event: %+v %v", got, err)
+	}
+}
+
+func TestPaidReceivedUsesTheOrdersCurrencyNotTheCurrentBase(t *testing.T) {
+	// The invoice was issued while the base was USD; then the panel switches to EUR.
+	for cur, want := range map[string]bool{"USD": true, "EUR": false, "RUB": false} {
+		s, _, _, c, _ := setupP(t)
+		useUSD(s)
+		o := providerOrder(t, s, c)
+		s.BaseCurrency = func(context.Context) string { return "EUR" }
+		ev := paidEvent(o)
+		ev.Currency, ev.Amount = cur, 500
+		got, err := s.Paid(context.Background(), ev)
+		if err != nil || got.Status != StatusPendingReview {
+			t.Fatalf("%s: %+v %v", cur, got, err)
+		}
+		if want != (got.Received != nil) || want && *got.Received != 500 {
+			t.Errorf("USD order, base now EUR, %s event: received=%v, recorded want %v", cur, got.Received, want)
+		}
+	}
+}
+
+func TestPaidReceivedNeverForStarsOrders(t *testing.T) {
+	s, _, _, c, fp := setupP(t)
+	fp.Currency = "XTR"
+	o := providerOrder(t, s, c)
+	ev := paidEvent(o)
+	ev.Currency, ev.Amount = "XTR", 500
+	got, err := s.Paid(context.Background(), ev)
+	if err != nil || got.Status != StatusPendingReview {
+		t.Fatalf("%+v %v", got, err)
+	}
+	if got.Received != nil {
+		t.Errorf("stars are not base-currency money, received=%v", *got.Received)
+	}
+}
+
+func TestPaidFullInBaseCurrency(t *testing.T) {
+	s, f, _, c, _ := setupP(t)
+	useUSD(s)
+	o := providerOrder(t, s, c)
+	ev := paidEvent(o)
+	ev.Currency = "USD"
+	got, err := s.Paid(context.Background(), ev)
+	if err != nil || got.Status != StatusApproved || len(f.Payments) != 1 {
+		t.Fatalf("a full USD payment for a USD invoice: %+v %v payments=%d", got, err, len(f.Payments))
+	}
+}
+
+func TestProviderRefusedWhileCurrencyUnconfirmed(t *testing.T) {
+	ctx := context.Background()
+	s, _, _, c, fp := setupP(t)
+	known := false
+	s.CurrencyKnown = func() bool { return known }
+
+	_, err := s.CreateWith(ctx, c, 77, renew3, "fake")
+	if !errors.Is(err, ErrProvider) {
+		t.Fatalf("want ErrProvider, got %v", err)
+	}
+	if len(fp.Invoices) != 0 {
+		t.Fatalf("the provider must not be asked for an invoice: %+v", fp.Invoices)
+	}
+	var st Status
+	if err := s.DB.QueryRow(`SELECT status FROM orders`).Scan(&st); err != nil || st != StatusCancelled {
+		t.Fatalf("a refused invoice must not leave a live order: %q %v", st, err)
+	}
+
+	// Pay on an existing order is refused as well.
+	o, err := s.Create(ctx, c, 77, renew3) // manual, awaiting a receipt
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Pay(ctx, c.ID, o.ID, "fake"); !errors.Is(err, ErrProvider) {
+		t.Fatalf("Pay: want ErrProvider, got %v", err)
+	}
+	if len(fp.Invoices) != 0 {
+		t.Fatalf("invoices %+v", fp.Invoices)
+	}
+	if got, _ := s.Get(ctx, o.ID); got.Status != StatusAwaitingReceipt {
+		t.Fatalf("a refused Pay leaves the manual order alone: %s", got.Status)
+	}
+
+	// Once the currency is confirmed everything works.
+	known = true
+	if got, err := s.Pay(ctx, c.ID, o.ID, "fake"); err != nil || got.Status != StatusAwaitingPayment || len(fp.Invoices) != 1 {
+		t.Fatalf("known: %+v %v invoices=%d", got, err, len(fp.Invoices))
+	}
+	if _, err := s.CreateWith(ctx, c, 77, renew3, "fake"); err != nil {
+		t.Fatalf("CreateWith when known: %v", err)
+	}
+}

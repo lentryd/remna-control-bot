@@ -3,6 +3,7 @@
 package webapp
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"log/slog"
@@ -32,6 +33,7 @@ type Deps struct {
 	Path        string // "" or "/bot"
 	PayMode     config.PayMode
 	Orders      *orders.Service
+	Currency    func(context.Context) string // the base currency amounts are in
 	Static      fs.FS
 	Log         *slog.Logger
 }
@@ -94,7 +96,12 @@ func (s *server) auth(c *fiber.Ctx) error {
 
 func (s *server) me(c *fiber.Ctx) error {
 	cu := c.Locals("customer").(*vpnctl.Customer)
-	return c.JSON(profile.Build(cu, telegram.RefLink(s.BotUsername, s.Codec, cu.ID), s.PayMode))
+	p := profile.Build(cu, telegram.RefLink(s.BotUsername, s.Codec, cu.ID), s.PayMode)
+	p.Currency = "RUB"
+	if s.Currency != nil {
+		p.Currency = s.Currency(c.UserContext())
+	}
+	return c.JSON(p)
 }
 
 func (s *server) tariffs(c *fiber.Ctx) error {

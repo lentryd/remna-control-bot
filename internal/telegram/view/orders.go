@@ -28,11 +28,11 @@ func id(prefix string, n int) string { return prefix + strconv.Itoa(n) }
 func summary(o orders.Order) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "🧾 <b>Заказ №%s</b>\n%s\n\n", o.Short(), Esc(clip(o.Title, maxTitle)))
-	fmt.Fprintf(&b, "Цена: %s\n", Rub(o.Price))
+	fmt.Fprintf(&b, "Цена: %s\n", Money(o.Price))
 	if o.FromBalance > 0 {
-		fmt.Fprintf(&b, "С баланса: −%s\n", Rub(o.FromBalance))
+		fmt.Fprintf(&b, "С баланса: −%s\n", Money(o.FromBalance))
 	}
-	fmt.Fprintf(&b, "К оплате: <b>%s</b>", Rub(o.ToPay))
+	fmt.Fprintf(&b, "К оплате: <b>%s</b>", Money(o.ToPay))
 	return b.String()
 }
 
@@ -76,7 +76,7 @@ type RenewOption struct {
 func RenewPeriods(subID int, title string, opts []RenewOption) Screen {
 	var rows [][]btn
 	for _, o := range opts {
-		label := fmt.Sprintf("%s — %s", termText(o.Months, o.Days), Rub(o.Price))
+		label := fmt.Sprintf("%s — %s", termText(o.Months, o.Days), Money(o.Price))
 		rows = append(rows, []btn{cb(label, fmt.Sprintf("%s%d:%d:%d", CbRenewPick, subID, o.Months, o.Days))})
 	}
 	rows = append(rows, back(id(CbSub, subID)))
@@ -114,7 +114,7 @@ func AdminCard(o orders.Order, c AdminCustomer) Screen {
 		fmt.Fprintf(&b, "\n💬 %s", Esc(clip(o.Comment, 300)))
 	}
 	if o.Received != nil {
-		fmt.Fprintf(&b, "\n✏️ Сумма исправлена %s: %s → %s", Esc(o.Admin), plain(o.ToPay), Rub(*o.Received))
+		fmt.Fprintf(&b, "\n✏️ Сумма исправлена %s: %s → %s", Esc(o.Admin), plain(o.ToPay), Money(*o.Received))
 	}
 	switch o.Status {
 	case orders.StatusPendingReview:
@@ -141,7 +141,7 @@ func AdminCard(o orders.Order, c AdminCustomer) Screen {
 }
 
 // plain is an amount without the currency (for "700 → 500 ₽").
-func plain(v float64) string { return strings.TrimSuffix(Rub(v), " ₽") }
+func plain(v float64) string { return strings.TrimSuffix(Money(v), " "+suffix()) }
 
 func adminButtons(o orders.Order) *models.InlineKeyboardMarkup {
 	first := []btn{cb(BtnApprove, CbAdminApprove+o.ID)}
@@ -166,7 +166,7 @@ func OrderNotice(o orders.Order) Screen {
 		}
 	case orders.StatusCredited:
 		text = fmt.Sprintf("💰 По заказу №%s получено %s из %s — зачислено на баланс. Доплатите разницу, чтобы завершить покупку.",
-			o.Short(), Rub(o.Paid()), Rub(o.ToPay))
+			o.Short(), Money(o.Paid()), Money(o.ToPay))
 	case orders.StatusRejected:
 		text = fmt.Sprintf("❌ Платёж №%s отклонён", o.Short())
 		if o.RejectReason != "" {
@@ -178,7 +178,7 @@ func OrderNotice(o orders.Order) Screen {
 		text = fmt.Sprintf("%s Заказ №%s: %s", statusIcon[o.Status], o.Short(), statusText[o.Status])
 	}
 	if o.Received != nil && o.Status == orders.StatusApproved && *o.Received != o.ToPay {
-		text += fmt.Sprintf("\nПолучено: %s", Rub(*o.Received))
+		text += fmt.Sprintf("\nПолучено: %s", Money(*o.Received))
 	}
 	return Screen{Text: text, Keyboard: kb([]btn{cb(BtnOrders, CbOrders)})}
 }
@@ -193,7 +193,7 @@ func Orders(list []orders.Order, n, total int) Screen {
 	var b strings.Builder
 	fmt.Fprintf(&b, "🧾 <b>Платежи</b>%s\n", pageTitle(cur, pages))
 	for _, o := range list {
-		fmt.Fprintf(&b, "\n%s №%s · %s · %s\n%s — %s", statusIcon[o.Status], o.Short(), Date(&o.CreatedAt), Rub(o.Paid()),
+		fmt.Fprintf(&b, "\n%s №%s · %s · %s\n%s — %s", statusIcon[o.Status], o.Short(), Date(&o.CreatedAt), Money(o.Paid()),
 			Esc(clip(o.Title, maxTitle)), statusText[o.Status])
 	}
 	rows := [][]btn{}

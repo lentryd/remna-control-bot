@@ -12,6 +12,7 @@ import { Tariffs } from './pages/Tariffs'
 import { tg } from './telegram'
 import { ErrorScreen } from './ui/ErrorScreen'
 import { PageSkeleton } from './ui/PageSkeleton'
+import { setFormat } from '@shared/format'
 
 export function App() {
     const profile = useProfile()
@@ -23,6 +24,8 @@ export function App() {
         return <ErrorScreen code={code} onRetry={code === 'unavailable' ? () => profile.refetch() : undefined} />
     }
     const p = profile.data
+    // Synchronously, so the first paint is already in the base currency.
+    setFormat({ base: p.currency })
     return (
         <AppShell>
             <Routes>

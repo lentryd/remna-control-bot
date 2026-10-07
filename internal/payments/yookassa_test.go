@@ -52,7 +52,7 @@ func TestYooKassaInvoice(t *testing.T) {
 		}
 		w.Write([]byte(`{"id":"p1","status":"pending","confirmation":{"type":"redirect","confirmation_url":"https://yoomoney.ru/pay/p1"}}`))
 	})
-	inv, err := y.Invoice(t.Context(), InvoiceRequest{OrderID: "ord-1", Title: "Продление", Amount: 800})
+	inv, err := y.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "ord-1", Title: "Продление", Amount: 800})
 	if err != nil || inv.ExternalID != "p1" || inv.URL != "https://yoomoney.ru/pay/p1" || inv.Amount != 800 || inv.Currency != "RUB" {
 		t.Fatalf("%+v %v", inv, err)
 	}
@@ -79,7 +79,7 @@ func TestYooKassaInvoiceReceipt(t *testing.T) {
 		w.Write([]byte(`{"id":"p1","confirmation":{"confirmation_url":"https://x"}}`))
 	})
 	y.ReceiptEmail, y.VAT = "a@b.c", 4
-	if _, err := y.Invoice(t.Context(), InvoiceRequest{OrderID: "o", Title: "t", Amount: 1}); err != nil {
+	if _, err := y.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "o", Title: "t", Amount: 1}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -89,11 +89,11 @@ func TestYooKassaInvoiceErrors(t *testing.T) {
 		w.WriteHeader(400)
 		w.Write([]byte(`{"type":"error","code":"invalid_request"}`))
 	})
-	if _, err := y.Invoice(t.Context(), InvoiceRequest{OrderID: "o", Title: "t", Amount: 1}); err == nil {
+	if _, err := y.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "o", Title: "t", Amount: 1}); err == nil {
 		t.Fatal("want an error for HTTP 400")
 	}
 	y2 := ykServer(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"id":"p1"}`)) })
-	if _, err := y2.Invoice(t.Context(), InvoiceRequest{OrderID: "o", Title: "t", Amount: 1}); err == nil {
+	if _, err := y2.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "o", Title: "t", Amount: 1}); err == nil {
 		t.Fatal("want an error for a response without a confirmation url")
 	}
 }
@@ -182,5 +182,41 @@ func TestYooKassaHostileID(t *testing.T) {
 		if gotPath != c.want || gotQuery != "" {
 			t.Errorf("%q: status saw path %q query %q, want path %q and no query", c.id, gotPath, gotQuery, c.want)
 		}
+	}
+}
+
+func TestYooKassaInvoiceCurrency(t *testing.T) {
+	var got struct {
+		Amount  struct{ Value, Currency string }
+		Receipt *struct {
+			Items []struct {
+				Amount struct{ Value, Currency string }
+			}
+		}
+	}
+	y := ykServer(t, func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&got)
+		w.Write([]byte(`{"id":"p1","confirmation":{"confirmation_url":"https://x"}}`))
+	})
+	y.ReceiptEmail = "a@b.c"
+	inv, err := y.Invoice(t.Context(), InvoiceRequest{Currency: "USD", OrderID: "o", Title: "t", Amount: 9.5})
+	if err != nil || inv.Currency != "USD" || inv.Amount != 9.5 {
+		t.Fatalf("%+v %v", inv, err)
+	}
+	if got.Amount.Currency != "USD" || got.Amount.Value != "9.50" || got.Receipt == nil || len(got.Receipt.Items) != 1 || got.Receipt.Items[0].Amount.Currency != "USD" {
+		t.Errorf("body %+v", got)
+	}
+}
+
+func TestYooKassaInvoiceRejectsBadCurrency(t *testing.T) {
+	calls := 0
+	y := ykServer(t, func(w http.ResponseWriter, r *http.Request) { calls++ })
+	for _, cur := range []string{"", "usd", "US", "RUBL"} {
+		if _, err := y.Invoice(t.Context(), InvoiceRequest{Currency: cur, OrderID: "o", Title: "t", Amount: 1}); err == nil {
+			t.Errorf("currency %q: want an error", cur)
+		}
+	}
+	if calls != 0 {
+		t.Errorf("a bad currency must not reach the provider: %d requests", calls)
 	}
 }

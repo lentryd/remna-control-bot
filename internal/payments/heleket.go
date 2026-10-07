@@ -18,7 +18,7 @@ import (
 
 const heleketAPI = "https://api.heleket.com/v1"
 
-// Heleket: multi-chain crypto. Invoices are issued in RUB; Heleket converts.
+// Heleket: multi-chain crypto. Invoices are issued in the order's base currency; Heleket converts.
 type Heleket struct {
 	MerchantID, APIKey  string
 	ToCurrency, Network string // optional fixed asset / network
@@ -111,9 +111,12 @@ func (h *Heleket) call(ctx context.Context, path string, in map[string]any) (hkP
 }
 
 func (h *Heleket) Invoice(ctx context.Context, in InvoiceRequest) (Invoice, error) {
+	if err := checkCurrency(in.Currency); err != nil {
+		return Invoice{}, fmt.Errorf("heleket: %w", err)
+	}
 	// Heleket accepts lifetimes of 5 minutes … 12 hours.
 	lifetime := int(min(max(in.ExpiresIn, 5*time.Minute), 12*time.Hour).Seconds())
-	req := map[string]any{"amount": money(in.Amount), "currency": "RUB", "order_id": in.OrderID, "lifetime": lifetime}
+	req := map[string]any{"amount": money(in.Amount), "currency": in.Currency, "order_id": in.OrderID, "lifetime": lifetime}
 	if h.CallbackURL != "" {
 		req["url_callback"] = h.CallbackURL
 	}
@@ -130,7 +133,7 @@ func (h *Heleket) Invoice(ctx context.Context, in InvoiceRequest) (Invoice, erro
 	if p.UUID == "" || p.URL == "" {
 		return Invoice{}, fmt.Errorf("heleket: no uuid/url in the response")
 	}
-	return Invoice{ExternalID: p.UUID, URL: p.URL, Amount: in.Amount, Currency: "RUB"}, nil
+	return Invoice{ExternalID: p.UUID, URL: p.URL, Amount: in.Amount, Currency: in.Currency}, nil
 }
 
 func (h *Heleket) Status(ctx context.Context, externalID string) (Event, error) {

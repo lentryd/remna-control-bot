@@ -3,6 +3,7 @@ package vpnctl
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"testing"
 )
@@ -69,5 +70,70 @@ func TestQuoteExtendAndProvision(t *testing.T) {
 	}
 	if e, err := c.Extend(ctx, "subscription", 3, ExtendInput{Months: 1, Amount: 100}); err != nil || !e.OK {
 		t.Fatalf("extend %+v %v", e, err)
+	}
+}
+
+func TestBaseCurrency(t *testing.T) {
+	var hits int
+	c := server(t, func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		if r.Method != "GET" || r.URL.Path != "/api/v1/settings" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL)
+		}
+		w.Write([]byte(`{"base_currency":"usd","_base_locked":"true"}`))
+	})
+	got, err := c.BaseCurrency(context.Background())
+	if err != nil || got != "USD" || hits != 1 {
+		t.Fatalf("got %q, %v, hits %d", got, err, hits)
+	}
+}
+
+func TestBaseCurrencyMissingOrBad(t *testing.T) {
+	for name, body := range map[string]string{
+		"missing":    `{"_base_locked":"true"}`,
+		"short":      `{"base_currency":"RU"}`,
+		"spaced":     `{"base_currency":"R U B"}`,
+		"empty":      `{"base_currency":""}`,
+		"long":       `{"base_currency":"USDT"}`,
+		"digits":     `{"base_currency":"R2B"}`,
+		"blank only": `{"base_currency":"  "}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := server(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(body)) })
+			if got, err := c.BaseCurrency(context.Background()); err == nil {
+				t.Errorf("want error, got %q", got)
+			}
+		})
+	}
+}
+
+func TestBaseCurrencyTrimsAndForbidden(t *testing.T) {
+	c := server(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"base_currency":" eur "}`)) })
+	if got, err := c.BaseCurrency(context.Background()); err != nil || got != "EUR" {
+		t.Fatalf("got %q, %v", got, err)
+	}
+	c = server(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(403)
+		w.Write([]byte(`{"message":"scope","code":"forbidden"}`))
+	})
+	_, err := c.BaseCurrency(context.Background())
+	var ae *APIError
+	if !errors.As(err, &ae) || ae.Status != 403 {
+		t.Fatalf("want 403 APIError, got %v", err)
+	}
+}
+
+func TestFakeBaseCurrency(t *testing.T) {
+	f := NewFake()
+	if got, err := f.BaseCurrency(context.Background()); err != nil || got != "RUB" {
+		t.Fatalf("default: %q %v", got, err)
+	}
+	f.Currency = "USD"
+	if got, err := f.BaseCurrency(context.Background()); err != nil || got != "USD" {
+		t.Fatalf("custom: %q %v", got, err)
+	}
+	f.Err = errors.New("boom")
+	if _, err := f.BaseCurrency(context.Background()); err != f.Err {
+		t.Fatalf("err: %v", err)
 	}
 }

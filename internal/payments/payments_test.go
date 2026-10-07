@@ -37,3 +37,28 @@ func TestClipAndMoney(t *testing.T) {
 		t.Errorf("money %q %q", money(1500), money(0.1+0.2))
 	}
 }
+
+func TestCheckCurrency(t *testing.T) {
+	for _, ok := range []string{"RUB", "USD", "EUR", "TON"} {
+		if err := checkCurrency(ok); err != nil {
+			t.Errorf("checkCurrency(%q) = %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"", "rub", "Rub", "RU", "RUBL", "R1B", "РУБ", "RU ", " RUB", "RUB\n", "XT\x00"} {
+		if err := checkCurrency(bad); err == nil {
+			t.Errorf("checkCurrency(%q) must fail", bad)
+		}
+	}
+}
+
+func TestFakeInvoiceCurrency(t *testing.T) {
+	f := &Fake{}
+	inv, err := f.Invoice(t.Context(), InvoiceRequest{Currency: "USD", OrderID: "o", Amount: 1})
+	if err != nil || inv.Currency != "USD" {
+		t.Fatalf("the request currency is used by default: %+v %v", inv, err)
+	}
+	f.Currency = "XTR"
+	if inv, _ = f.Invoice(t.Context(), InvoiceRequest{Currency: "USD", OrderID: "o", Amount: 1}); inv.Currency != "XTR" {
+		t.Errorf("Fake.Currency overrides: %+v", inv)
+	}
+}

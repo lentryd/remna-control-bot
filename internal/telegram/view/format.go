@@ -6,13 +6,64 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
 func Esc(s string) string { return html.EscapeString(s) }
 
-// Rub formats rubles Russian-style: "1 234,50 ₽", whole amounts without kopecks.
-func Rub(v float64) string {
+// currencySymbols maps ISO codes to the symbol printed after an amount; any
+// other code is printed as is ("1 234,50 CHF").
+var currencySymbols = map[string]string{
+	"RUB": "₽", "USD": "$", "EUR": "€", "GBP": "£", "UAH": "₴", "KZT": "₸", "TRY": "₺", "BYN": "Br",
+	"PLN": "zł", "CZK": "Kč", "GEL": "₾", "AMD": "֏", "CNY": "¥", "JPY": "¥", "INR": "₹", "KRW": "₩",
+}
+
+var currentCurrency atomic.Value // string, upper-case ISO code
+
+func init() { currentCurrency.Store("RUB") }
+
+// SetCurrency switches the currency Money prints; a code that isn't three
+// ASCII letters is ignored.
+func SetCurrency(code string) {
+	code = strings.ToUpper(code)
+	if len(code) != 3 {
+		return
+	}
+	for i := 0; i < 3; i++ {
+		if code[i] < 'A' || code[i] > 'Z' {
+			return
+		}
+	}
+	currentCurrency.Store(code)
+}
+
+// Currency is the ISO code Money currently prints (RUB by default).
+func Currency() string { return currentCurrency.Load().(string) }
+
+// suffix is the symbol (or, lacking one, the ISO code) printed after amounts.
+func suffix() string {
+	code := Currency()
+	if sym, ok := currencySymbols[code]; ok {
+		return sym
+	}
+	return code
+}
+
+// CurrencyHints lists the spellings of the current currency (symbol, then ISO
+// code) that an amount typed by a human may carry.
+func CurrencyHints() []string {
+	code := Currency()
+	if sym, ok := currencySymbols[code]; ok {
+		return []string{sym, code}
+	}
+	return []string{code}
+}
+
+// Money formats an amount in the current currency Russian-style:
+// "1 234,50 ₽", whole amounts without a fraction.
+func Money(v float64) string {
+	cur := suffix()
 	sign := ""
 	if v < 0 {
 		sign, v = "−", -v
@@ -27,9 +78,9 @@ func Rub(v float64) string {
 		b.WriteRune(r)
 	}
 	if frac := cents % 100; frac != 0 {
-		return fmt.Sprintf("%s%s,%02d ₽", sign, b.String(), frac)
+		return fmt.Sprintf("%s%s,%02d %s", sign, b.String(), frac, cur)
 	}
-	return sign + b.String() + " ₽"
+	return sign + b.String() + " " + cur
 }
 
 const unlimitedYear = 2090 // vpn-control's "never expires" dates

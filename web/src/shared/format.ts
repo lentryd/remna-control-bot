@@ -3,8 +3,8 @@ import dayjs from 'dayjs'
 
 import i18n from '../i18n'
 
-// Money is shown in the base currency with the UI locale; main.tsx calls
-// setFormat before the first render.
+// Money is shown in the base currency with the UI locale; main.tsx sets the
+// locale and App sets the base currency from the profile before it renders pages.
 let base = 'RUB'
 let locale = 'ru-RU'
 let money0: Intl.NumberFormat
@@ -24,6 +24,13 @@ export function setFormat(opts: { base?: string; locale?: string }) {
     base = b
     locale = l
     build()
+}
+
+// The narrow symbol of the current base currency ($, ₽, €), or its ISO code
+// when the locale has no symbol for it.
+export function currencySymbol(): string {
+    const part = money0.formatToParts(0).find((p) => p.type === 'currency')
+    return part?.value || base
 }
 
 // fmtMoney with digits 0 drops the cents of whole amounts only: 120 → 120 ₽,

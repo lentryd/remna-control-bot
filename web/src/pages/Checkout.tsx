@@ -9,7 +9,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
 
-import { fmtMoney } from '@shared/format'
+import { currencySymbol, fmtMoney } from '@shared/format'
 import { ApiError, cancelOrder, createOrder, payFromBalance, requestReceipt, useOrderQuote, useTariffs } from '../api'
 import { haptic, openExternal, tg } from '../telegram'
 import type { Order, OrderKind, OrderRequest, Period, Profile } from '../types'
@@ -318,7 +318,7 @@ export function Checkout({ p }: { p: Profile }) {
                 </Stack>
             )}
             {kind === 'topup' && (
-                <NumberInput disabled={locked} label={label(t('checkout.amount'))} min={1} onChange={setAmount} radius="md" size="md" suffix=" ₽" value={amount} />
+                <NumberInput disabled={locked} label={label(t('checkout.amount'))} min={1} onChange={setAmount} radius="md" size="md" suffix={` ${currencySymbol()}`} value={amount} />
             )}
             {qErr && qErr.status < 500 && (
                 <Note color="gray" icon={<IconInfoCircle size={18} />}>

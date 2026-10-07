@@ -240,3 +240,12 @@ Lava, CisPay, Cashera, TabPay, ParityPay, Tribute, PayPear. Apple IAP is not app
 Recurring payments and saved cards, refunds, provider fees added to the price, partial payments across several
 providers, per-customer provider preferences, a fiscalisation service beyond the optional YooKassa receipt,
 admin UI for provider settings (env only).
+
+## Update: base currency
+
+Amounts are no longer fixed to RUB: they are in the panel's base currency, read from `GET /settings`
+(`base_currency`), cached for 10 minutes, with `BASE_CURRENCY` (default `RUB`) as the fallback; the bot token needs
+the scope `stats:settings`. `InvoiceRequest` carries `Currency`, and each adapter invoices in it. Stars convert with
+`STARS_RATE` (base-currency units per Star; replaces `STARS_RUB_RATE`). `received` is recorded only when the event's
+currency equals the base currency. A currency a provider does not support is rejected by the provider and the
+customer sees the generic invoice error; providers are not hidden by currency.

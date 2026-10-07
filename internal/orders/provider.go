@@ -81,7 +81,10 @@ func (s *Service) Pay(ctx context.Context, customerID int, id, provider string) 
 // issue bills the order: the invoice is created first; if the order moved on
 // meanwhile the invoice is simply left to expire at the provider.
 func (s *Service) issue(ctx context.Context, o *Order, p payments.Provider) (*Order, error) {
-	inv, err := p.Invoice(ctx, payments.InvoiceRequest{OrderID: o.ID, Title: o.Title, Amount: o.ToPay, ExpiresIn: s.TTL})
+	if s.CurrencyKnown != nil && !s.CurrencyKnown() {
+		return nil, fmt.Errorf("%w: base currency not confirmed by the panel", ErrProvider)
+	}
+	inv, err := p.Invoice(ctx, payments.InvoiceRequest{OrderID: o.ID, Title: o.Title, Amount: o.ToPay, Currency: s.base(ctx), ExpiresIn: s.TTL})
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s: %v", ErrProvider, p.ID(), err)
 	}
@@ -136,7 +139,9 @@ func (s *Service) Paid(ctx context.Context, ev payments.Event) (*Order, error) {
 	// Something is off (less money, another currency, the provider's own flag):
 	// an admin decides with the usual card.
 	set["comment"] = reviewNote(o, ev)
-	if strings.EqualFold(ev.Currency, "RUB") && ev.Amount > 0 {
+	// Money is comparable only in the currency the order was billed in (the base at issue time, which may differ from
+	// the base now); stars are not an amount of the panel's currency.
+	if !strings.EqualFold(o.PayCurrency, "XTR") && strings.EqualFold(ev.Currency, o.PayCurrency) && ev.Amount > 0 {
 		set["received"] = round2(ev.Amount)
 	}
 	if err := s.move(ctx, o.ID, paidFrom, StatusPendingReview, set); err != nil {

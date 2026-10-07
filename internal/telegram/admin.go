@@ -17,10 +17,18 @@ import (
 	"vpn-control-bot/internal/vpnctl"
 )
 
-var amountCleaner = strings.NewReplacer(" ", "", " ", "", "₽", "", "руб", "", "р", "", ",", ".")
+// amountCleaner strips spaces, the ruble spellings and the current currency's
+// symbol and ISO code (the input is lower-cased first), decimal comma → dot.
+func amountCleaner() *strings.Replacer {
+	pairs := []string{" ", "", "\u00a0", "", "₽", "", "руб", "", "р", ""}
+	for _, h := range view.CurrencyHints() {
+		pairs = append(pairs, strings.ToLower(h), "")
+	}
+	return strings.NewReplacer(append(pairs, ",", ".")...)
+}
 
 func parseAmount(s string) (float64, bool) {
-	v, err := strconv.ParseFloat(amountCleaner.Replace(strings.ToLower(strings.TrimSpace(s))), 64)
+	v, err := strconv.ParseFloat(amountCleaner().Replace(strings.ToLower(strings.TrimSpace(s))), 64)
 	if err != nil || math.IsNaN(v) || v <= 0 || v > 1_000_000 {
 		return 0, false
 	}

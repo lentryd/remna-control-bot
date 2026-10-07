@@ -55,6 +55,7 @@ export interface Profile {
     referrals: Referral[]
     referrals_earned: number
     ref_link: string
+    currency: string
 }
 export interface Period {
     months: number

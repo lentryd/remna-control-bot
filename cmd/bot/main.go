@@ -12,12 +12,14 @@ import (
 
 	"vpn-control-bot/internal/access"
 	"vpn-control-bot/internal/config"
+	"vpn-control-bot/internal/currency"
 	"vpn-control-bot/internal/notify"
 	"vpn-control-bot/internal/orders"
 	"vpn-control-bot/internal/payments"
 	"vpn-control-bot/internal/refcode"
 	"vpn-control-bot/internal/store"
 	"vpn-control-bot/internal/telegram"
+	"vpn-control-bot/internal/telegram/view"
 	"vpn-control-bot/internal/vpnctl"
 	"vpn-control-bot/internal/webapp"
 	"vpn-control-bot/web"
@@ -49,6 +51,8 @@ func run() error {
 	defer st.Close()
 
 	api := vpnctl.New(cfg.VpnctlURL, cfg.VpnctlToken)
+	cur := &currency.Source{API: api, Fallback: cfg.BaseCurrency, Log: log, OnChange: view.SetCurrency}
+	base := cur.Get(ctx) // resolves once at startup: with the panel down the fallback is used and a warning is logged
 	codec := refcode.New(cfg.RefSecret)
 	acc := access.New(api, codec, cfg.Mode, st)
 
@@ -56,6 +60,9 @@ func run() error {
 		DB: st.DB(), Chats: st, API: api, PayMode: cfg.PayMode, Manual: cfg.ManualEnabled(),
 		Details: cfg.ManualPayDetails, TTL: cfg.OrderTTL, Now: time.Now, Log: log,
 	}
+	svc.BaseCurrency = cur.Get
+	// Provider invoices need a confirmed currency: the panel answered, or the operator set BASE_CURRENCY explicitly.
+	svc.CurrencyKnown = func() bool { return cur.Known() || cfg.BaseCurrencySet }
 	var stars *payments.Stars
 	var provs []payments.Provider
 	pc := cfg.Pay
@@ -71,10 +78,17 @@ func run() error {
 			Network: pc.HeleketNetwork, CallbackURL: cfg.PublicURL + "/pay/heleket"})
 	}
 	if pc.StarsOn() {
-		stars = &payments.Stars{RubPerStar: pc.StarsRubRate}
+		stars = &payments.Stars{PerStar: pc.StarsRate}
 		provs = append(provs, stars)
 	}
 	svc.Providers = payments.NewRegistry(provs...)
+	if len(provs) > 0 {
+		log.Info("payment providers invoice in the base currency", "currency", base, "providers", svc.Providers.IDs())
+	}
+	unconfirmed := len(provs) > 0 && !svc.CurrencyKnown()
+	if unconfirmed {
+		logCurrencyUnconfirmed(log, base)
+	}
 	if len(provs) > 0 && !strings.HasPrefix(cfg.PublicURL, "https://") {
 		log.Warn("payment providers are on but PUBLIC_URL is not https: webhooks will not reach the bot", "url", cfg.PublicURL)
 	}
@@ -94,7 +108,7 @@ func run() error {
 	}
 	app := webapp.New(webapp.Deps{
 		API: api, Codec: codec, BotToken: cfg.BotToken, BotUsername: bot.Username(),
-		Path: cfg.WebAppPath, PayMode: cfg.PayMode, Orders: svc, Static: web.Dist, Log: log,
+		Path: cfg.WebAppPath, PayMode: cfg.PayMode, Orders: svc, Currency: cur.Get, Static: web.Dist, Log: log,
 	})
 
 	errc := make(chan error, 1)
@@ -113,7 +127,8 @@ func run() error {
 	if len(provs) > 0 {
 		go providerLoop(ctx, svc, log)
 	}
-	log.Info("started", "mode", cfg.Mode, "pay", cfg.PayMode, "manual", cfg.ManualEnabled(), "notify", cfg.NotifyInterval, "bot", "@"+bot.Username(), "webapp", cfg.WebAppURL(), "addr", cfg.HTTPAddr, "providers", svc.Providers.IDs())
+	go currencyLoop(ctx, cur, log, len(provs) > 0, svc.CurrencyKnown, unconfirmed)
+	log.Info("started", "mode", cfg.Mode, "pay", cfg.PayMode, "manual", cfg.ManualEnabled(), "currency", base, "notify", cfg.NotifyInterval, "bot", "@"+bot.Username(), "webapp", cfg.WebAppURL(), "addr", cfg.HTTPAddr, "providers", svc.Providers.IDs())
 
 	select {
 	case <-ctx.Done():
@@ -152,6 +167,45 @@ func providerLoop(ctx context.Context, svc *orders.Service, log *slog.Logger) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+		}
+	}
+}
+
+// logCurrencyUnconfirmed explains why provider payments refuse to invoice.
+func logCurrencyUnconfirmed(log *slog.Logger, fallback string) {
+	log.Error("provider payments are disabled until the panel reports its base currency: re-issue the bot token with the `stats:settings` scope or set BASE_CURRENCY",
+		"fallback", fallback)
+}
+
+// currencyLoop keeps the displayed base currency fresh even when no invoice or WebApp request asks for it: Get
+// refreshes the Source (whose TTL/backoff decides when the panel is really called) and feeds view.SetCurrency.
+// With providers on it also repeats the "currency not confirmed" error every 10 minutes while it holds and says
+// when it clears; unconfirmed is the state already reported at startup.
+func currencyLoop(ctx context.Context, cur *currency.Source, log *slog.Logger, providers bool, known func() bool, unconfirmed bool) {
+	const repeat = 10 * time.Minute
+	t := time.NewTicker(time.Minute)
+	defer t.Stop()
+	last := time.Now()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		code := cur.Get(ctx)
+		if !providers {
+			continue
+		}
+		switch {
+		case !known():
+			if now := time.Now(); !unconfirmed || now.Sub(last) >= repeat {
+				logCurrencyUnconfirmed(log, code)
+				last = now
+			}
+			unconfirmed = true
+		case unconfirmed:
+			unconfirmed = false
+			log.Info("provider payments are enabled: the base currency is confirmed", "currency", code)
 		}
 	}
 }
