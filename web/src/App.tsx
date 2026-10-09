@@ -1,5 +1,6 @@
-import { Route, Routes } from 'react-router'
+import { Route, Routes, useLocation } from 'react-router'
 
+import { AdminApp } from './AdminApp'
 import { ApiError, useProfile } from './api'
 import { AppShell } from './layout/AppShell'
 import { Balance } from './pages/Balance'
@@ -15,6 +16,11 @@ import { PageSkeleton } from './ui/PageSkeleton'
 import { setFormat } from '@shared/format'
 
 export function App() {
+    const { pathname } = useLocation()
+    return pathname.startsWith('/admin') ? <AdminApp /> : <CustomerApp />
+}
+
+function CustomerApp() {
     const profile = useProfile()
     if (!tg) return <ErrorScreen code="no_tg" />
     if (profile.isPending) return <PageSkeleton />

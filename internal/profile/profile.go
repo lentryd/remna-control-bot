@@ -26,6 +26,7 @@ type Profile struct {
 	RefLink         string         `json:"ref_link"`
 	// Currency is the base currency every amount is in (the WebApp formats with it).
 	Currency string `json:"currency"`
+	IsAdmin  bool   `json:"is_admin"`
 }
 
 type Subscription struct {

@@ -72,8 +72,12 @@ func TestMe(t *testing.T) {
 	var p struct {
 		Name    string `json:"name"`
 		RefLink string `json:"ref_link"`
+		IsAdmin *bool  `json:"is_admin"`
 	}
 	json.Unmarshal([]byte(body), &p)
+	if p.IsAdmin == nil || *p.IsAdmin {
+		t.Fatalf("is_admin must be present and false for a customer: %s", body)
+	}
 	if p.Name != "Ann" || !strings.HasPrefix(p.RefLink, "https://t.me/vpnbot?start=ref_") {
 		t.Fatalf("profile %+v", p)
 	}

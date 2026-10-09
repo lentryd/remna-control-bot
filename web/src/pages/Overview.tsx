@@ -1,7 +1,7 @@
 // Overview.tsx — greeting, balance card, then either the start card (no
 // subscriptions yet) or the most urgent subscriptions.
 import { Button, Card, Group, Stack, Text, ThemeIcon, Title } from '@mantine/core'
-import { IconChevronRight, IconRocket, IconTag } from '@tabler/icons-react'
+import { IconChevronRight, IconRocket, IconSettings, IconTag } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
@@ -36,6 +36,11 @@ export function Overview({ p }: { p: Profile }) {
     return (
         <Stack gap="lg">
             <Title order={3}>{t('overview.hello', { name: p.name })}</Title>
+            {p.is_admin && (
+                <Button leftSection={<IconSettings size={18} />} onClick={() => navigate('/admin')} variant="light">
+                    Админка
+                </Button>
+            )}
             <BalanceCard p={p} />
             {empty ? (
                 <StartCard />

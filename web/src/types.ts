@@ -56,6 +56,7 @@ export interface Profile {
     referrals_earned: number
     ref_link: string
     currency: string
+    is_admin: boolean
 }
 export interface Period {
     months: number
@@ -107,4 +108,33 @@ export interface Order {
     reason?: string
     until?: string
     created_at: string
+}
+
+export type Decision = 'full' | 'debt' | 'credit'
+
+export interface AdminOrder extends Order {
+    customer_id: number
+    customer_name?: string
+    telegram_id: number
+    comment?: string
+    receipt_kind?: 'photo' | 'document' | 'text' | ''
+    received: number | null
+    admin?: string
+    decision?: string
+    error?: string
+    external_id?: string
+    pay_amount?: number
+    pay_currency?: string
+}
+
+export interface AdminSettings {
+    sections: Record<string, Record<string, unknown>>
+    lost: string[]
+    webhook_base: string
+}
+
+export interface CheckResult {
+    ok: boolean
+    supported: boolean
+    message?: string
 }

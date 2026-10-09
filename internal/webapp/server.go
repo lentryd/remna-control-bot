@@ -137,6 +137,7 @@ func (s *server) me(c *fiber.Ctx) error {
 	if s.Currency != nil {
 		p.Currency = s.Currency(c.UserContext())
 	}
+	p.IsAdmin = s.IsAdmin != nil && s.IsAdmin(c.Locals("tg").(int64))
 	return c.JSON(p)
 }
 

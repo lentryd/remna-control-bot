@@ -4,19 +4,21 @@ import { tg } from './telegram'
 import type { Order, OrderQuote, OrderRequest, Profile, Tariff } from './types'
 
 export class ApiError extends Error {
-    constructor(public status: number, public code: string) {
+    constructor(public status: number, public code: string, public detail?: string) {
         super(code)
     }
 }
 
+export const authHeaders = (): Record<string, string> => ({ Authorization: `tma ${tg?.initData ?? ''}` })
+
 // Relative to the page, so it works under any WEBAPP_PATH.
-async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const headers: Record<string, string> = { Authorization: `tma ${tg?.initData ?? ''}` }
+export async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+    const headers: Record<string, string> = authHeaders()
     if (body !== undefined) headers['Content-Type'] = 'application/json'
     const res = await fetch(`./api/${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
     if (!res.ok) {
         const b = await res.json().catch(() => ({}))
-        throw new ApiError(res.status, b.code ?? 'error')
+        throw new ApiError(res.status, b.code ?? 'error', b.message)
     }
     if (res.status === 204) return undefined as T
     return res.json()
