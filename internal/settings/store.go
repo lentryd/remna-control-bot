@@ -96,7 +96,8 @@ func (s *Store) Snapshot() Snapshot { return *s.snap.Load() }
 func (s *Store) Lost() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return slices.Clone(s.lost)
+	// Never nil: the admin API serialises it, and null would break the SPA's length check.
+	return append([]string{}, s.lost...)
 }
 
 // OnChange registers fn to be called, in order, after every successful Put. Register before serving requests.

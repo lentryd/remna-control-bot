@@ -98,3 +98,8 @@ export const METHODS: SectionDef[] = [
         fields: [enabled, { name: 'rate', label: 'Базовой валюты за 1 ⭐', kind: 'number', decimal: true }]
     }
 ]
+
+/** Titles of the sections by key; an unknown key is shown as is. */
+export function sectionTitles(keys: string[]): string[] {
+    return keys.map((k) => [GENERAL, ...METHODS].find((d) => d.key === k)?.title ?? k)
+}

@@ -13,6 +13,7 @@ import (
 	"vpn-control-bot/internal/settings"
 	"vpn-control-bot/internal/store"
 	"vpn-control-bot/internal/vpnctl"
+	"vpn-control-bot/internal/webapp/initdata"
 )
 
 const adminID = 900 // an admin who is not a panel customer
@@ -161,7 +162,7 @@ func TestAdminSettings(t *testing.T) {
 		WebhookBase string                    `json:"webhook_base"`
 	}
 	if err := json.Unmarshal([]byte(body), &got); err != nil || code != 200 || len(got.Sections) != len(settings.Keys) ||
-		got.WebhookBase != "https://pub.example" || strings.Contains(body, "supersecret") {
+		got.WebhookBase != "https://pub.example" || strings.Contains(body, "supersecret") || !strings.Contains(body, `"lost":[]`) {
 		t.Fatalf("get %d %s", code, body)
 	}
 	if code, _ := do(t, d, "GET", "/bot/api/admin/settings", tma(77), ""); code != 403 {
@@ -257,5 +258,17 @@ func TestAdminApproveBadDecisionKeepsAmount(t *testing.T) {
 	o, _ := d.Orders.Get(context.Background(), id)
 	if o.Received != nil {
 		t.Fatalf("amount saved despite bad decision: %v", *o.Received)
+	}
+}
+
+func TestAdminName(t *testing.T) {
+	for want, u := range map[string]initdata.User{
+		"@ann (5)":    {ID: 5, Username: "ann", FirstName: "Ann"},
+		"Ann Lee (6)": {ID: 6, FirstName: "Ann", LastName: "Lee"},
+		"7":           {ID: 7},
+	} {
+		if got := adminName(u); got != want {
+			t.Errorf("%+v: %q, want %q", u, got, want)
+		}
 	}
 }

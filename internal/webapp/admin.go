@@ -26,13 +26,14 @@ type ReceiptSource interface {
 const adminPage = 20
 
 func adminName(u initdata.User) string {
+	id := strconv.FormatInt(u.ID, 10)
 	if u.Username != "" {
-		return "@" + u.Username
+		return "@" + u.Username + " (" + id + ")"
 	}
 	if n := strings.TrimSpace(u.FirstName + " " + u.LastName); n != "" {
-		return n
+		return n + " (" + id + ")"
 	}
-	return strconv.FormatInt(u.ID, 10)
+	return id
 }
 
 // adminOnly lets through the Telegram ids listed in ADMIN_IDS; they need not be panel customers.

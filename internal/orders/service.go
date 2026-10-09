@@ -245,15 +245,7 @@ func (s *Service) AttachReceipt(ctx context.Context, chatID int64, kind ReceiptK
 	if err != nil {
 		return nil, err
 	}
-	msgID, err := s.Notify.PostCard(ctx, *o)
-	if err != nil {
-		s.Log.Error("orders: admin card", "order", o.ID, "err", err)
-		return o, nil // the order is safe; admins see it in the next card update or the logs
-	}
-	o.AdminMsgID = msgID
-	if err := s.set(ctx, o.ID, map[string]any{"admin_msg_id": msgID}); err != nil {
-		s.Log.Error("orders: save admin card id", "order", o.ID, "err", err)
-	}
+	s.card(ctx, o)
 	return o, nil
 }
 

@@ -129,3 +129,15 @@ Each step leaves the bot working.
 
 Roles or per-admin permissions, an audit log beyond the existing `orders.admin` field, a settings change
 history, and login to the admin part outside Telegram.
+
+## Implementation notes
+
+Where the implementation differs from or extends the text above:
+
+- The orders API paginates with `page=` (20 per page) instead of limit/offset.
+- Admin UI strings are Russian-only in `web/src/pages/admin/text.ts`, not in the i18n locale files.
+- The registry is swapped through `orders.Live` (`SetLive`) rather than a `Registry` with an RWMutex and `Swap`.
+- A switched-off provider with complete credentials is "retired": it still resolves for webhooks and polling but never
+  issues new invoices.
+- Extras: `GET /api/admin/me` and the `/admin` bot command.
+- `ADMIN_IDS` is required: the bot refuses to start without it.

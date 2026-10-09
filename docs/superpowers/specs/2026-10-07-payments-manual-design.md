@@ -1,4 +1,5 @@
 # Payments: order core + manual payment — design
+> **Superseded in part:** admin decisions and all `*_`-prefixed provider/payment env settings moved to the admin web app — see `2026-10-09-admin-webapp-settings-design.md`.
 
 Date: 2026-10-07. Status: approved in brainstorming. Follow-up: payment providers (separate spec, reuses this core).
 

@@ -3,7 +3,7 @@ import { Alert, Stack } from '@mantine/core'
 import { useAdminSettings } from '../../adminApi'
 import { PageSkeleton } from '../../ui/PageSkeleton'
 import { SectionForm } from './SectionForm'
-import { METHODS } from './sections'
+import { METHODS, sectionTitles } from './sections'
 import { A } from './text'
 
 export function AdminMethods() {
@@ -13,7 +13,9 @@ export function AdminMethods() {
     const s = q.data
     return (
         <Stack gap="md">
-            {s.lost.length > 0 && <Alert color="yellow">{A.settings.lost}</Alert>}
+            {(s.lost?.length ?? 0) > 0 && <Alert color="yellow">
+                    {A.settings.lost} {sectionTitles(s.lost ?? []).join(', ')}
+                </Alert>}
             {METHODS.map((def) => (
                 <SectionForm def={def} initial={s.sections[def.key] ?? {}} key={def.key} webhookBase={s.webhook_base} />
             ))}

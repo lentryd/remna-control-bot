@@ -97,20 +97,20 @@ func run() error {
 	}
 
 	bot, err = telegram.New(ctx, cfg.BotToken, telegram.Deps{
-		Access: acc, API: api, Codec: codec, Orders: svc, Prompts: st, AdminChatID: cfg.AdminChatID, IsAdmin: cfg.IsAdmin,
+		Access: acc, API: api, Codec: codec, Orders: svc, IsAdmin: cfg.IsAdmin, Admins: cfg.AdminIDs, Notices: st,
 		WebAppURL: cfg.WebAppURL(), PayMode: payMode, Log: log,
 	})
 	if err != nil {
 		return err
 	}
 	svc.Notify = bot
-	if svc.Live().Manual {
-		bot.CheckAdminChat(ctx)
+	if live := svc.Live(); !live.Manual && len(live.Providers.IDs()) == 0 && len(cfg.AdminIDs) > 0 {
+		bot.NotifyAdmins(ctx, "Способы оплаты не настроены — настройте их в админке.", "/admin/methods")
 	}
 	app := webapp.New(webapp.Deps{
 		API: api, Codec: codec, BotToken: cfg.BotToken, BotUsername: bot.Username(),
 		Path: cfg.WebAppPath, PayMode: payMode, Orders: svc, Currency: cur.Get, Static: web.Dist, Log: log,
-		Settings: set, IsAdmin: cfg.IsAdmin, PublicURL: cfg.PublicURL, Receipts: bot,
+		Settings: set, IsAdmin: cfg.IsAdmin, PublicURL: cfg.PublicURL, Receipts: bot, Unreachable: bot.Unreachable,
 	})
 
 	errc := make(chan error, 1)
@@ -138,9 +138,9 @@ func run() error {
 	return app.Shutdown()
 }
 
-// manualOn: transfers need a text to show, and (for now) a chat to send receipts to and someone to decide.
+// manualOn: transfers need a text to show and an admin to decide.
 func manualOn(cfg config.Config, m settings.Manual) bool {
-	return m.Active() && cfg.AdminChatID != 0 && len(cfg.AdminIDs) > 0
+	return m.Active() && len(cfg.AdminIDs) > 0
 }
 
 // fallbackCurrency is what is shown while the panel cannot say: the operator's explicit choice, else RUB.

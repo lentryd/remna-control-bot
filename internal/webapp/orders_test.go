@@ -23,8 +23,7 @@ import (
 type nopNotify struct{ pay int }
 
 func (n *nopNotify) PayScreen(context.Context, orders.Order, string) error { n.pay++; return nil }
-func (*nopNotify) PostCard(context.Context, orders.Order) (int, error)     { return 1, nil }
-func (*nopNotify) UpdateCard(context.Context, orders.Order) error          { return nil }
+func (*nopNotify) Card(context.Context, orders.Order) error                { return nil }
 func (*nopNotify) Customer(context.Context, orders.Order) error            { return nil }
 
 func withOrders(t *testing.T, f *vpnctl.Fake, d *Deps) *nopNotify {

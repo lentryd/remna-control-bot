@@ -95,7 +95,6 @@ type Order struct {
 	Comment        string
 	RejectReason   string
 	Admin          string
-	AdminMsgID     int
 	Decision       Decision
 	PanelPaymentID int
 	ResultUntil    *time.Time
@@ -134,12 +133,13 @@ func ShortID(id string) string { return id[:min(len(id), 8)] }
 
 type Notifier interface {
 	PayScreen(ctx context.Context, o Order, details string) error // customer chat: amount + details + buttons
-	PostCard(ctx context.Context, o Order) (msgID int, err error) // admin chat
-	UpdateCard(ctx context.Context, o Order) error
+	// Card tells the admins where the order stands: a new card when it needs a decision, an edit of the cards already
+	// sent otherwise. Failures are per admin and never fail the order.
+	Card(ctx context.Context, o Order) error
 	Customer(ctx context.Context, o Order) error // decision notice to the customer
 }
 
-// Alerter is an optional Notifier capability: a plain message to the admin chat.
+// Alerter is an optional Notifier capability: a plain message to every admin.
 type Alerter interface {
 	Alert(ctx context.Context, text string) error
 }

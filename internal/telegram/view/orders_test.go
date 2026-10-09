@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-telegram/bot/models"
+
 	"vpn-control-bot/internal/orders"
 )
 
@@ -26,32 +28,30 @@ func TestPayScreen(t *testing.T) {
 }
 
 func TestAdminCard(t *testing.T) {
-	o := order()
-	c := AdminCard(o, AdminCustomer{Name: "Ann", Username: "ann", TelegramID: 77})
-	if !strings.Contains(c.Text, "перевёл &lt;сбер&gt;") || !strings.Contains(c.Text, "@ann") || len(c.Text) > 1024 {
-		t.Fatalf("card:\n%s", c.Text)
+	open := &models.WebAppInfo{URL: "https://x/bot/#/admin/orders/1"}
+	o := orders.Order{ID: "12345678-aaaa", CustomerID: 5, Title: "Продление", Price: 700, ToPay: 700, Status: orders.StatusPendingReview,
+		ReceiptKind: orders.ReceiptPhoto, Comment: "перевёл", Method: orders.MethodManual}
+	s := AdminCard(o, AdminCustomer{Name: "Ann", Username: "ann"}, open)
+	for _, want := range []string{"№12345678", "Ann @ann", "клиент #5", "перевёл", "квитанция — в приложении", "Ждёт решения", "Способ: перевод с квитанцией"} {
+		if !strings.Contains(s.Text, want) {
+			t.Errorf("card lacks %q:\n%s", want, s.Text)
+		}
 	}
-	if b := buttons(c); !has(b, CbAdminApprove+o.ID) || !has(b, CbAdminEdit+o.ID) || !has(b, CbAdminReject+o.ID) {
-		t.Fatalf("buttons %v", b)
+	if len(s.Keyboard.InlineKeyboard) != 1 || s.Keyboard.InlineKeyboard[0][0].WebApp != open || s.Keyboard.InlineKeyboard[0][0].CallbackData != "" {
+		t.Fatalf("the only button must open the web app: %+v", s.Keyboard)
 	}
-	r := 500.0
-	o.Received = &r
-	b := buttons(AdminCard(o, AdminCustomer{Name: "Ann"}))
-	if has(b, CbAdminApprove+o.ID) || !has(b, CbAdminDebt+o.ID) || !has(b, CbAdminCredit+o.ID) {
-		t.Fatalf("underpaid buttons %v", b)
-	}
-	o.Kind = orders.KindSubscribe
-	if has(buttons(AdminCard(o, AdminCustomer{})), CbAdminDebt+o.ID) {
-		t.Fatal("debt offered for a new subscription")
+	for m, want := range map[orders.Method]string{orders.MethodBalance: "Способ: баланс", "cryptobot": "Способ: CryptoBot", "newpay": "Способ: newpay"} {
+		o.Method = m
+		if s = AdminCard(o, AdminCustomer{}, open); !strings.Contains(s.Text, want) {
+			t.Errorf("method %q: card lacks %q:\n%s", m, want, s.Text)
+		}
 	}
 	o.Status, o.Admin = orders.StatusApproved, "@boss"
-	done := AdminCard(o, AdminCustomer{})
-	if done.Keyboard != nil || !strings.Contains(done.Text, "@boss") || !strings.Contains(done.Text, "800 → 500") {
-		t.Fatalf("decided card:\n%s %v", done.Text, done.Keyboard)
+	if s = AdminCard(o, AdminCustomer{}, open); !strings.Contains(s.Text, "Подтвердил @boss") || len(s.Keyboard.InlineKeyboard) != 1 {
+		t.Fatalf("resolved card keeps the open button: %+v", s)
 	}
-	o.Status, o.Error = orders.StatusFailed, "no squad"
-	if !has(buttons(AdminCard(o, AdminCustomer{})), CbAdminRetry+o.ID) {
-		t.Fatal("no retry on a failed order")
+	if s = AdminCard(order(), AdminCustomer{Name: "<Ann>"}, open); !strings.Contains(s.Text, "перевёл &lt;сбер&gt;") || !strings.Contains(s.Text, "&lt;Ann&gt;") {
+		t.Fatalf("customer text must be escaped:\n%s", s.Text)
 	}
 }
 
@@ -143,7 +143,7 @@ func TestAdminCardCurrency(t *testing.T) {
 	r := 500.0
 	o.Received = &r
 	o.Status, o.Admin = orders.StatusApproved, "@boss"
-	txt := AdminCard(o, AdminCustomer{}).Text
+	txt := AdminCard(o, AdminCustomer{}, nil).Text
 	if !strings.Contains(txt, "700 → 500 $") || strings.Contains(txt, "₽") {
 		t.Fatalf("card:\n%s", txt)
 	}

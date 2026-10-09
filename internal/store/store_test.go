@@ -57,7 +57,7 @@ func TestNoticesSentOnce(t *testing.T) {
 	}
 }
 
-func TestChatStateAndPrompts(t *testing.T) {
+func TestChatStateAndNotices(t *testing.T) {
 	s, err := Open(filepath.Join(t.TempDir(), "b.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -76,12 +76,15 @@ func TestChatStateAndPrompts(t *testing.T) {
 	if _, ok, _ := s.GetChatState(ctx, 1); ok {
 		t.Fatal("state after clear")
 	}
-	s.SavePrompt(ctx, -100, 55, Prompt{Kind: "reject", OrderID: "3"})
-	if p, ok, _ := s.TakePrompt(ctx, -100, 55); !ok || p.OrderID != "3" || p.Kind != "reject" {
-		t.Fatalf("prompt %+v", p)
+	s.SaveNotice(ctx, "o1", 7, 100)
+	s.SaveNotice(ctx, "o1", 8, 200)
+	s.SaveNotice(ctx, "o1", 7, 101) // replaces
+	got, err := s.Notices(ctx, "o1")
+	if err != nil || len(got) != 2 || got[7] != 101 || got[8] != 200 {
+		t.Fatalf("notices %v %v", got, err)
 	}
-	if _, ok, _ := s.TakePrompt(ctx, -100, 55); ok {
-		t.Fatal("prompt taken twice")
+	if none, _ := s.Notices(ctx, "other"); len(none) != 0 {
+		t.Fatalf("other order: %v", none)
 	}
 	if _, err := s.DB().Exec(`SELECT id, status FROM orders`); err != nil {
 		t.Fatalf("orders table: %v", err)

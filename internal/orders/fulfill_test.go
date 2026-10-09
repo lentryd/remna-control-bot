@@ -23,8 +23,8 @@ func TestApproveRenew(t *testing.T) {
 		p.Allocations[0] != (vpnctl.Allocation{Kind: "subscription", ID: 3, Months: 3, Amount: 900}) {
 		t.Fatalf("payment %+v", p)
 	}
-	if len(sp.updated) != 1 || len(sp.sent) != 1 || sp.sent[0].Status != StatusApproved {
-		t.Fatalf("notifications: cards %d, customer %d", len(sp.updated), len(sp.sent))
+	if len(sp.cards) == 0 || sp.cards[len(sp.cards)-1].Status != StatusApproved || len(sp.sent) != 1 || sp.sent[0].Status != StatusApproved {
+		t.Fatalf("notifications: cards %d, customer %d", len(sp.cards), len(sp.sent))
 	}
 }
 
@@ -335,15 +335,12 @@ func TestFailedBalanceOrderPostsAdminCard(t *testing.T) {
 	o, _ := s.Create(ctx, c, 77, Request{Kind: KindRenew, ItemKind: "addon", ItemID: 8, Months: 1})
 	f.FailExtend = "remnawave down"
 	got, err := s.PayFromBalance(ctx, c.ID, o.ID)
-	if err != nil || got.Status != StatusFailed || len(sp.posted) != 1 || sp.posted[0].Status != StatusFailed {
-		t.Fatalf("%+v %v posted %d", got, err, len(sp.posted))
-	}
-	if got.AdminMsgID != 501 {
-		t.Fatalf("card id %d", got.AdminMsgID)
+	if err != nil || got.Status != StatusFailed || sp.asked() != 1 || sp.cards[len(sp.cards)-1].Status != StatusFailed {
+		t.Fatalf("%+v %v asked %d", got, err, sp.asked())
 	}
 	f.FailExtend = ""
 	got, err = s.Retry(ctx, o.ID, "@a")
-	if err != nil || got.Status != StatusApproved || len(sp.posted) != 1 || sp.updated[len(sp.updated)-1].Status != StatusApproved {
+	if err != nil || got.Status != StatusApproved || sp.asked() != 1 || sp.cards[len(sp.cards)-1].Status != StatusApproved {
 		t.Fatalf("%+v %v", got, err)
 	}
 }
@@ -370,7 +367,7 @@ func TestStaleApprovingRecovers(t *testing.T) {
 	if got.Status != StatusFailed || !strings.Contains(got.Error, "проверьте в панели") || !strings.Contains(got.Error, "bot order #1") {
 		t.Fatalf("%+v", got)
 	}
-	if len(sp.updated) == 0 || sp.updated[len(sp.updated)-1].Status != StatusFailed {
+	if len(sp.cards) == 0 || sp.cards[len(sp.cards)-1].Status != StatusFailed {
 		t.Fatal("admin card not updated")
 	}
 	if len(sp.sent) != 1 || sp.sent[0].ID != stale.ID || sp.sent[0].Status != StatusFailed {

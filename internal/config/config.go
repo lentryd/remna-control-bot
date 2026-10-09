@@ -37,8 +37,7 @@ type Config struct {
 	LogLevel    string
 	RefSecret   string // also the root of the key that encrypts stored secrets
 
-	AdminChatID int64   // removed together with the Telegram admin flow
-	AdminIDs    []int64 // who may open the admin part and receives order cards
+	AdminIDs []int64 // who may open the admin part and receives order cards
 }
 
 // WebAppURL is where Telegram opens the WebApp.
@@ -74,13 +73,6 @@ func load(get func(string) string) (Config, error) {
 			return Config{}, fmt.Errorf("config: %s is required", r.k)
 		}
 	}
-	if v := or("ADMIN_CHAT_ID", ""); v != "" {
-		id, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
-			return Config{}, fmt.Errorf("config: ADMIN_CHAT_ID must be a chat id")
-		}
-		c.AdminChatID = id
-	}
 	for _, f := range strings.Split(or("ADMIN_IDS", ""), ",") {
 		if f = strings.TrimSpace(f); f == "" {
 			continue
@@ -90,6 +82,9 @@ func load(get func(string) string) (Config, error) {
 			return Config{}, fmt.Errorf("config: ADMIN_IDS must be Telegram ids like 5,7")
 		}
 		c.AdminIDs = append(c.AdminIDs, id)
+	}
+	if len(c.AdminIDs) == 0 {
+		return Config{}, fmt.Errorf("config: ADMIN_IDS is required: admins configure the bot in the web app")
 	}
 	return c, nil
 }

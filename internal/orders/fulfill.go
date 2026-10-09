@@ -314,26 +314,10 @@ func (s *Service) fulfill(ctx context.Context, o *Order, d Decision) (Status, *t
 	return StatusApproved, nil, nil
 }
 
-// card keeps the admin card current. A failed order without a card (paid
-// from the balance) gets one posted so admins see it and can retry.
+// card keeps the admins' cards current.
 func (s *Service) card(ctx context.Context, o *Order) {
-	if o.AdminMsgID == 0 {
-		if o.Status != StatusFailed {
-			return
-		}
-		msgID, err := s.Notify.PostCard(ctx, *o)
-		if err != nil {
-			s.Log.Error("orders: admin card for failed order", "order", o.ID, "err", err)
-			return
-		}
-		o.AdminMsgID = msgID
-		if err := s.set(ctx, o.ID, map[string]any{"admin_msg_id": msgID}); err != nil {
-			s.Log.Error("orders: save admin card id", "order", o.ID, "err", err)
-		}
-		return
-	}
-	if err := s.Notify.UpdateCard(ctx, *o); err != nil {
-		s.Log.Warn("orders: update card", "order", o.ID, "err", err)
+	if err := s.Notify.Card(ctx, *o); err != nil {
+		s.Log.Warn("orders: admin card", "order", o.ID, "err", err)
 	}
 }
 

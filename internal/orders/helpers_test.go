@@ -18,9 +18,9 @@ import (
 var now = time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
 
 type spy struct {
-	mu                         sync.Mutex
-	pay, posted, updated, sent []Order
-	alerts                     []string
+	mu               sync.Mutex
+	pay, cards, sent []Order
+	alerts           []string
 }
 
 func (s *spy) PayScreen(_ context.Context, o Order, _ string) error {
@@ -29,18 +29,26 @@ func (s *spy) PayScreen(_ context.Context, o Order, _ string) error {
 	s.pay = append(s.pay, o)
 	return nil
 }
-func (s *spy) PostCard(_ context.Context, o Order) (int, error) {
+func (s *spy) Card(_ context.Context, o Order) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.posted = append(s.posted, o)
-	return 500 + len(s.posted), nil
-}
-func (s *spy) UpdateCard(_ context.Context, o Order) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.updated = append(s.updated, o)
+	s.cards = append(s.cards, o)
 	return nil
 }
+
+// asked counts the card calls for states that need an admin's decision (a new card in every admin's chat).
+func (s *spy) asked() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, o := range s.cards {
+		if o.Status == StatusPendingReview || o.Status == StatusFailed {
+			n++
+		}
+	}
+	return n
+}
+
 func (s *spy) Customer(_ context.Context, o Order) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

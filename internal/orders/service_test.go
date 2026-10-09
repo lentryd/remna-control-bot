@@ -79,11 +79,11 @@ func TestManualOffOnlyBalance(t *testing.T) {
 func TestReceiptFlow(t *testing.T) {
 	s, _, sp, c := setup(t)
 	o := submitted(t, s, c)
-	if o.Status != StatusPendingReview || o.ReceiptFileID != "file1" || o.Comment != "перевёл" || o.AdminMsgID != 501 {
+	if o.Status != StatusPendingReview || o.ReceiptFileID != "file1" || o.Comment != "перевёл" {
 		t.Fatalf("%+v", o)
 	}
-	if len(sp.pay) != 1 || len(sp.posted) != 1 {
-		t.Fatalf("pay screens %d, cards %d", len(sp.pay), len(sp.posted))
+	if len(sp.pay) != 1 || len(sp.cards) != 1 || sp.cards[0].Status != StatusPendingReview {
+		t.Fatalf("pay screens %d, cards %d", len(sp.pay), len(sp.cards))
 	}
 	if _, ok, _ := s.Chats.GetChatState(context.Background(), 77); ok {
 		t.Fatal("chat still waits for a receipt")

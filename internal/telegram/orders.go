@@ -14,21 +14,6 @@ import (
 	"vpn-control-bot/internal/vpnctl"
 )
 
-var (
-	_ orders.Notifier = (*Bot)(nil)
-	_ orders.Alerter  = (*Bot)(nil)
-)
-
-// Alert sends a plain message to the admin chat (no parse mode: the text may
-// hold any characters). Without an admin chat it does nothing.
-func (b *Bot) Alert(ctx context.Context, text string) error {
-	if b.AdminChatID == 0 {
-		return nil
-	}
-	_, err := b.tg.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: b.AdminChatID, Text: text})
-	return err
-}
-
 func (b *Bot) PayScreen(ctx context.Context, o orders.Order, details string) error {
 	s := view.PayScreen(o, details)
 	_, err := b.tg.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: o.ChatID, Text: s.Text, ParseMode: models.ParseModeHTML, ReplyMarkup: s.Keyboard})
@@ -44,61 +29,6 @@ func (b *Bot) adminCustomer(ctx context.Context, o orders.Order) view.AdminCusto
 		ac.Username = ch.Username
 	}
 	return ac
-}
-
-// PostCard re-sends the receipt into the admin chat with the order card.
-func (b *Bot) PostCard(ctx context.Context, o orders.Order) (int, error) {
-	s := view.AdminCard(o, b.adminCustomer(ctx, o))
-	var markup models.ReplyMarkup
-	if s.Keyboard != nil {
-		markup = s.Keyboard
-	}
-	var m *models.Message
-	var err error
-	switch o.ReceiptKind {
-	case orders.ReceiptPhoto:
-		m, err = b.tg.SendPhoto(ctx, &tgbot.SendPhotoParams{ChatID: b.AdminChatID, Photo: &models.InputFileString{Data: o.ReceiptFileID},
-			Caption: s.Text, ParseMode: models.ParseModeHTML, ReplyMarkup: markup})
-	case orders.ReceiptDocument:
-		m, err = b.tg.SendDocument(ctx, &tgbot.SendDocumentParams{ChatID: b.AdminChatID, Document: &models.InputFileString{Data: o.ReceiptFileID},
-			Caption: s.Text, ParseMode: models.ParseModeHTML, ReplyMarkup: markup})
-	default:
-		m, err = b.tg.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: b.AdminChatID,
-			Text: cardText(s.Text, o), ParseMode: models.ParseModeHTML, ReplyMarkup: markup})
-	}
-	if err != nil {
-		return 0, err
-	}
-	return m.ID, nil
-}
-
-func (b *Bot) UpdateCard(ctx context.Context, o orders.Order) error {
-	s := view.AdminCard(o, b.adminCustomer(ctx, o))
-	markup := s.Keyboard
-	if markup == nil {
-		markup = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{}}
-	}
-	var err error
-	// Text receipts and balance orders (no receipt) have a text card.
-	if o.ReceiptKind != orders.ReceiptPhoto && o.ReceiptKind != orders.ReceiptDocument {
-		_, err = b.tg.EditMessageText(ctx, &tgbot.EditMessageTextParams{ChatID: b.AdminChatID, MessageID: o.AdminMsgID,
-			Text: cardText(s.Text, o), ParseMode: models.ParseModeHTML, ReplyMarkup: markup})
-	} else {
-		_, err = b.tg.EditMessageCaption(ctx, &tgbot.EditMessageCaptionParams{ChatID: b.AdminChatID, MessageID: o.AdminMsgID,
-			Caption: s.Text, ParseMode: models.ParseModeHTML, ReplyMarkup: markup})
-	}
-	if err != nil && strings.Contains(err.Error(), "message is not modified") {
-		return nil
-	}
-	return err
-}
-
-// cardText is a text card: the card plus the customer's comment, if any.
-func cardText(text string, o orders.Order) string {
-	if o.Comment == "" {
-		return text
-	}
-	return text + "\n\n📝 " + view.Esc(o.Comment)
 }
 
 func (b *Bot) Customer(ctx context.Context, o orders.Order) error {

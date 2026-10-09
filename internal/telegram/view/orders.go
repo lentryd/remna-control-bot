@@ -101,8 +101,31 @@ type AdminCustomer struct {
 	TelegramID int64
 }
 
-// AdminCard is the caption of the receipt in the admin chat (≤1024 chars).
-func AdminCard(o orders.Order, c AdminCustomer) Screen {
+var providerTitles = map[string]string{
+	"yookassa": "ЮKassa", "cryptobot": "CryptoBot", "heleket": "Heleket",
+	"pal24": "PayPalych", "platega": "Platega", "stars": "Telegram Stars",
+}
+
+// methodTitle says how an order was paid, for the admin card.
+func methodTitle(m orders.Method) string {
+	switch {
+	case m == "":
+		return ""
+	case m == orders.MethodManual:
+		return "перевод с квитанцией"
+	case m == orders.MethodBalance:
+		return "баланс"
+	}
+	if t, ok := providerTitles[string(m)]; ok {
+		return t
+	}
+	return string(m)
+}
+
+// AdminCard is the notification an admin gets in their chat: what the order is
+// and where it stands, with a button into the admin part of the WebApp where the
+// decision is made (receipts are viewed there).
+func AdminCard(o orders.Order, c AdminCustomer, open *models.WebAppInfo) Screen {
 	var b strings.Builder
 	b.WriteString(summary(o))
 	who := Esc(clip(c.Name, 40))
@@ -110,15 +133,21 @@ func AdminCard(o orders.Order, c AdminCustomer) Screen {
 		who += " @" + Esc(c.Username)
 	}
 	fmt.Fprintf(&b, "\n\n👤 %s · клиент #%d", who, o.CustomerID)
-	if o.Comment != "" && o.ReceiptKind != orders.ReceiptText {
+	if m := methodTitle(o.Method); m != "" {
+		fmt.Fprintf(&b, "\nСпособ: %s", Esc(m))
+	}
+	if o.Comment != "" {
 		fmt.Fprintf(&b, "\n💬 %s", Esc(clip(o.Comment, 300)))
+	}
+	if o.ReceiptKind == orders.ReceiptPhoto || o.ReceiptKind == orders.ReceiptDocument {
+		b.WriteString("\n📎 квитанция — в приложении")
 	}
 	if o.Received != nil {
 		fmt.Fprintf(&b, "\n✏️ Сумма исправлена %s: %s → %s", Esc(o.Admin), plain(o.ToPay), Money(*o.Received))
 	}
 	switch o.Status {
 	case orders.StatusPendingReview:
-		return Screen{Text: b.String(), Keyboard: adminButtons(o)}
+		b.WriteString("\n\n⏳ Ждёт решения")
 	case orders.StatusApproved:
 		fmt.Fprintf(&b, "\n\n✅ Подтвердил %s", Esc(o.Admin))
 		if o.ResultUntil != nil {
@@ -133,27 +162,19 @@ func AdminCard(o orders.Order, c AdminCustomer) Screen {
 		}
 	case orders.StatusFailed:
 		fmt.Fprintf(&b, "\n\n⚠️ Ошибка: %s", Esc(clip(o.Error, 200)))
-		return Screen{Text: b.String(), Keyboard: kb([]btn{cb(BtnRetry, CbAdminRetry+o.ID)})}
 	default:
 		fmt.Fprintf(&b, "\n\n%s %s", statusIcon[o.Status], statusText[o.Status])
 	}
-	return Screen{Text: b.String()}
+	return Screen{Text: b.String(), Keyboard: kb([]btn{{Text: BtnOpenAdmin, WebApp: open}})}
+}
+
+// AdminEntry is a message with a button into a page of the admin part.
+func AdminEntry(text string, open *models.WebAppInfo) Screen {
+	return Screen{Text: text, Keyboard: kb([]btn{{Text: BtnOpenAdmin, WebApp: open}})}
 }
 
 // plain is an amount without the currency (for "700 → 500 ₽").
 func plain(v float64) string { return strings.TrimSuffix(Money(v), " "+suffix()) }
-
-func adminButtons(o orders.Order) *models.InlineKeyboardMarkup {
-	first := []btn{cb(BtnApprove, CbAdminApprove+o.ID)}
-	if o.Paid() < o.ToPay {
-		first = nil
-		if o.Kind == orders.KindRenew {
-			first = append(first, cb(BtnDebt, CbAdminDebt+o.ID))
-		}
-		first = append(first, cb(BtnCredit, CbAdminCredit+o.ID))
-	}
-	return kb(first, []btn{cb(BtnEditAmount, CbAdminEdit+o.ID), cb(BtnReject, CbAdminReject+o.ID)})
-}
 
 // OrderNotice tells the customer what was decided.
 func OrderNotice(o orders.Order) Screen {

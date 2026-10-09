@@ -14,6 +14,9 @@ import (
 
 const maxReceiptBytes = 20 << 20
 
+// receiptTimeout bounds GetFile plus the whole download (a var so tests can shorten it).
+var receiptTimeout = 2 * time.Minute
+
 // Only the wait for response headers is bounded; the body stream is governed by
 // the request context, so a slow connection does not truncate a large file.
 var receiptClient = &http.Client{Transport: func() http.RoundTripper {
@@ -36,32 +39,48 @@ func scrubURL(err error) error {
 // the bot token, so the bytes are streamed through the server and the URL never
 // leaves it. The caller closes the reader.
 func (b *Bot) Receipt(ctx context.Context, fileID string) (io.ReadCloser, string, error) {
+	ctx, cancel := context.WithTimeout(ctx, receiptTimeout)
 	f, err := b.tg.GetFile(ctx, &tgbot.GetFileParams{FileID: fileID})
 	if err != nil {
+		cancel()
 		return nil, "", err
 	}
 	if f.FilePath == "" {
+		cancel()
 		return nil, "", errors.New("receipt: telegram returned no file path")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, b.tg.FileDownloadLink(f), nil)
 	if err != nil {
+		cancel()
 		return nil, "", fmt.Errorf("receipt: build request: %w", scrubURL(err))
 	}
 	resp, err := receiptClient.Do(req)
 	if err != nil {
+		cancel()
 		return nil, "", fmt.Errorf("receipt: %w", scrubURL(err))
 	}
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
+		cancel()
 		return nil, "", fmt.Errorf("receipt: telegram answered HTTP %d", resp.StatusCode)
 	}
 	if resp.ContentLength > maxReceiptBytes {
 		resp.Body.Close()
+		cancel()
 		return nil, "", fmt.Errorf("receipt: file is %d bytes, over the %d limit", resp.ContentLength, maxReceiptBytes)
 	}
-	body := struct {
-		io.Reader
-		io.Closer
-	}{io.LimitReader(resp.Body, maxReceiptBytes), resp.Body}
-	return body, resp.Header.Get("Content-Type"), nil
+	return &receiptBody{Reader: io.LimitReader(resp.Body, maxReceiptBytes), body: resp.Body, cancel: cancel}, resp.Header.Get("Content-Type"), nil
+}
+
+// receiptBody reads the capped file and releases the deadline context when closed.
+type receiptBody struct {
+	io.Reader
+	body   io.Closer
+	cancel context.CancelFunc
+}
+
+func (r *receiptBody) Close() error {
+	err := r.body.Close()
+	r.cancel()
+	return err
 }

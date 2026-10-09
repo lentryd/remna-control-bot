@@ -135,8 +135,8 @@ func TestPaidAppliesOnce(t *testing.T) {
 	if len(sp.sent) != 1 || sp.sent[0].Status != StatusApproved {
 		t.Errorf("the customer must be told once: %+v", sp.sent)
 	}
-	if len(sp.posted) != 0 {
-		t.Errorf("a clean provider payment needs no admin card: %d", len(sp.posted))
+	if sp.asked() != 0 {
+		t.Errorf("a clean provider payment needs no admin decision: %d", sp.asked())
 	}
 	for range 3 { // webhook retries, sweep races
 		if _, err := s.Paid(ctx, ev); !errors.Is(err, ErrStateChanged) {
@@ -203,8 +203,8 @@ func TestPaidNeedsReview(t *testing.T) {
 			if len(f.Payments) != 0 {
 				t.Fatal("a doubtful payment must not reach the panel")
 			}
-			if len(sp.posted) != 1 || !strings.Contains(got.Comment, "fake") {
-				t.Errorf("an admin card explaining it: posted=%d comment=%q", len(sp.posted), got.Comment)
+			if len(sp.cards) != 1 || sp.cards[0].Status != StatusPendingReview || !strings.Contains(got.Comment, "fake") {
+				t.Errorf("an admin card explaining it: cards=%d comment=%q", len(sp.cards), got.Comment)
 			}
 			if name == "less money" && (got.Received == nil || *got.Received != 500) {
 				t.Errorf("received %v", got.Received)
@@ -659,8 +659,8 @@ func TestPaidFixedAppliesInFull(t *testing.T) {
 	if len(sp.sent) != 1 || sp.sent[0].Status != StatusApproved {
 		t.Errorf("the customer must be told once: %+v", sp.sent)
 	}
-	if len(sp.posted) != 0 {
-		t.Errorf("a clean provider payment needs no admin card: %d", len(sp.posted))
+	if sp.asked() != 0 {
+		t.Errorf("a clean provider payment needs no admin decision: %d", sp.asked())
 	}
 	for range 3 {
 		if _, err := s.Paid(ctx, ev); !errors.Is(err, ErrStateChanged) {
@@ -708,8 +708,8 @@ func TestPaidFixedStillChecked(t *testing.T) {
 		if err != nil || got.Status != StatusPendingReview {
 			t.Fatalf("%+v %v", got, err)
 		}
-		if len(f.Payments) != 0 || len(sp.posted) != 1 {
-			t.Fatalf("payments=%d cards=%d", len(f.Payments), len(sp.posted))
+		if len(f.Payments) != 0 || len(sp.cards) != 1 || sp.cards[0].Status != StatusPendingReview {
+			t.Fatalf("payments=%d cards=%d", len(f.Payments), len(sp.cards))
 		}
 	})
 }
@@ -724,8 +724,8 @@ func TestPaidZeroWithoutFixedNeedsReview(t *testing.T) {
 	if err != nil || got.Status != StatusPendingReview {
 		t.Fatalf("%+v %v", got, err)
 	}
-	if len(f.Payments) != 0 || len(sp.posted) != 1 {
-		t.Fatalf("payments=%d cards=%d", len(f.Payments), len(sp.posted))
+	if len(f.Payments) != 0 || len(sp.cards) != 1 || sp.cards[0].Status != StatusPendingReview {
+		t.Fatalf("payments=%d cards=%d", len(f.Payments), len(sp.cards))
 	}
 }
 

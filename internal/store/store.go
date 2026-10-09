@@ -1,6 +1,7 @@
 // Package store keeps the bot's own state: who is expected to send a
-// subscription link, which notifications were already sent, payment orders
-// and what a chat is expected to send next. Customer data lives in vpn-control.
+// subscription link, which notifications were already sent, payment orders,
+// what a chat is expected to send next and where each admin's order card is.
+// Customer data lives in vpn-control.
 package store
 
 import (
@@ -52,7 +53,6 @@ func Open(path string) (*Store, error) {
 		comment TEXT NOT NULL DEFAULT '',
 		reject_reason TEXT NOT NULL DEFAULT '',
 		admin TEXT NOT NULL DEFAULT '',
-		admin_msg_id INTEGER NOT NULL DEFAULT 0,
 		decision TEXT NOT NULL DEFAULT '',
 		panel_payment_id INTEGER NOT NULL DEFAULT 0,
 		result_until TIMESTAMP,
@@ -69,12 +69,11 @@ func Open(path string) (*Store, error) {
 		chat_id INTEGER PRIMARY KEY,
 		kind TEXT NOT NULL,
 		order_id TEXT NOT NULL);
-	CREATE TABLE IF NOT EXISTS admin_prompts (
-		chat_id INTEGER NOT NULL,
-		msg_id INTEGER NOT NULL,
-		kind TEXT NOT NULL,
+	CREATE TABLE IF NOT EXISTS order_notices (
 		order_id TEXT NOT NULL,
-		PRIMARY KEY (chat_id, msg_id))`); err != nil {
+		admin_id INTEGER NOT NULL,
+		msg_id INTEGER NOT NULL,
+		PRIMARY KEY (order_id, admin_id))`); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -152,23 +151,27 @@ func (s *Store) ClearChatState(ctx context.Context, chatID int64) error {
 	return err
 }
 
-// Prompt is an admin question (reject reason, received amount) awaiting a reply.
-type Prompt struct {
-	Kind    string
-	OrderID string
-}
-
-func (s *Store) SavePrompt(ctx context.Context, chatID int64, msgID int, p Prompt) error {
-	_, err := s.db.ExecContext(ctx, `INSERT OR REPLACE INTO admin_prompts (chat_id, msg_id, kind, order_id) VALUES (?, ?, ?, ?)`, chatID, msgID, p.Kind, p.OrderID)
+// SaveNotice remembers which message carries an order's card in an admin's chat.
+func (s *Store) SaveNotice(ctx context.Context, orderID string, adminID int64, msgID int) error {
+	_, err := s.db.ExecContext(ctx, `INSERT OR REPLACE INTO order_notices (order_id, admin_id, msg_id) VALUES (?, ?, ?)`, orderID, adminID, msgID)
 	return err
 }
 
-// TakePrompt returns and forgets the prompt a reply answers.
-func (s *Store) TakePrompt(ctx context.Context, chatID int64, msgID int) (Prompt, bool, error) {
-	var p Prompt
-	err := s.db.QueryRowContext(ctx, `DELETE FROM admin_prompts WHERE chat_id = ? AND msg_id = ? RETURNING kind, order_id`, chatID, msgID).Scan(&p.Kind, &p.OrderID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return p, false, nil
+// Notices maps an admin id to the message that carries the order's card in their chat.
+func (s *Store) Notices(ctx context.Context, orderID string) (map[int64]int, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT admin_id, msg_id FROM order_notices WHERE order_id = ?`, orderID)
+	if err != nil {
+		return nil, err
 	}
-	return p, err == nil, err
+	defer rows.Close()
+	out := map[int64]int{}
+	for rows.Next() {
+		var admin int64
+		var msg int
+		if err := rows.Scan(&admin, &msg); err != nil {
+			return nil, err
+		}
+		out[admin] = msg
+	}
+	return out, rows.Err()
 }

@@ -37,14 +37,6 @@ const (
 	CbOrderBal      = "pb:" // + order id: pay from the balance
 	CbOrderCancel   = "pc:" // + order id
 	CbOrderProvider = "pp:" // + provider id : order id — pay with that provider
-
-	CbAdminApprove  = "oa:" // + order id
-	CbAdminDebt     = "od:"
-	CbAdminCredit   = "oc:"
-	CbAdminEdit     = "oe:"
-	CbAdminReject   = "ox:"
-	CbAdminNoReason = "on:"
-	CbAdminRetry    = "oy:"
 )
 
 type btn = models.InlineKeyboardButton

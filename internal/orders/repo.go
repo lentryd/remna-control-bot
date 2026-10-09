@@ -12,7 +12,7 @@ import (
 )
 
 const cols = `id, customer_id, chat_id, kind, item_kind, item_id, tariff_id, months, days, title, price, from_balance, to_pay,
-	received, method, status, receipt_kind, receipt_file_id, comment, reject_reason, admin, admin_msg_id, decision, panel_payment_id,
+	received, method, status, receipt_kind, receipt_file_id, comment, reject_reason, admin, decision, panel_payment_id,
 	result_until, error, external_id, pay_url, pay_amount, pay_currency, created_at, updated_at`
 
 type scanner interface{ Scan(dest ...any) error }
@@ -23,7 +23,7 @@ func scan(r scanner) (*Order, error) {
 	var until sql.NullTime
 	err := r.Scan(&o.ID, &o.CustomerID, &o.ChatID, &o.Kind, &o.ItemKind, &o.ItemID, &o.TariffID, &o.Months, &o.Days,
 		&o.Title, &o.Price, &o.FromBalance, &o.ToPay, &received, &o.Method, &o.Status, &o.ReceiptKind, &o.ReceiptFileID,
-		&o.Comment, &o.RejectReason, &o.Admin, &o.AdminMsgID, &o.Decision, &o.PanelPaymentID, &until, &o.Error,
+		&o.Comment, &o.RejectReason, &o.Admin, &o.Decision, &o.PanelPaymentID, &until, &o.Error,
 		&o.ExternalID, &o.PayURL, &o.PayAmount, &o.PayCurrency, &o.CreatedAt, &o.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound

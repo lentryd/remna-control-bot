@@ -5,6 +5,7 @@ import (
 	"context"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	tgbot "github.com/go-telegram/bot"
@@ -16,16 +17,9 @@ import (
 	"vpn-control-bot/internal/orders"
 	"vpn-control-bot/internal/profile"
 	"vpn-control-bot/internal/refcode"
-	"vpn-control-bot/internal/store"
 	"vpn-control-bot/internal/telegram/view"
 	"vpn-control-bot/internal/vpnctl"
 )
-
-// PromptStore keeps the admin questions awaiting a reply (*store.Store).
-type PromptStore interface {
-	SavePrompt(ctx context.Context, chatID int64, msgID int, p store.Prompt) error
-	TakePrompt(ctx context.Context, chatID int64, msgID int) (store.Prompt, bool, error)
-}
 
 func (d Deps) payMode() config.PayMode {
 	if d.PayMode == nil {
@@ -42,10 +36,11 @@ type Deps struct {
 	PayMode   func() config.PayMode
 	Log       *slog.Logger
 
-	Orders      *orders.Service // nil: payments in the bot are off
-	Prompts     PromptStore
-	AdminChatID int64
-	IsAdmin     func(int64) bool
+	Orders  *orders.Service // nil: payments in the bot are off
+	IsAdmin func(int64) bool
+	Admins  []int64     // receive order cards; ADMIN_IDS in order
+	Notices NoticeStore // where each admin's card for an order lives
+	APIBase string      // Bot API base URL; "" is Telegram's own (tests point it at a fake)
 }
 
 type Bot struct {
@@ -53,15 +48,22 @@ type Bot struct {
 	tg       *tgbot.Bot
 	username string
 	links    view.Links
+
+	mu          sync.Mutex
+	unreachable map[int64]bool // admins the last message to failed for
 }
 
 func New(ctx context.Context, token string, d Deps) (*Bot, error) {
 	b := &Bot{Deps: d, links: view.Links{WebApp: d.WebAppURL}}
-	tg, err := tgbot.New(token,
+	opts := []tgbot.Option{
 		tgbot.WithDefaultHandler(b.onUpdate),
-		tgbot.WithMiddlewares(gate(d.AdminChatID)),
+		tgbot.WithMiddlewares(gate()),
 		tgbot.WithErrorsHandler(func(err error) { d.Log.Error("telegram", "err", err) }),
-	)
+	}
+	if d.APIBase != "" {
+		opts = append(opts, tgbot.WithServerURL(d.APIBase))
+	}
+	tg, err := tgbot.New(token, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +83,7 @@ func New(ctx context.Context, token string, d Deps) (*Bot, error) {
 	for _, p := range []string{view.CbRenewPick, view.CbOrderPay, view.CbOrderBal, view.CbOrderCancel, view.CbOrderProvider} {
 		tg.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, p, tgbot.MatchTypePrefix, b.onOrderCallback)
 	}
-	tg.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, "o", tgbot.MatchTypePrefix, b.onAdmin)
+	tg.RegisterHandler(tgbot.HandlerTypeMessageText, "admin", tgbot.MatchTypeCommand, b.onAdminCmd)
 
 	if _, err := tg.SetMyCommands(ctx, &tgbot.SetMyCommandsParams{Commands: []models.BotCommand{
 		{Command: "menu", Description: "Главное меню"},
@@ -233,11 +235,6 @@ func (b *Bot) onText(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 		return
 	}
 	if m.Chat.Type != models.ChatTypePrivate {
-		b.onAdminReply(ctx, m) // the gate lets only admin-chat replies through
-		return
-	}
-	// A private admin chat may answer a prompt; anything else is a customer's.
-	if b.AdminChatID != 0 && m.Chat.ID == b.AdminChatID && m.ReplyToMessage != nil && b.onAdminReply(ctx, m) {
 		return
 	}
 	if b.onReceipt(ctx, m) {
