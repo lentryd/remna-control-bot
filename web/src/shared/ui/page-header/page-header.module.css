@@ -1,0 +1,52 @@
+/* Copied from vpn-control/web/src/shared/ui/page-header/page-header.module.css */
+.root {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px 24px;
+    margin-bottom: 24px;
+
+    @media (max-width: $mantine-breakpoint-sm) {
+        align-items: flex-start;
+        margin-bottom: 18px;
+    }
+}
+
+.text {
+    flex: 1 1 320px;
+    min-width: 0;
+}
+
+.eyebrow {
+    margin-bottom: 8px;
+    font-size: var(--mantine-font-size-sm);
+    color: var(--app-text-muted);
+}
+
+.title {
+    font-size: 1.625rem;
+    font-weight: 650;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+    color: var(--app-text-strong);
+
+    @media (max-width: $mantine-breakpoint-sm) {
+        font-size: 1.375rem;
+    }
+}
+
+.description {
+    margin-top: 6px;
+    max-width: 72ch;
+}
+
+.actions {
+    flex-shrink: 0;
+    justify-content: flex-end;
+
+    @media (max-width: $mantine-breakpoint-sm) {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}

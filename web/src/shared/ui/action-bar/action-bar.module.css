@@ -1,0 +1,37 @@
+/* Adapted from vpn-control/web/src/pages/settings.module.css (.saveBar) */
+.bar {
+    position: sticky;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    margin-top: 16px;
+    padding: 10px;
+    border-radius: var(--mantine-radius-lg);
+    background: var(--app-surface-raised);
+    border: 1px solid var(--app-border-strong);
+    box-shadow: var(--app-shadow-pop);
+}
+
+.text {
+    flex: 1 1 150px;
+    min-width: 0;
+    padding-left: 6px;
+}
+
+.buttons {
+    display: flex;
+    flex: 1 1 220px;
+    justify-content: flex-end;
+    gap: 8px;
+
+    & > * {
+        flex: 1 1 0;
+    }
+
+    & > [data-size] {
+        flex: 0 0 auto;
+    }
+}

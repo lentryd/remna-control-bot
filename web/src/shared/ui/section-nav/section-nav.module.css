@@ -1,0 +1,84 @@
+/* Copied from vpn-control/web/src/shared/ui/section-nav/section-nav.module.css */
+/* Adapted: the Mini App is always narrow, so the strip is always horizontal */
+.layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.navScroll {
+    margin-inline: -16px;
+}
+
+.nav {
+    display: flex;
+    flex-direction: row;
+    gap: 2px;
+    padding-inline: 16px;
+}
+
+.item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 9px 11px;
+    border: 1px solid transparent;
+    border-radius: var(--mantine-radius-md);
+    color: var(--app-text-muted);
+    transition:
+        background-color 120ms var(--app-ease),
+        color 120ms var(--app-ease);
+
+    & svg {
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
+
+    &:hover {
+        background: var(--app-fill);
+        color: var(--mantine-color-text);
+    }
+
+    &[data-active] {
+        background: var(--app-surface);
+        border-color: var(--app-border);
+        color: var(--app-text-strong);
+
+        & svg {
+            color: var(--mantine-primary-color-filled);
+        }
+    }
+
+    @media (max-width: $mantine-breakpoint-lg) {
+        align-items: center;
+        padding: 7px 11px;
+        white-space: nowrap;
+
+        & svg {
+            margin-top: 0;
+        }
+    }
+}
+
+.label {
+    font-size: var(--mantine-font-size-sm);
+    font-weight: 500;
+    color: inherit;
+    line-height: 1.35;
+}
+
+.hint {
+    font-size: var(--mantine-font-size-xs);
+    color: var(--app-text-faint);
+    margin-top: 1px;
+    line-height: 1.35;
+
+    @media (max-width: $mantine-breakpoint-lg) {
+        display: none;
+    }
+}
+
+.content {
+    min-width: 0;
+}

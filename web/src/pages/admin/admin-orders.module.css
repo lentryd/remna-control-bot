@@ -1,0 +1,49 @@
+.filter {
+    background: var(--app-fill);
+    border: 1px solid var(--app-border);
+}
+
+.indicator {
+    background: var(--app-surface-raised);
+    border: 1px solid var(--app-border);
+    box-shadow: none;
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 16px;
+    text-align: left;
+    color: inherit;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    transition: background-color 120ms var(--app-ease);
+
+    &:hover,
+    &:active {
+        background: var(--app-fill);
+    }
+}
+
+.main {
+    flex: 1;
+    min-width: 0;
+}
+
+.side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}

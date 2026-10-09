@@ -1,17 +1,19 @@
-import { Alert, Badge, Button, Card, Group, SegmentedControl, Stack, Text } from '@mantine/core'
+import { Alert, Button, SegmentedControl, Stack, Text } from '@mantine/core'
 import { IconInbox } from '@tabler/icons-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { fmtDate, fmtMoney } from '@shared/format'
+import { SectionCard } from '@shared/ui/section-card'
+import { ShimmerSkeleton } from '@shared/ui/shimmer-skeleton'
+import { Dot } from '@shared/ui/status'
 import { useAdminOrders } from '../../adminApi'
-import { Empty } from '../../ui/Empty'
-import { PageSkeleton } from '../../ui/PageSkeleton'
+import classes from './admin-orders.module.css'
+import { OrderStatusPill, statusColor } from './status'
 import { A } from './text'
 
 const FILTERS: Record<string, string> = { review: 'pending_review,failed', all: 'all', failed: 'failed' }
 const PAGE = 20 // matches the server's page size
-const COLOR: Record<string, string> = { pending_review: 'yellow', failed: 'red', approved: 'teal', credited: 'teal', rejected: 'gray' }
 
 export function AdminOrders() {
     const [filter, setFilter] = useState('review')
@@ -27,6 +29,7 @@ export function AdminOrders() {
     return (
         <Stack gap="md">
             <SegmentedControl
+                classNames={{ root: classes.filter, indicator: classes.indicator }}
                 data={Object.keys(FILTERS).map((k) => ({ value: k, label: A.orders.filters[k as keyof typeof A.orders.filters] }))}
                 fullWidth
                 onChange={(v) => {
@@ -35,40 +38,72 @@ export function AdminOrders() {
                 }}
                 value={filter}
             />
-            {q.data && q.data.unreachable_admins.length > 0 && <Alert color="yellow">{A.orders.unreachable(q.data.unreachable_admins)}</Alert>}
+            {q.data && q.data.unreachable_admins.length > 0 && (
+                <Alert color="yellow" variant="soft">
+                    {A.orders.unreachable(q.data.unreachable_admins)}
+                </Alert>
+            )}
             {q.isPending ? (
-                <PageSkeleton />
+                <Stack gap="xs">
+                    <ShimmerSkeleton height={64} radius="lg" width="100%" />
+                    <ShimmerSkeleton height={64} radius="lg" width="100%" />
+                    <ShimmerSkeleton height={64} radius="lg" width="100%" />
+                </Stack>
             ) : q.isError ? (
-                <Alert color="red">
+                <Alert color="red" variant="soft">
                     <Stack align="flex-start" gap="xs">
                         <Text size="sm">{A.orders.loadFailed}</Text>
-                        <Button onClick={() => q.refetch()} size="compact-sm" variant="light">{A.orders.retry}</Button>
+                        <Button onClick={() => q.refetch()} size="compact-sm" variant="light">
+                            {A.orders.retry}
+                        </Button>
                     </Stack>
                 </Alert>
             ) : q.data && q.data.orders.length > 0 ? (
-                q.data.orders.map((o) => (
-                    <Card component="button" key={o.id} onClick={() => navigate(`/admin/orders/${o.id}`)} padding="md" radius="lg" style={{ cursor: 'pointer', textAlign: 'left' }} type="button" withBorder>
-                        <Group justify="space-between" wrap="nowrap">
-                            <Stack gap={2}>
-                                <Text fw={600} size="sm">№{o.number} · {o.title}</Text>
-                                <Text c="dimmed" size="xs">{fmtDate(o.created_at)} · клиент #{o.customer_id}</Text>
-                            </Stack>
-                            <Stack align="flex-end" gap={2}>
-                                <Text fw={600}>{fmtMoney(o.paid, 2)}</Text>
-                                <Badge color={COLOR[o.status] ?? 'blue'} variant="light">{A.status[o.status] ?? o.status}</Badge>
-                            </Stack>
-                        </Group>
-                    </Card>
-                ))
+                <SectionCard.Root gap={0} p={0}>
+                    {q.data.orders.map((o) => (
+                        <SectionCard.Section key={o.id}>
+                            <button className={classes.row} onClick={() => navigate(`/admin/orders/${o.id}`)} type="button">
+                                <Dot color={statusColor(o.status)} pulse={o.status === 'pending_review'} />
+                                <div className={classes.main}>
+                                    <Text fw={600} size="sm" truncate="end">
+                                        №{o.number} · {o.title}
+                                    </Text>
+                                    <Text c="dimmed" mt={2} size="xs" truncate="end">
+                                        {fmtDate(o.created_at)} · клиент #{o.customer_id}
+                                    </Text>
+                                </div>
+                                <div className={classes.side}>
+                                    <Text data-num fw={600} size="sm">
+                                        {fmtMoney(o.paid, 2)}
+                                    </Text>
+                                    <OrderStatusPill size="sm" status={o.status} />
+                                </div>
+                            </button>
+                        </SectionCard.Section>
+                    ))}
+                </SectionCard.Root>
             ) : (
-                <Empty icon={<IconInbox />} title={A.orders.empty} />
+                <SectionCard.Root>
+                    <div className="vpnc-empty">
+                        <IconInbox size={28} stroke={1.75} />
+                        <Text c="dimmed" mt={6} size="sm">
+                            {A.orders.empty}
+                        </Text>
+                    </div>
+                </SectionCard.Root>
             )}
             {q.data && (q.data.total > PAGE || page > 0) && (
-                <Group justify="space-between">
-                    <Button disabled={page === 0} onClick={() => setPage(page - 1)} variant="default">{A.orders.prev}</Button>
-                    <Text c="dimmed" size="sm">{A.orders.page(page + 1, pages)}</Text>
-                    <Button disabled={page + 1 >= pages} onClick={() => setPage(page + 1)} variant="default">{A.orders.next}</Button>
-                </Group>
+                <div className={classes.pager}>
+                    <Button disabled={page === 0} onClick={() => setPage(page - 1)} variant="default">
+                        {A.orders.prev}
+                    </Button>
+                    <Text c="dimmed" size="sm">
+                        {A.orders.page(page + 1, pages)}
+                    </Text>
+                    <Button disabled={page + 1 >= pages} onClick={() => setPage(page + 1)} variant="default">
+                        {A.orders.next}
+                    </Button>
+                </div>
             )}
         </Stack>
     )

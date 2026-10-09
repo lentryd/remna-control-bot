@@ -1,14 +1,27 @@
-import { Alert } from '@mantine/core'
+import { Alert, Stack } from '@mantine/core'
 
 import { useAdminSettings } from '../../adminApi'
-import { PageSkeleton } from '../../ui/PageSkeleton'
-import { SectionForm } from './SectionForm'
+import { SettingsSkeleton } from './AdminMethods'
+import { SaveBar, SectionGroups } from './SectionForm'
 import { GENERAL } from './sections'
 import { A } from './text'
+import { useSectionForms } from './use-section-forms'
+import type { AdminSettings } from '../../types'
 
 export function AdminGeneral() {
     const q = useAdminSettings()
-    if (q.isPending) return <PageSkeleton />
-    if (q.isError) return <Alert color="red">{A.settings.loadFailed}</Alert>
-    return <SectionForm def={GENERAL} initial={q.data.sections[GENERAL.key] ?? {}} webhookBase={q.data.webhook_base} />
+    if (q.isPending) return <SettingsSkeleton />
+    if (q.isError) return <Alert color="red" variant="soft">{A.settings.loadFailed}</Alert>
+    return <GeneralForm settings={q.data} />
+}
+
+function GeneralForm({ settings }: { settings: AdminSettings }) {
+    const forms = useSectionForms([GENERAL], settings.sections)
+    const ctl = forms[GENERAL.key]
+    return (
+        <Stack gap={0}>
+            <SectionGroups ctl={ctl} />
+            <SaveBar ctl={ctl.dirty || ctl.msg ? ctl : undefined} />
+        </Stack>
+    )
 }
