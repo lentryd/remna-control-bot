@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-telegram/bot/models"
 
+	"vpn-control-bot/internal/i18n"
 	"vpn-control-bot/internal/orders"
 )
 
@@ -16,29 +17,31 @@ var statusIcon = map[orders.Status]string{
 	orders.StatusRejected: "❌", orders.StatusExpired: "⌛", orders.StatusCancelled: "✖️",
 }
 
-var statusText = map[orders.Status]string{
-	orders.StatusAwaitingReceipt: "ждёт квитанцию", orders.StatusAwaitingPayment: "ждёт оплату", orders.StatusPendingReview: "на проверке", orders.StatusApproving: "проводится",
-	orders.StatusApproved: "оплачен", orders.StatusCredited: "зачислен на баланс", orders.StatusFailed: "ошибка, разбираемся",
-	orders.StatusRejected: "отклонён", orders.StatusExpired: "истёк", orders.StatusCancelled: "отменён",
+// statusText is the one-line state of an order ("" for a status without a text).
+func statusText(loc i18n.Localizer, s orders.Status) string {
+	if k := "status." + string(s); loc.Has(k) {
+		return loc.T(k)
+	}
+	return ""
 }
 
 func id(prefix string, n int) string { return prefix + strconv.Itoa(n) }
 
 // summary: what is bought and how it is paid.
-func summary(o orders.Order) string {
+func summary(loc i18n.Localizer, o orders.Order) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "🧾 <b>Заказ №%s</b>\n%s\n\n", o.Short(), Esc(clip(o.Title, maxTitle)))
-	fmt.Fprintf(&b, "Цена: %s\n", Money(o.Price))
+	fmt.Fprintf(&b, "%s\n%s\n\n", loc.T("order.head", o.Short()), Esc(clip(loc.Text(o.Title), maxTitle)))
+	b.WriteString(loc.T("order.price", Money(loc, o.Price)) + "\n")
 	if o.FromBalance > 0 {
-		fmt.Fprintf(&b, "С баланса: −%s\n", Money(o.FromBalance))
+		b.WriteString(loc.T("order.from_balance", Money(loc, o.FromBalance)) + "\n")
 	}
-	fmt.Fprintf(&b, "К оплате: <b>%s</b>", Money(o.ToPay))
+	b.WriteString(loc.T("order.to_pay", Money(loc, o.ToPay)))
 	return b.String()
 }
 
-func PayScreen(o orders.Order, details string) Screen {
-	text := summary(o) + "\n\n💳 <b>Как оплатить</b>\n" + Esc(details) + "\n\n" + TxtReceiptHint
-	return Screen{Text: text, Keyboard: kb([]btn{cb(BtnCancel, CbOrderCancel+o.ID)})}
+func PayScreen(loc i18n.Localizer, o orders.Order, details string) Screen {
+	text := summary(loc, o) + "\n\n" + loc.T("order.how_to_pay") + "\n" + Esc(details) + "\n\n" + loc.T("msg.receipt_hint")
+	return Screen{Text: text, Keyboard: kb([]btn{cb(loc.T("btn.cancel"), CbOrderCancel+o.ID)})}
 }
 
 // ProviderButton is an online payment method offered on the confirm screen.
@@ -46,26 +49,32 @@ type ProviderButton struct{ ID, Title string }
 
 // Confirm is the pay screen before payment is chosen (bot renew flow): a
 // receipt for manual orders, one button per provider, cancel.
-func Confirm(o orders.Order, providers ...ProviderButton) Screen {
+func Confirm(loc i18n.Localizer, o orders.Order, providers ...ProviderButton) Screen {
 	if o.Method == orders.MethodBalance {
-		return Screen{Text: summary(o) + "\n\nВся сумма спишется с баланса.", Keyboard: kb(
-			[]btn{cb(BtnPayBalance, CbOrderBal+o.ID)}, []btn{cb(BtnCancel, CbOrderCancel+o.ID)})}
+		return Screen{Text: summary(loc, o) + "\n\n" + loc.T("order.balance_all"), Keyboard: kb(
+			[]btn{cb(loc.T("btn.pay_balance"), CbOrderBal+o.ID)}, []btn{cb(loc.T("btn.cancel"), CbOrderCancel+o.ID)})}
 	}
 	var rows [][]btn
 	if o.Method == orders.MethodManual {
-		rows = append(rows, []btn{cb(BtnSendReceipt, CbOrderPay+o.ID)})
+		rows = append(rows, []btn{cb(loc.T("btn.send_receipt"), CbOrderPay+o.ID)})
 	}
 	for _, p := range providers {
-		rows = append(rows, []btn{cb("💳 "+p.Title, CbOrderProvider+p.ID+":"+o.ID)})
+		rows = append(rows, []btn{cb("💳 "+providerTitle(loc, p.ID, p.Title), CbOrderProvider+p.ID+":"+o.ID)})
 	}
-	rows = append(rows, []btn{cb(BtnCancel, CbOrderCancel+o.ID)})
-	return Screen{Text: summary(o), Keyboard: kb(rows...)}
+	rows = append(rows, []btn{cb(loc.T("btn.cancel"), CbOrderCancel+o.ID)})
+	return Screen{Text: summary(loc, o), Keyboard: kb(rows...)}
 }
 
-// ProviderPay carries the payment link of a provider order.
-func ProviderPay(o orders.Order, title string) Screen {
-	text := summary(o) + "\n\n💳 <b>Оплата:</b> " + Esc(title) + "\nНажмите кнопку — после оплаты всё применится автоматически."
-	return Screen{Text: text, Keyboard: kb([]btn{{Text: BtnPay, URL: o.PayURL}}, []btn{cb(BtnCancel, CbOrderCancel+o.ID)})}
+// providerTitle names a payment provider in the reader's language (payment.<id>), else by its own title.
+func providerTitle(loc i18n.Localizer, id, fallback string) string {
+	return loc.Or("payment."+id, fallback)
+}
+
+// ProviderPay carries the payment link of a provider order; title is the provider's own name, used when the
+// catalog has none for o.Method.
+func ProviderPay(loc i18n.Localizer, o orders.Order, title string) Screen {
+	text := summary(loc, o) + "\n\n" + loc.T("order.pay_with", Esc(providerTitle(loc, string(o.Method), title)))
+	return Screen{Text: text, Keyboard: kb([]btn{{Text: loc.T("btn.pay"), URL: o.PayURL}}, []btn{cb(loc.T("btn.cancel"), CbOrderCancel+o.ID)})}
 }
 
 type RenewOption struct {
@@ -73,23 +82,23 @@ type RenewOption struct {
 	Price        float64
 }
 
-func RenewPeriods(subID int, title string, opts []RenewOption) Screen {
+func RenewPeriods(loc i18n.Localizer, subID int, title string, opts []RenewOption) Screen {
 	var rows [][]btn
 	for _, o := range opts {
-		label := fmt.Sprintf("%s — %s", termText(o.Months, o.Days), Money(o.Price))
+		label := fmt.Sprintf("%s — %s", termText(loc, o.Months, o.Days), Money(loc, o.Price))
 		rows = append(rows, []btn{cb(label, fmt.Sprintf("%s%d:%d:%d", CbRenewPick, subID, o.Months, o.Days))})
 	}
-	rows = append(rows, back(id(CbSub, subID)))
-	return Screen{Text: fmt.Sprintf(TxtPickPeriod, Esc(clip(title, maxTitle))), Keyboard: kb(rows...)}
+	rows = append(rows, back(loc, id(CbSub, subID)))
+	return Screen{Text: loc.T("msg.pick_period", Esc(clip(title, maxTitle))), Keyboard: kb(rows...)}
 }
 
-func termText(months, days int) string {
+func termText(loc i18n.Localizer, months, days int) string {
 	var p []string
 	if months > 0 {
-		p = append(p, fmt.Sprintf("%d мес.", months))
+		p = append(p, loc.T("term.months", months))
 	}
 	if days > 0 {
-		p = append(p, fmt.Sprintf("%d дн.", days))
+		p = append(p, loc.T("term.days", days))
 	}
 	return strings.Join(p, " ")
 }
@@ -102,19 +111,22 @@ type AdminCustomer struct {
 }
 
 var providerTitles = map[string]string{
-	"yookassa": "ЮKassa", "cryptobot": "CryptoBot", "heleket": "Heleket",
+	"cryptobot": "CryptoBot", "heleket": "Heleket",
 	"pal24": "PayPalych", "platega": "Platega", "stars": "Telegram Stars",
 }
 
 // methodTitle says how an order was paid, for the admin card.
-func methodTitle(m orders.Method) string {
+func methodTitle(loc i18n.Localizer, m orders.Method) string {
 	switch {
 	case m == "":
 		return ""
 	case m == orders.MethodManual:
-		return "перевод с квитанцией"
+		return loc.T("method.manual")
 	case m == orders.MethodBalance:
-		return "баланс"
+		return loc.T("method.balance")
+	}
+	if m == "yookassa" {
+		return loc.T("provider.yookassa")
 	}
 	if t, ok := providerTitles[string(m)]; ok {
 		return t
@@ -125,101 +137,102 @@ func methodTitle(m orders.Method) string {
 // AdminCard is the notification an admin gets in their chat: what the order is
 // and where it stands, with a button into the admin part of the WebApp where the
 // decision is made (receipts are viewed there).
-func AdminCard(o orders.Order, c AdminCustomer, open *models.WebAppInfo) Screen {
+func AdminCard(loc i18n.Localizer, o orders.Order, c AdminCustomer, open *models.WebAppInfo) Screen {
 	var b strings.Builder
-	b.WriteString(summary(o))
+	b.WriteString(summary(loc, o))
 	who := Esc(clip(c.Name, 40))
 	if c.Username != "" {
 		who += " @" + Esc(c.Username)
 	}
-	fmt.Fprintf(&b, "\n\n👤 %s · клиент #%d", who, o.CustomerID)
-	if m := methodTitle(o.Method); m != "" {
-		fmt.Fprintf(&b, "\nСпособ: %s", Esc(m))
+	b.WriteString("\n\n" + loc.T("admin.customer", who, o.CustomerID))
+	if m := methodTitle(loc, o.Method); m != "" {
+		b.WriteString("\n" + loc.T("admin.method", Esc(m)))
 	}
 	if o.Comment != "" {
-		fmt.Fprintf(&b, "\n💬 %s", Esc(clip(o.Comment, 300)))
+		fmt.Fprintf(&b, "\n💬 %s", Esc(clip(loc.Text(o.Comment), 300)))
 	}
 	if o.ReceiptKind == orders.ReceiptPhoto || o.ReceiptKind == orders.ReceiptDocument {
-		b.WriteString("\n📎 квитанция — в приложении")
+		b.WriteString("\n" + loc.T("admin.receipt"))
 	}
 	if o.Received != nil {
-		fmt.Fprintf(&b, "\n✏️ Сумма исправлена %s: %s → %s", Esc(o.Admin), plain(o.ToPay), Money(*o.Received))
+		b.WriteString("\n" + loc.T("admin.amount_fixed", Esc(o.Admin), plain(loc, o.ToPay), Money(loc, *o.Received)))
 	}
 	switch o.Status {
 	case orders.StatusPendingReview:
-		b.WriteString("\n\n⏳ Ждёт решения")
+		b.WriteString("\n\n" + loc.T("admin.pending"))
 	case orders.StatusApproved:
-		fmt.Fprintf(&b, "\n\n✅ Подтвердил %s", Esc(o.Admin))
+		b.WriteString("\n\n" + loc.T("admin.approved", Esc(o.Admin)))
 		if o.ResultUntil != nil {
-			fmt.Fprintf(&b, ", действует до %s", Date(o.ResultUntil))
+			b.WriteString(loc.T("admin.valid_until", Date(loc, o.ResultUntil)))
 		}
 	case orders.StatusCredited:
-		fmt.Fprintf(&b, "\n\n💰 %s зачислил на баланс", Esc(o.Admin))
+		b.WriteString("\n\n" + loc.T("admin.credited", Esc(o.Admin)))
 	case orders.StatusRejected:
-		fmt.Fprintf(&b, "\n\n❌ Отклонил %s", Esc(o.Admin))
+		b.WriteString("\n\n" + loc.T("admin.rejected", Esc(o.Admin)))
 		if o.RejectReason != "" {
 			fmt.Fprintf(&b, ": %s", Esc(clip(o.RejectReason, 200)))
 		}
 	case orders.StatusFailed:
-		fmt.Fprintf(&b, "\n\n⚠️ Ошибка: %s", Esc(clip(o.Error, 200)))
+		b.WriteString("\n\n" + loc.T("admin.failed", Esc(clip(loc.Text(o.Error), 200))))
 	default:
-		fmt.Fprintf(&b, "\n\n%s %s", statusIcon[o.Status], statusText[o.Status])
+		fmt.Fprintf(&b, "\n\n%s %s", statusIcon[o.Status], statusText(loc, o.Status))
 	}
-	return Screen{Text: b.String(), Keyboard: kb([]btn{{Text: BtnOpenAdmin, WebApp: open}})}
+	return Screen{Text: b.String(), Keyboard: kb([]btn{{Text: loc.T("btn.open_admin"), WebApp: open}})}
 }
 
 // AdminEntry is a message with a button into a page of the admin part.
-func AdminEntry(text string, open *models.WebAppInfo) Screen {
-	return Screen{Text: text, Keyboard: kb([]btn{{Text: BtnOpenAdmin, WebApp: open}})}
+func AdminEntry(loc i18n.Localizer, text string, open *models.WebAppInfo) Screen {
+	return Screen{Text: text, Keyboard: kb([]btn{{Text: loc.T("btn.open_admin"), WebApp: open}})}
 }
 
 // plain is an amount without the currency (for "700 → 500 ₽").
-func plain(v float64) string { return strings.TrimSuffix(Money(v), " "+suffix()) }
+func plain(loc i18n.Localizer, v float64) string {
+	return strings.TrimSuffix(Money(loc, v), " "+suffix())
+}
 
 // OrderNotice tells the customer what was decided.
-func OrderNotice(o orders.Order) Screen {
+func OrderNotice(loc i18n.Localizer, o orders.Order) Screen {
 	var text string
 	switch o.Status {
 	case orders.StatusApproved:
-		text = fmt.Sprintf("✅ Оплата №%s подтверждена: %s", o.Short(), Esc(o.Title))
+		text = loc.T("order.approved", o.Short(), Esc(loc.Text(o.Title)))
 		if o.ResultUntil != nil {
-			text += fmt.Sprintf(", действует до <b>%s</b>", Date(o.ResultUntil))
+			text += loc.T("order.valid_until", Date(loc, o.ResultUntil))
 		}
 	case orders.StatusCredited:
-		text = fmt.Sprintf("💰 По заказу №%s получено %s из %s — зачислено на баланс. Доплатите разницу, чтобы завершить покупку.",
-			o.Short(), Money(o.Paid()), Money(o.ToPay))
+		text = loc.T("order.credited", o.Short(), Money(loc, o.Paid()), Money(loc, o.ToPay))
 	case orders.StatusRejected:
-		text = fmt.Sprintf("❌ Платёж №%s отклонён", o.Short())
+		text = loc.T("order.rejected", o.Short())
 		if o.RejectReason != "" {
 			text += ": " + Esc(clip(o.RejectReason, 200))
 		}
 	case orders.StatusFailed:
-		text = fmt.Sprintf("⚠️ Оплата №%s получена, но применить заказ не удалось. Администратор проверит и свяжется с вами.", o.Short())
+		text = loc.T("order.failed", o.Short())
 	default:
-		text = fmt.Sprintf("%s Заказ №%s: %s", statusIcon[o.Status], o.Short(), statusText[o.Status])
+		text = loc.T("order.status_line", statusIcon[o.Status], o.Short(), statusText(loc, o.Status))
 	}
 	if o.Received != nil && o.Status == orders.StatusApproved && *o.Received != o.ToPay {
-		text += fmt.Sprintf("\nПолучено: %s", Money(*o.Received))
+		text += "\n" + loc.T("order.received", Money(loc, *o.Received))
 	}
-	return Screen{Text: text, Keyboard: kb([]btn{cb(BtnOrders, CbOrders)})}
+	return Screen{Text: text, Keyboard: kb([]btn{cb(loc.T("btn.orders"), CbOrders)})}
 }
 
 const ordersPerPage = 10
 
-func Orders(list []orders.Order, n, total int) Screen {
+func Orders(loc i18n.Localizer, list []orders.Order, n, total int) Screen {
 	if total == 0 {
-		return Screen{Text: "🧾 <b>Платежи</b>\n\nПлатежей пока нет.", Keyboard: kb(back(CbHome))}
+		return Screen{Text: loc.T("orders.empty"), Keyboard: kb(back(loc, CbHome))}
 	}
 	cur, pages, _, _ := page(n, total, ordersPerPage)
 	var b strings.Builder
-	fmt.Fprintf(&b, "🧾 <b>Платежи</b>%s\n", pageTitle(cur, pages))
+	b.WriteString(loc.T("orders.title") + pageTitle(loc, cur, pages) + "\n")
 	for _, o := range list {
-		fmt.Fprintf(&b, "\n%s №%s · %s · %s\n%s — %s", statusIcon[o.Status], o.Short(), Date(&o.CreatedAt), Money(o.Paid()),
-			Esc(clip(o.Title, maxTitle)), statusText[o.Status])
+		b.WriteString("\n" + loc.T("orders.item", statusIcon[o.Status], o.Short(), Date(loc, &o.CreatedAt), Money(loc, o.Paid()),
+			Esc(clip(loc.Text(o.Title), maxTitle)), statusText(loc, o.Status)))
 	}
 	rows := [][]btn{}
-	if nav := pager(CbOrdersPage, cur, pages); nav != nil {
+	if nav := pager(loc, CbOrdersPage, cur, pages); nav != nil {
 		rows = append(rows, nav)
 	}
-	return Screen{Text: b.String(), Keyboard: kb(append(rows, back(CbHome))...)}
+	return Screen{Text: b.String(), Keyboard: kb(append(rows, back(loc, CbHome))...)}
 }

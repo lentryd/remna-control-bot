@@ -3,21 +3,27 @@ package view
 import (
 	"testing"
 	"time"
+
+	"vpn-control-bot/internal/i18n"
 )
 
 func TestFormat(t *testing.T) {
 	for in, want := range map[float64]string{0: "0 ₽", 100: "100 ₽", 1234.5: "1 234,50 ₽", -50: "−50 ₽", 1000000: "1 000 000 ₽"} {
-		if got := Money(in); got != want {
-			t.Errorf("Money(%v) = %q, want %q", in, got, want)
+		if got := Money(ru, in); got != want {
+			t.Errorf("Money(ru, %v) = %q, want %q", in, got, want)
 		}
 	}
 	d := time.Date(2026, 3, 5, 10, 0, 0, 0, time.UTC)
 	far := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
-	if Date(&d) != "05.03.2026" || Date(nil) != "—" || Date(&far) != "∞" {
+	if Date(ru, &d) != "05.03.2026" || Date(ru, nil) != "—" || Date(ru, &far) != "∞" {
 		t.Error("Date")
 	}
-	if Bytes(0) != "∞" || Bytes(50*1<<30) != "50 ГБ" || Bytes(1536*1<<20) != "1.5 ГБ" || Bytes(300*1<<20) != "300 МБ" {
-		t.Errorf("Bytes: %q %q %q", Bytes(50*1<<30), Bytes(1536*1<<20), Bytes(300*1<<20))
+	en := i18n.Default.For("en")
+	if Date(en, &d) != "Mar 5, 2026" || Bytes(en, 50*1<<30) != "50 GB" || Bytes(en, 300*1<<20) != "300 MB" {
+		t.Error("English formats")
+	}
+	if Bytes(ru, 0) != "∞" || Bytes(ru, 50*1<<30) != "50 ГБ" || Bytes(ru, 1536*1<<20) != "1.5 ГБ" || Bytes(ru, 300*1<<20) != "300 МБ" {
+		t.Errorf("Bytes: %q %q %q", Bytes(ru, 50*1<<30), Bytes(ru, 1536*1<<20), Bytes(ru, 300*1<<20))
 	}
 	if (Links{WebApp: "https://x/bot"}).Page("/balance").URL != "https://x/bot/#/balance" {
 		t.Error("Page")
@@ -42,8 +48,8 @@ func TestMoneyCurrencies(t *testing.T) {
 	}
 	for _, c := range cases {
 		SetCurrency(c.cur)
-		if got := Money(c.in); got != c.want {
-			t.Errorf("Money(%v) in %s = %q, want %q", c.in, c.cur, got, c.want)
+		if got := Money(ru, c.in); got != c.want {
+			t.Errorf("Money(ru, %v) in %s = %q, want %q", c.in, c.cur, got, c.want)
 		}
 	}
 }
@@ -79,15 +85,28 @@ func TestCurrencyHints(t *testing.T) {
 
 func TestPlainStripsCurrentSuffix(t *testing.T) {
 	t.Cleanup(func() { SetCurrency("RUB") })
-	if got := plain(700); got != "700" {
+	if got := plain(ru, 700); got != "700" {
 		t.Errorf("RUB plain = %q", got)
 	}
 	SetCurrency("USD")
-	if got := plain(700); got != "700" {
+	if got := plain(ru, 700); got != "700" {
 		t.Errorf("USD plain = %q", got)
 	}
 	SetCurrency("CHF")
-	if got := plain(1234.5); got != "1 234,50" {
+	if got := plain(ru, 1234.5); got != "1 234,50" {
 		t.Errorf("CHF plain = %q", got)
+	}
+}
+
+func TestMoneyLocalized(t *testing.T) {
+	en := i18n.Default.For("en")
+	if got := Money(en, 1234.5); got != "1,234.50 ₽" {
+		t.Errorf("en Money = %q", got)
+	}
+	if got := Money(ru, 1234.5); got != "1 234,50 ₽" {
+		t.Errorf("ru Money = %q", got)
+	}
+	if got := plain(en, 1234.5); got != "1,234.50" {
+		t.Errorf("en plain = %q", got)
 	}
 }

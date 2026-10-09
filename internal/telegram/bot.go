@@ -13,6 +13,7 @@ import (
 
 	"vpn-control-bot/internal/access"
 	"vpn-control-bot/internal/config"
+	"vpn-control-bot/internal/i18n"
 	"vpn-control-bot/internal/notify"
 	"vpn-control-bot/internal/orders"
 	"vpn-control-bot/internal/profile"
@@ -40,6 +41,7 @@ type Deps struct {
 	IsAdmin func(int64) bool
 	Admins  []int64     // receive order cards; ADMIN_IDS in order
 	Notices NoticeStore // where each admin's card for an order lives
+	Langs   LangStore   // nil: everything is English
 	APIBase string      // Bot API base URL; "" is Telegram's own (tests point it at a fake)
 }
 
@@ -57,7 +59,7 @@ func New(ctx context.Context, token string, d Deps) (*Bot, error) {
 	b := &Bot{Deps: d, links: view.Links{WebApp: d.WebAppURL}}
 	opts := []tgbot.Option{
 		tgbot.WithDefaultHandler(b.onUpdate),
-		tgbot.WithMiddlewares(gate()),
+		tgbot.WithMiddlewares(gate(), b.langMiddleware()),
 		tgbot.WithErrorsHandler(func(err error) { d.Log.Error("telegram", "err", err) }),
 	}
 	if d.APIBase != "" {
@@ -85,26 +87,44 @@ func New(ctx context.Context, token string, d Deps) (*Bot, error) {
 	}
 	tg.RegisterHandler(tgbot.HandlerTypeMessageText, "admin", tgbot.MatchTypeCommand, b.onAdminCmd)
 
-	if _, err := tg.SetMyCommands(ctx, &tgbot.SetMyCommandsParams{Commands: []models.BotCommand{
-		{Command: "menu", Description: "Главное меню"},
-		{Command: "start", Description: "Начать заново"},
-		{Command: "help", Description: "Помощь"},
-	}}); err != nil {
-		d.Log.Warn("set commands", "err", err)
-	}
+	b.setCommands(ctx)
 	if _, err := tg.SetChatMenuButton(ctx, &tgbot.SetChatMenuButtonParams{MenuButton: models.MenuButtonWebApp{
-		Type: models.MenuButtonTypeWebApp, Text: "Открыть", WebApp: models.WebAppInfo{URL: d.WebAppURL + "/"},
+		Type: models.MenuButtonTypeWebApp, Text: i18n.Default.For(i18n.Base).T("menu.open"), WebApp: models.WebAppInfo{URL: d.WebAppURL + "/"},
 	}}); err != nil {
 		d.Log.Warn("set menu button", "err", err)
 	}
 	return b, nil
 }
 
+// setCommands registers the command menu: English as the default scope, every other language under its own code.
+func (b *Bot) setCommands(ctx context.Context) {
+	set := func(code string, loc i18n.Localizer) {
+		_, err := b.tg.SetMyCommands(ctx, &tgbot.SetMyCommandsParams{
+			LanguageCode: code,
+			Commands: []models.BotCommand{
+				{Command: "menu", Description: loc.T("cmd.menu")},
+				{Command: "start", Description: loc.T("cmd.start")},
+				{Command: "help", Description: loc.T("cmd.help")},
+			},
+		})
+		if err != nil {
+			b.Log.Warn("set commands", "lang", code, "err", err)
+		}
+	}
+	set("", i18n.Default.For(i18n.Base))
+	for _, l := range i18n.Default.Langs() {
+		if l != i18n.Base {
+			set(l, i18n.Default.For(l))
+		}
+	}
+}
+
 // SendNotice sends a notification as a new message (notify.Runner's Send).
 func (b *Bot) SendNotice(ctx context.Context, n notify.Notice) error {
-	s := view.PaymentReminder(n, b.links, time.Now())
+	loc := b.locFor(ctx, n.ChatID)
+	s := view.PaymentReminder(loc, n, b.links, time.Now())
 	if n.Kind == notify.Traffic {
-		s = view.TrafficAlert(n, b.links, time.Now())
+		s = view.TrafficAlert(loc, n, b.links, time.Now())
 	}
 	_, err := b.tg.SendMessage(ctx, &tgbot.SendMessageParams{
 		ChatID: n.ChatID, Text: s.Text, ParseMode: models.ParseModeHTML, ReplyMarkup: s.Keyboard,
@@ -143,24 +163,24 @@ func (b *Bot) show(ctx context.Context, chatID int64, msgID int, s view.Screen) 
 
 // outcome turns a non-member access result into a screen. ok=false means
 // the user is a member and the caller should render the requested page.
-func (b *Bot) outcome(r access.Result, err error) (view.Screen, bool) {
+func (b *Bot) outcome(loc i18n.Localizer, r access.Result, err error) (view.Screen, bool) {
 	if err != nil {
 		b.Log.Error("access", "err", err)
-		return view.Plain(view.TxtDown), true
+		return view.Plain(loc, "msg.down"), true
 	}
 	switch r.Outcome {
 	case access.NeedLink:
-		return view.Plain(view.TxtNeedLink), true
+		return view.Plain(loc, "msg.need_link"), true
 	case access.BadReferral:
-		return view.Plain(view.TxtBadReferral), true
+		return view.Plain(loc, "msg.bad_referral"), true
 	case access.Archived:
-		return view.Plain(view.TxtArchived), true
+		return view.Plain(loc, "msg.archived"), true
 	case access.BadLink:
-		return view.Plain(view.TxtBadLink), true
+		return view.Plain(loc, "msg.bad_link"), true
 	case access.NotFound:
-		return view.Plain(view.TxtNotFound), true
+		return view.Plain(loc, "msg.not_found"), true
 	case access.Taken:
-		return view.Plain(view.TxtTaken), true
+		return view.Plain(loc, "msg.taken"), true
 	}
 	return view.Screen{}, false
 }
@@ -169,8 +189,8 @@ func (b *Bot) profile(c *vpnctl.Customer) profile.Profile {
 	return profile.Build(c, RefLink(b.username, b.Codec, c.ID), b.payMode())
 }
 
-func (b *Bot) home(r access.Result, prefix string) view.Screen {
-	s := view.Home(b.profile(r.Customer), b.links, time.Now())
+func (b *Bot) home(loc i18n.Localizer, r access.Result, prefix string) view.Screen {
+	s := view.Home(loc, b.profile(r.Customer), b.links, time.Now())
 	if prefix != "" {
 		s.Text = prefix + "\n\n" + s.Text
 	}
@@ -178,41 +198,44 @@ func (b *Bot) home(r access.Result, prefix string) view.Screen {
 }
 
 func (b *Bot) onStart(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
+	loc := b.loc(ctx)
 	m := u.Message
 	if m.Chat.Type != models.ChatTypePrivate {
 		return
 	}
 	payload := strings.TrimSpace(strings.TrimPrefix(m.Text, "/start"))
 	r, err := b.Access.Start(ctx, user(m.From), payload)
-	if s, done := b.outcome(r, err); done {
+	if s, done := b.outcome(loc, r, err); done {
 		b.show(ctx, m.Chat.ID, 0, s)
 		return
 	}
 	prefix := ""
 	if r.Outcome == access.Created {
-		prefix = view.TxtWelcome
+		prefix = loc.T("msg.welcome")
 	}
-	b.show(ctx, m.Chat.ID, 0, b.home(r, prefix))
+	b.show(ctx, m.Chat.ID, 0, b.home(loc, r, prefix))
 }
 
 func (b *Bot) onMenu(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
+	loc := b.loc(ctx)
 	m := u.Message
 	if m.Chat.Type != models.ChatTypePrivate {
 		return
 	}
 	r, err := b.Access.Start(ctx, user(m.From), "")
-	if s, done := b.outcome(r, err); done {
+	if s, done := b.outcome(loc, r, err); done {
 		b.show(ctx, m.Chat.ID, 0, s)
 		return
 	}
-	b.show(ctx, m.Chat.ID, 0, b.home(r, ""))
+	b.show(ctx, m.Chat.ID, 0, b.home(loc, r, ""))
 }
 
 func (b *Bot) onHelp(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
+	loc := b.loc(ctx)
 	if u.Message.Chat.Type != models.ChatTypePrivate {
 		return
 	}
-	b.show(ctx, u.Message.Chat.ID, 0, view.Notice(view.TxtHelp))
+	b.show(ctx, u.Message.Chat.ID, 0, view.Notice(loc, loc.T("msg.help")))
 }
 
 // onUpdate routes what no handler matched: Stars' payment events, else text.
@@ -230,6 +253,7 @@ func (b *Bot) onUpdate(ctx context.Context, tb *tgbot.Bot, u *models.Update) {
 // onText handles any other message: a subscription link while we wait for
 // one, otherwise it just brings the menu back.
 func (b *Bot) onText(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
+	loc := b.loc(ctx)
 	m := u.Message
 	if m == nil {
 		return
@@ -247,17 +271,18 @@ func (b *Bot) onText(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 	}
 	if waiting {
 		r, err := b.Access.Link(ctx, who, m.Text)
-		if s, done := b.outcome(r, err); done {
+		if s, done := b.outcome(loc, r, err); done {
 			b.show(ctx, m.Chat.ID, 0, s)
 			return
 		}
-		b.show(ctx, m.Chat.ID, 0, b.home(r, view.TxtLinked))
+		b.show(ctx, m.Chat.ID, 0, b.home(loc, r, loc.T("msg.linked")))
 		return
 	}
 	b.onMenu(ctx, b.tg, u)
 }
 
 func (b *Bot) onCallback(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
+	loc := b.loc(ctx)
 	q := u.CallbackQuery
 	answer := &tgbot.AnswerCallbackQueryParams{CallbackQueryID: q.ID}
 	defer func() { b.tg.AnswerCallbackQuery(ctx, answer) }()
@@ -268,7 +293,7 @@ func (b *Bot) onCallback(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 		return
 	}
 	r, err := b.Access.Start(ctx, user(&q.From), "")
-	if s, done := b.outcome(r, err); done {
+	if s, done := b.outcome(loc, r, err); done {
 		b.show(ctx, chatID, msgID, s)
 		return
 	}
@@ -276,36 +301,36 @@ func (b *Bot) onCallback(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 	now := time.Now()
 	switch rt.kind {
 	case view.CbHome:
-		b.show(ctx, chatID, msgID, view.Home(p, b.links, now))
+		b.show(ctx, chatID, msgID, view.Home(loc, p, b.links, now))
 	case view.CbSubs, view.CbSubsPage:
-		b.show(ctx, chatID, msgID, view.Subscriptions(p, rt.id, now))
+		b.show(ctx, chatID, msgID, view.Subscriptions(loc, p, rt.id, now))
 	case view.CbSub:
-		s, found := view.Subscription(p, rt.id, b.links, now)
+		s, found := view.Subscription(loc, p, rt.id, b.links, now)
 		if !found {
-			s = view.Subscriptions(p, 0, now)
+			s = view.Subscriptions(loc, p, 0, now)
 		}
 		b.show(ctx, chatID, msgID, s)
 	case view.CbBalance:
-		b.show(ctx, chatID, msgID, view.Balance(p, b.links))
+		b.show(ctx, chatID, msgID, view.Balance(loc, p, b.links))
 	case view.CbRefs:
-		b.show(ctx, chatID, msgID, view.Referrals(p, b.links))
+		b.show(ctx, chatID, msgID, view.Referrals(loc, p, b.links))
 	case view.CbTariffs, view.CbTariffsPage:
 		ts, err := b.API.ListTariffs(ctx)
 		if err != nil {
 			b.Log.Error("tariffs", "err", err)
-			b.show(ctx, chatID, msgID, view.Notice(view.TxtDown))
+			b.show(ctx, chatID, msgID, view.Notice(loc, loc.T("msg.down")))
 			return
 		}
-		b.show(ctx, chatID, msgID, view.Tariffs(profile.Tariffs(ts), rt.id, b.links))
+		b.show(ctx, chatID, msgID, view.Tariffs(loc, profile.Tariffs(ts), rt.id, b.links))
 	case view.CbRenew:
 		if b.Orders == nil {
-			answer.Text, answer.ShowAlert = view.TxtSoon, true
+			answer.Text, answer.ShowAlert = loc.T("msg.soon"), true
 			return
 		}
 		b.renewPeriods(ctx, chatID, msgID, r.Customer, rt.id)
 	case view.CbOrders, view.CbOrdersPage:
 		if b.Orders == nil {
-			answer.Text, answer.ShowAlert = view.TxtSoon, true
+			answer.Text, answer.ShowAlert = loc.T("msg.soon"), true
 			return
 		}
 		b.showOrders(ctx, chatID, msgID, r.Customer.ID, rt.id)

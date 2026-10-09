@@ -31,7 +31,7 @@ var (
 )
 
 func (c *CryptoBot) ID() string    { return "cryptobot" }
-func (c *CryptoBot) Title() string { return "Криптовалюта (CryptoBot)" }
+func (c *CryptoBot) Title() string { return "Crypto (CryptoBot)" }
 
 func (c *CryptoBot) base() string {
 	switch {

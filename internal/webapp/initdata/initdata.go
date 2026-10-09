@@ -25,6 +25,8 @@ type User struct {
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 	Username  string `json:"username"`
+	// LanguageCode is Telegram's IETF tag for the user's language ("" when not reported).
+	LanguageCode string `json:"language_code"`
 }
 
 func Validate(raw, botToken string, maxAge time.Duration, now time.Time) (User, error) {

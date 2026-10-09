@@ -34,7 +34,7 @@ var (
 )
 
 func (p *Pal24) ID() string    { return "pal24" }
-func (p *Pal24) Title() string { return "СБП / карта (PayPalych)" }
+func (p *Pal24) Title() string { return "Bank transfer / card (PayPalych)" }
 
 // pal24MaxTTL is the longest bill lifetime requested, in seconds (30 days).
 const pal24MaxTTL = 30 * 24 * 3600

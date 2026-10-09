@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"vpn-control-bot/internal/i18n"
 	"vpn-control-bot/internal/vpnctl"
 )
 
@@ -311,9 +312,14 @@ func TestApplyStepServerErrorAfterPaymentIsUnknown(t *testing.T) {
 	s.AttachReceipt(ctx, 77, ReceiptPhoto, "f", "")
 	f.FailStep = &vpnctl.APIError{Status: 502, Message: "bad gateway"}
 	got, _ := s.Approve(ctx, o.ID, "@a", DecideFull)
+	en, ru := i18n.Default.For("en").Text(got.Error), i18n.Default.For("ru").Text(got.Error)
 	if got.Status != StatusFailed || got.PanelPaymentID == 0 ||
-		!strings.Contains(got.Error, "результат неизвестен") || !strings.Contains(got.Error, "bot order #1") {
-		t.Fatalf("%+v", got)
+		!strings.Contains(en, "result is unknown") || !strings.Contains(en, "bot order #1") || !strings.Contains(en, "customer #5") ||
+		!strings.Contains(en, "bad gateway") {
+		t.Fatalf("%+v en=%q", got, en)
+	}
+	if !strings.Contains(ru, "Результат неизвестен") || !strings.Contains(ru, "VPN-панели") || !strings.Contains(ru, "клиента #5") {
+		t.Fatalf("ru=%q", ru)
 	}
 }
 
@@ -364,8 +370,13 @@ func TestStaleApprovingRecovers(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := s.Get(ctx, stale.ID)
-	if got.Status != StatusFailed || !strings.Contains(got.Error, "проверьте в панели") || !strings.Contains(got.Error, "bot order #1") {
-		t.Fatalf("%+v", got)
+	en, ru := i18n.Default.For("en").Text(got.Error), i18n.Default.For("ru").Text(got.Error)
+	if got.Status != StatusFailed || !strings.Contains(en, "check the VPN panel") || !strings.Contains(en, "bot order #1") ||
+		!strings.Contains(en, "subscription #3") {
+		t.Fatalf("%+v en=%q", got, en)
+	}
+	if !strings.Contains(ru, "проверьте в VPN-панели") || !strings.Contains(ru, "bot order #1") {
+		t.Fatalf("ru=%q", ru)
 	}
 	if len(sp.cards) == 0 || sp.cards[len(sp.cards)-1].Status != StatusFailed {
 		t.Fatal("admin card not updated")

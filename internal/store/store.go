@@ -73,7 +73,10 @@ func Open(path string) (*Store, error) {
 		order_id TEXT NOT NULL,
 		admin_id INTEGER NOT NULL,
 		msg_id INTEGER NOT NULL,
-		PRIMARY KEY (order_id, admin_id))`); err != nil {
+		PRIMARY KEY (order_id, admin_id));
+	CREATE TABLE IF NOT EXISTS user_lang (
+		tg_id INTEGER PRIMARY KEY,
+		lang TEXT NOT NULL)`); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -112,6 +115,26 @@ func (s *Store) AwaitingLink(ctx context.Context, tgID int64) (bool, error) {
 	var n int
 	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM awaiting_link WHERE tg_id = ?`, tgID).Scan(&n)
 	return n > 0, err
+}
+
+// SetLang remembers the Telegram language of a person; an empty lang changes nothing.
+func (s *Store) SetLang(ctx context.Context, tgID int64, lang string) error {
+	if lang == "" {
+		return nil
+	}
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO user_lang(tg_id, lang) VALUES(?, ?) ON CONFLICT(tg_id) DO UPDATE SET lang = excluded.lang`, tgID, lang)
+	return err
+}
+
+// Lang returns the remembered language, or "" when the person is unknown.
+func (s *Store) Lang(ctx context.Context, tgID int64) (string, error) {
+	var lang string
+	err := s.db.QueryRowContext(ctx, `SELECT lang FROM user_lang WHERE tg_id = ?`, tgID).Scan(&lang)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return lang, err
 }
 
 // NoticeSent reports whether a notification with this key was sent.

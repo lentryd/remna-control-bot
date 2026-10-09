@@ -6,6 +6,8 @@ import (
 	"math"
 	"strings"
 	"testing"
+
+	"vpn-control-bot/internal/i18n"
 )
 
 func TestStarsCount(t *testing.T) {
@@ -28,8 +30,15 @@ func TestStarsInvoice(t *testing.T) {
 	if err != nil || inv.URL != "https://t.me/$abc" || inv.Amount != 400 || inv.Currency != "XTR" || inv.ExternalID != "" {
 		t.Fatalf("%+v %v", inv, err)
 	}
-	if gotPayload != "ord-1" || gotStars != 400 || gotTitle == "" || len([]rune(gotTitle)) > 32 || gotDesc != "Продление «Дом» · 3 мес." {
+	if gotPayload != "ord-1" || gotStars != 400 || gotTitle != "VPN payment" || gotDesc != "Продление «Дом» · 3 мес." {
 		t.Errorf("link args: %q %q %q %d", gotTitle, gotDesc, gotPayload, gotStars)
+	}
+	ru := i18n.NewContext(t.Context(), i18n.Default.For("ru"))
+	if _, err := s.Invoice(ru, InvoiceRequest{Currency: "RUB", OrderID: "ord-1", Title: "t", Amount: 800}); err != nil || gotTitle != "Оплата VPN" {
+		t.Errorf("the invoice title is in the payer's language: %q %v", gotTitle, err)
+	}
+	if len([]rune(gotTitle)) > 32 || len([]rune(i18n.Default.For("en").T("invoice.title"))) > 32 {
+		t.Error("Telegram allows at most 32 characters in an invoice title")
 	}
 	s.Link = func(context.Context, string, string, string, int) (string, error) {
 		return "", errors.New("telegram down")

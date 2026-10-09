@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-telegram/bot/models"
 
+	"vpn-control-bot/internal/i18n"
 	"vpn-control-bot/internal/profile"
 )
 
@@ -24,79 +25,79 @@ func stateIcon(s profile.State) string {
 	return "⚪️"
 }
 
-func until(exp *time.Time, unlimited bool) string {
+func until(loc i18n.Localizer, exp *time.Time, unlimited bool) string {
 	if unlimited {
 		return "∞"
 	}
-	return Date(exp)
+	return Date(loc, exp)
 }
 
-func Home(p profile.Profile, l Links, now time.Time) Screen {
+func Home(loc i18n.Localizer, p profile.Profile, l Links, now time.Time) Screen {
 	var b strings.Builder
 	fmt.Fprintf(&b, "👋 <b>%s</b>\n\n", Esc(clip(p.Name, maxTitle)))
-	fmt.Fprintf(&b, "💰 Баланс: <b>%s</b>\n", Money(p.Balance))
+	b.WriteString(loc.T("home.balance", Money(loc, p.Balance)) + "\n")
 	if len(p.Subscriptions) == 0 {
-		b.WriteString("📦 Подписок пока нет — загляните в «Тарифы».")
+		b.WriteString(loc.T("home.no_subs"))
 	} else {
-		fmt.Fprintf(&b, "📦 Подписок: <b>%d</b>", len(p.Subscriptions))
+		b.WriteString(loc.T("home.subs_count", len(p.Subscriptions)))
 		if p.Monthly > 0 {
-			fmt.Fprintf(&b, " · %s/мес", Money(p.Monthly))
+			b.WriteString(loc.T("home.per_month", Money(loc, p.Monthly)))
 		}
 	}
-	rows := [][]btn{{{Text: BtnApp, WebApp: l.Page("/")}}}
+	rows := [][]btn{{{Text: loc.T("btn.app"), WebApp: l.Page("/")}}}
 	// Subscriptions are sorted by urgency, so the first one is the one to renew.
 	if len(p.Subscriptions) > 0 && profile.NeedsRenewal(p.Subscriptions[0], now) {
 		s := p.Subscriptions[0]
 		title := clip(s.Title, maxTitle)
 		if s.ExpireAt.After(now) {
-			fmt.Fprintf(&b, "\n\n🟡 «%s» заканчивается %s — %s", Esc(title), left(*s.ExpireAt, now), Date(s.ExpireAt))
+			b.WriteString("\n\n" + loc.T("home.soon", Esc(title), left(loc, *s.ExpireAt, now), Date(loc, s.ExpireAt)))
 		} else {
-			fmt.Fprintf(&b, "\n\n🔴 «%s» закончилась %s", Esc(title), Date(s.ExpireAt))
+			b.WriteString("\n\n" + loc.T("home.expired", Esc(title), Date(loc, s.ExpireAt)))
 		}
-		rows = append(rows, []btn{cb(clip(BtnRenew+" «"+s.Title+"»", maxTitle), CbRenew+strconv.Itoa(s.ID))})
+		rows = append(rows, []btn{cb(clip(loc.T("btn.renew_sub", s.Title), maxTitle), CbRenew+strconv.Itoa(s.ID))})
 	} else if p.NearestExpireAt != nil {
-		fmt.Fprintf(&b, "\n🟢 Ближайшее окончание: <b>%s</b>", Date(p.NearestExpireAt))
+		b.WriteString("\n" + loc.T("home.nearest", Date(loc, p.NearestExpireAt)))
 	}
 	return Screen{Text: b.String(), Keyboard: kb(append(rows,
-		[]btn{cb(BtnSubs, CbSubs), cb(BtnBalance, CbBalance)},
-		[]btn{cb(BtnRefs, CbRefs), cb(BtnTariffs, CbTariffs)},
-		[]btn{cb(BtnOrders, CbOrders)},
+		[]btn{cb(loc.T("btn.subs"), CbSubs), cb(loc.T("btn.balance"), CbBalance)},
+		[]btn{cb(loc.T("btn.refs"), CbRefs), cb(loc.T("btn.tariffs"), CbTariffs)},
+		[]btn{cb(loc.T("btn.orders"), CbOrders)},
 	)...)}
 }
 
-// left is "сегодня" or "через N дн.".
-func left(exp, now time.Time) string {
+// left is "today" or "in N days".
+func left(loc i18n.Localizer, exp, now time.Time) string {
 	days := int(exp.Sub(now).Hours() / 24)
 	if days < 1 {
-		return "сегодня"
+		return loc.T("time.today")
 	}
-	return fmt.Sprintf("через %d дн.", days)
+	return loc.Plural("time.in_days", days, days)
 }
 
-func Subscriptions(p profile.Profile, n int, now time.Time) Screen {
+func Subscriptions(loc i18n.Localizer, p profile.Profile, n int, now time.Time) Screen {
 	if len(p.Subscriptions) == 0 {
-		return Screen{Text: "📦 <b>Подписки</b>\n\nУ вас пока нет подписок. Выберите тариф — и она появится здесь.",
-			Keyboard: kb([]btn{cb(BtnTariffs, CbTariffs)}, back(CbHome))}
+		return Screen{Text: loc.T("subs.empty"),
+			Keyboard: kb([]btn{cb(loc.T("btn.tariffs"), CbTariffs)}, back(loc, CbHome))}
 	}
 	cur, pages, from, to := page(n, len(p.Subscriptions), subsPerPage)
 	var b strings.Builder
-	fmt.Fprintf(&b, "📦 <b>Подписки</b>%s\n", pageTitle(cur, pages))
+	b.WriteString(loc.T("subs.title") + pageTitle(loc, cur, pages) + "\n")
 	rows := [][]btn{}
 	for _, s := range p.Subscriptions[from:to] {
 		icon := stateIcon(profile.Expiry(s.ExpireAt, s.Unlimited, now))
-		fmt.Fprintf(&b, "\n%s <b>%s</b> — до %s", icon, Esc(clip(s.Title, maxTitle)), until(s.ExpireAt, s.Unlimited))
+		b.WriteString("\n" + loc.T("subs.line", icon, Esc(clip(s.Title, maxTitle)), until(loc, s.ExpireAt, s.Unlimited)))
 		if n := len(s.Addons); n > 0 {
-			fmt.Fprintf(&b, " · аддонов: %d", n)
+			b.WriteString(loc.T("subs.extras", n))
 		}
 		rows = append(rows, []btn{cb(clip(icon+" "+s.Title, maxTitle), CbSub+strconv.Itoa(s.ID))})
 	}
-	if nav := pager(CbSubsPage, cur, pages); nav != nil {
+	if nav := pager(loc, CbSubsPage, cur, pages); nav != nil {
 		rows = append(rows, nav)
 	}
-	return Screen{Text: b.String(), Keyboard: kb(append(rows, back(CbHome))...)}
+	return Screen{Text: b.String(), Keyboard: kb(append(rows, back(loc, CbHome))...)}
 }
 
-func Subscription(p profile.Profile, id int, l Links, now time.Time) (Screen, bool) {
+func Subscription(loc i18n.Localizer, p profile.Profile, id int, l Links, now time.Time) (Screen, bool) {
 	for i, s := range p.Subscriptions {
 		if s.ID != id {
 			continue
@@ -104,94 +105,90 @@ func Subscription(p profile.Profile, id int, l Links, now time.Time) (Screen, bo
 		var b strings.Builder
 		fmt.Fprintf(&b, "%s <b>%s</b>\n\n", stateIcon(profile.Expiry(s.ExpireAt, s.Unlimited, now)), Esc(clip(s.Title, maxTitle)))
 		if s.Tariff != "" {
-			fmt.Fprintf(&b, "🏷 Тариф: %s · %s/мес\n", Esc(clip(s.Tariff, maxTitle)), Money(s.Price))
+			b.WriteString(loc.T("sub.tariff", Esc(clip(s.Tariff, maxTitle)), Money(loc, s.Price)) + "\n")
 		}
-		fmt.Fprintf(&b, "📅 Действует до: <b>%s</b>\n", until(s.ExpireAt, s.Unlimited))
-		fmt.Fprintf(&b, "📊 Трафик: %s из %s\n", Bytes(s.UsedBytes), Bytes(s.LimitBytes))
+		b.WriteString(loc.T("sub.until", until(loc, s.ExpireAt, s.Unlimited)) + "\n")
+		b.WriteString(loc.T("sub.traffic", Bytes(loc, s.UsedBytes), Bytes(loc, s.LimitBytes)) + "\n")
 		if s.DeviceLimit != nil {
-			fmt.Fprintf(&b, "📱 Устройств: до %d\n", *s.DeviceLimit)
+			b.WriteString(loc.T("sub.devices", *s.DeviceLimit) + "\n")
 		}
 		if len(s.Addons) > 0 {
-			b.WriteString("\n<b>Аддоны</b>\n")
+			b.WriteString("\n" + loc.T("sub.extras") + "\n")
 			for j, a := range s.Addons {
 				if j == maxAddons {
-					fmt.Fprintf(&b, "…и ещё %d — в приложении\n", len(s.Addons)-maxAddons)
+					b.WriteString(loc.T("sub.more", len(s.Addons)-maxAddons) + "\n")
 					break
 				}
-				fmt.Fprintf(&b, "%s %s — до %s", stateIcon(profile.Expiry(a.ExpireAt, a.Unlimited, now)), Esc(clip(a.Name, maxTitle)), until(a.ExpireAt, a.Unlimited))
+				b.WriteString(loc.T("sub.extra_line", stateIcon(profile.Expiry(a.ExpireAt, a.Unlimited, now)), Esc(clip(a.Name, maxTitle)), until(loc, a.ExpireAt, a.Unlimited)))
 				if a.Included {
-					b.WriteString(" (входит в тариф)")
+					b.WriteString(loc.T("sub.included"))
 				}
 				b.WriteString("\n")
 			}
 		}
 		if r := s.Renewal; !s.Unlimited && r.Price > 0 {
-			fmt.Fprintf(&b, "\n💳 Продление на месяц: <b>%s</b>\n", Money(r.Price))
+			b.WriteString("\n" + loc.T("sub.renew_month", Money(loc, r.Price)) + "\n")
 			switch fromBalance := r.FromOwn + r.FromReferral; {
 			case r.ToPay == 0:
-				b.WriteString("Вся сумма спишется с баланса\n")
+				b.WriteString(loc.T("sub.renew_all_balance") + "\n")
 			case fromBalance > 0:
-				fmt.Fprintf(&b, "с баланса %s · к оплате <b>%s</b>\n", Money(fromBalance), Money(r.ToPay))
+				b.WriteString(loc.T("sub.renew_split", Money(loc, fromBalance), Money(loc, r.ToPay)) + "\n")
 			}
 		}
 		rows := [][]btn{}
 		if !s.Unlimited {
-			rows = append(rows, []btn{cb(BtnRenew, CbRenew+strconv.Itoa(s.ID))})
+			rows = append(rows, []btn{cb(loc.T("btn.renew"), CbRenew+strconv.Itoa(s.ID))})
 		}
 		if s.URL != "" {
 			fmt.Fprintf(&b, "\n🔗 <code>%s</code>", Esc(s.URL))
-			rows = append(rows, []btn{{Text: BtnOpenLink, WebApp: &models.WebAppInfo{URL: s.URL}}, {Text: BtnInBrowser, URL: s.URL}})
+			rows = append(rows, []btn{{Text: loc.T("btn.open_link"), WebApp: &models.WebAppInfo{URL: s.URL}}, {Text: loc.T("btn.in_browser"), URL: s.URL}})
 		}
-		rows = append(rows, []btn{{Text: BtnDetails, WebApp: l.Page("/subscriptions/" + strconv.Itoa(s.ID))}},
-			back(CbSubsPage+strconv.Itoa(i/subsPerPage)))
+		rows = append(rows, []btn{{Text: loc.T("btn.details"), WebApp: l.Page("/subscriptions/" + strconv.Itoa(s.ID))}},
+			back(loc, CbSubsPage+strconv.Itoa(i/subsPerPage)))
 		return Screen{Text: strings.TrimRight(b.String(), "\n"), Keyboard: kb(rows...)}, true
 	}
 	return Screen{}, false
 }
 
-var ledgerTypes = map[string]string{
-	"payment": "Пополнение", "charge": "Списание", "adjustment": "Корректировка", "refund": "Возврат", "referral": "Реферальное начисление",
-}
-
-func Balance(p profile.Profile, l Links) Screen {
+func Balance(loc i18n.Localizer, p profile.Profile, l Links) Screen {
 	var b strings.Builder
-	fmt.Fprintf(&b, "💰 <b>Баланс: %s</b>\n", Money(p.Balance))
+	b.WriteString(loc.T("balance.title", Money(loc, p.Balance)) + "\n")
 	if p.BalanceReferral != 0 {
-		fmt.Fprintf(&b, "из них реферальных: %s\n", Money(p.BalanceReferral))
+		b.WriteString(loc.T("balance.referral", Money(loc, p.BalanceReferral)) + "\n")
 	}
 	if p.Monthly > 0 {
-		fmt.Fprintf(&b, "Ежемесячно: %s\n", Money(p.Monthly))
+		b.WriteString(loc.T("balance.monthly", Money(loc, p.Monthly)) + "\n")
 	}
 	if len(p.Ledger) == 0 {
-		b.WriteString("\nОпераций пока не было.")
+		b.WriteString("\n" + loc.T("balance.none"))
 	} else {
-		b.WriteString("\n<b>Последние операции</b>\n")
+		b.WriteString("\n" + loc.T("balance.recent") + "\n")
 		for i, e := range p.Ledger {
 			if i == 5 {
 				break
 			}
-			name := ledgerTypes[e.Type]
-			if name == "" {
-				name = e.Type
+			name := e.Type
+			if k := "ledger." + e.Type; loc.Has(k) {
+				name = loc.T(k)
 			}
 			d := e.Date
-			fmt.Fprintf(&b, "%s · %s · <b>%s</b>\n", Date(&d), name, Money(e.Amount))
+			fmt.Fprintf(&b, "%s · %s · <b>%s</b>\n", Date(loc, &d), name, Money(loc, e.Amount))
 		}
 	}
 	return Screen{Text: strings.TrimRight(b.String(), "\n"), Keyboard: kb(
-		[]btn{{Text: BtnHistory, WebApp: l.Page("/balance")}},
-		back(CbHome),
+		[]btn{{Text: loc.T("btn.history"), WebApp: l.Page("/balance")}},
+		back(loc, CbHome),
 	)}
 }
 
-func Referrals(p profile.Profile, l Links) Screen {
+func Referrals(loc i18n.Localizer, p profile.Profile, l Links) Screen {
 	var b strings.Builder
-	b.WriteString("👥 <b>Рефералы</b>\n\n")
-	fmt.Fprintf(&b, "Ваша ссылка:\n<code>%s</code>\n\n", Esc(p.RefLink))
+	b.WriteString(loc.T("refs.title") + "\n\n")
+	b.WriteString(loc.T("refs.link", Esc(p.RefLink)) + "\n\n")
 	if len(p.Referrals) == 0 {
-		b.WriteString("Пока никого. Поделитесь ссылкой — за оплаты приглашённых вы получаете процент на баланс.")
+		b.WriteString(loc.T("refs.none"))
 	} else {
-		fmt.Fprintf(&b, "Приглашено: <b>%d</b> · заработано: <b>%s</b>\n\n<b>Топ по доходу</b>\n", len(p.Referrals), Money(p.ReferralsEarned))
+		b.WriteString(loc.T("refs.stats", len(p.Referrals), Money(loc, p.ReferralsEarned)) + "\n\n" + loc.T("refs.top") + "\n")
 		for i, r := range p.Referrals {
 			if i == 5 {
 				break
@@ -200,25 +197,25 @@ func Referrals(p profile.Profile, l Links) Screen {
 			if !r.Active {
 				icon = "⚪️"
 			}
-			fmt.Fprintf(&b, "%s %s — %s\n", icon, Esc(clip(r.Name, maxTitle)), Money(r.Earned))
+			fmt.Fprintf(&b, "%s %s — %s\n", icon, Esc(clip(r.Name, maxTitle)), Money(loc, r.Earned))
 		}
 	}
-	share := "https://t.me/share/url?url=" + url.QueryEscape(p.RefLink) + "&text=" + url.QueryEscape(TxtShare)
+	share := "https://t.me/share/url?url=" + url.QueryEscape(p.RefLink) + "&text=" + url.QueryEscape(loc.T("msg.share"))
 	return Screen{Text: strings.TrimRight(b.String(), "\n"), Keyboard: kb(
-		[]btn{{Text: BtnShare, URL: share}},
-		[]btn{{Text: BtnCopyLink, CopyText: &models.CopyTextButton{Text: p.RefLink}}},
-		[]btn{{Text: BtnAllRefs, WebApp: l.Page("/referrals")}},
-		back(CbHome),
+		[]btn{{Text: loc.T("btn.share"), URL: share}},
+		[]btn{{Text: loc.T("btn.copy_link"), CopyText: &models.CopyTextButton{Text: p.RefLink}}},
+		[]btn{{Text: loc.T("btn.all_refs"), WebApp: l.Page("/referrals")}},
+		back(loc, CbHome),
 	)}
 }
 
-func Tariffs(ts []profile.Tariff, n int, l Links) Screen {
+func Tariffs(loc i18n.Localizer, ts []profile.Tariff, n int, l Links) Screen {
 	if len(ts) == 0 {
-		return Screen{Text: "🏷 <b>Тарифы</b>\n\nСейчас нет доступных тарифов.", Keyboard: kb(back(CbHome))}
+		return Screen{Text: loc.T("tariffs.empty"), Keyboard: kb(back(loc, CbHome))}
 	}
 	cur, pages, from, to := page(n, len(ts), tariffsPerPage)
 	var b strings.Builder
-	fmt.Fprintf(&b, "🏷 <b>Тарифы</b>%s\n", pageTitle(cur, pages))
+	b.WriteString(loc.T("tariffs.title") + pageTitle(loc, cur, pages) + "\n")
 	var rows [][]btn
 	for _, t := range ts[from:to] {
 		name := t.Name
@@ -226,29 +223,34 @@ func Tariffs(ts []profile.Tariff, n int, l Links) Screen {
 			name = t.AddonName + " · " + t.Name
 		}
 		name = clip(name, maxTitle)
-		fmt.Fprintf(&b, "\n<b>%s</b> — %s/мес", Esc(name), Money(t.MonthlyPrice))
+		b.WriteString("\n" + loc.T("tariffs.line", Esc(name), Money(loc, t.MonthlyPrice)))
 		if t.Description != "" {
 			fmt.Fprintf(&b, "\n%s", Esc(clip(t.Description, maxDescription)))
 		}
 		var limits []string
 		if t.TrafficLimitBytes > 0 {
-			limits = append(limits, "трафик "+Bytes(t.TrafficLimitBytes))
+			limits = append(limits, loc.T("tariffs.traffic", Bytes(loc, t.TrafficLimitBytes)))
 		}
 		if t.HwidLimit != nil {
-			limits = append(limits, fmt.Sprintf("до %d устройств", *t.HwidLimit))
+			limits = append(limits, loc.Plural("tariffs.devices", *t.HwidLimit, *t.HwidLimit))
 		}
 		if len(limits) > 0 {
 			fmt.Fprintf(&b, "\n<i>%s</i>", strings.Join(limits, " · "))
 		}
 		b.WriteString("\n")
 	}
-	if nav := pager(CbTariffsPage, cur, pages); nav != nil {
+	if nav := pager(loc, CbTariffsPage, cur, pages); nav != nil {
 		rows = append(rows, nav)
 	}
-	rows = append(rows, []btn{{Text: BtnPickInApp, WebApp: l.Page("/tariffs")}}, back(CbHome))
+	rows = append(rows, []btn{{Text: loc.T("btn.pick_in_app"), WebApp: l.Page("/tariffs")}}, back(loc, CbHome))
 	return Screen{Text: strings.TrimRight(b.String(), "\n"), Keyboard: kb(rows...)}
 }
 
-func Notice(text string) Screen { return Screen{Text: text, Keyboard: kb([]btn{cb(BtnHome, CbHome)})} }
+func Notice(loc i18n.Localizer, text string) Screen {
+	return Screen{Text: text, Keyboard: kb([]btn{cb(loc.T("btn.home"), CbHome)})}
+}
 
-func Plain(text string) Screen { return Screen{Text: text} }
+// Plain is a screen with just the catalog text for key.
+func Plain(loc i18n.Localizer, key string, args ...any) Screen {
+	return Screen{Text: loc.T(key, args...)}
+}

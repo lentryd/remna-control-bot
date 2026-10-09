@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+
+	"vpn-control-bot/internal/i18n"
 )
 
 // LinkFunc creates a Telegram invoice link in stars (the bot's createInvoiceLink).
@@ -46,7 +48,8 @@ func (s *Stars) Invoice(ctx context.Context, in InvoiceRequest) (Invoice, error)
 		return Invoice{}, fmt.Errorf("stars: %v %s at %v %s/star exceeds %d stars", in.Amount, in.Currency, s.PerStar, in.Currency, maxStars)
 	}
 	n := max(s.Count(in.Amount), 1)
-	link, err := s.Link(ctx, "Оплата VPN", clip(in.Title, 255), in.OrderID, n)
+	// The payer's language when the request carries it (the bot's own flow), else English.
+	link, err := s.Link(ctx, i18n.FromContext(ctx).T("invoice.title"), clip(in.Title, 255), in.OrderID, n)
 	if err != nil {
 		return Invoice{}, fmt.Errorf("stars: %w", err)
 	}

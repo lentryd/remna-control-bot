@@ -1,49 +1,49 @@
 package view
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"vpn-control-bot/internal/i18n"
 	"vpn-control-bot/internal/notify"
 )
 
 // TrafficAlert: the limit is nearly used up — when it resets and which
 // tariff gives more.
-func TrafficAlert(n notify.Notice, l Links, now time.Time) Screen {
+func TrafficAlert(loc i18n.Localizer, n notify.Notice, l Links, now time.Time) Screen {
 	var b strings.Builder
 	pct := n.Used * 100 / n.Limit
-	fmt.Fprintf(&b, "📊 <b>%s</b>: использовано %s из %s (%d%%).\n", Esc(clip(n.Title, maxTitle)), Bytes(n.Used), Bytes(n.Limit), pct)
+	b.WriteString(loc.T("notice.traffic", Esc(clip(n.Title, maxTitle)), Bytes(loc, n.Used), Bytes(loc, n.Limit), pct) + "\n")
 	if n.ResetAt != nil {
-		fmt.Fprintf(&b, "🔄 Лимит сбросится %s — %s.", left(*n.ResetAt, now), Date(n.ResetAt))
+		b.WriteString(loc.T("notice.reset", left(loc, *n.ResetAt, now), Date(loc, n.ResetAt)))
 	} else {
-		b.WriteString("🔄 Лимит обновится после продления.")
+		b.WriteString(loc.T("notice.reset_renew"))
 	}
 	if u := n.Upgrade; u != nil {
-		traffic := "безлимитный трафик"
+		traffic := loc.T("notice.unlimited")
 		if u.TrafficLimitBytes > 0 {
-			traffic = Bytes(u.TrafficLimitBytes) + " трафика"
+			traffic = loc.T("notice.traffic_amount", Bytes(loc, u.TrafficLimitBytes))
 		}
-		fmt.Fprintf(&b, "\n\n✨ Нужно больше? Тариф <b>%s</b> — %s за %s/мес.", Esc(u.Name), traffic, Money(u.MonthlyPrice))
+		b.WriteString("\n\n" + loc.T("notice.upgrade", Esc(u.Name), traffic, Money(loc, u.MonthlyPrice)))
 	}
 	return Screen{Text: b.String(), Keyboard: kb(
-		[]btn{{Text: BtnTariffsApp, WebApp: l.Page("/tariffs")}},
-		[]btn{cb(BtnOpenSub, CbSub+strconv.Itoa(n.SubID))},
+		[]btn{{Text: loc.T("btn.tariffs_app"), WebApp: l.Page("/tariffs")}},
+		[]btn{cb(loc.T("btn.open_sub"), CbSub+strconv.Itoa(n.SubID))},
 	)}
 }
 
 // PaymentReminder: a subscription ends soon or has just ended.
-func PaymentReminder(n notify.Notice, l Links, now time.Time) Screen {
+func PaymentReminder(loc i18n.Localizer, n notify.Notice, l Links, now time.Time) Screen {
 	title := Esc(clip(n.Title, maxTitle))
 	var text string
 	if n.Expired {
-		text = fmt.Sprintf("🔴 <b>%s</b> закончилась %s.\nПродлите, чтобы снова пользоваться VPN.", title, Date(&n.ExpireAt))
+		text = loc.T("notice.expired", title, Date(loc, &n.ExpireAt))
 	} else {
-		text = fmt.Sprintf("⏰ <b>%s</b> заканчивается %s — %s.\nПродлите заранее, чтобы VPN не отключился.", title, left(n.ExpireAt, now), Date(&n.ExpireAt))
+		text = loc.T("notice.remind", title, left(loc, n.ExpireAt, now), Date(loc, &n.ExpireAt))
 	}
 	return Screen{Text: text, Keyboard: kb(
-		[]btn{cb(BtnRenew, CbRenew+strconv.Itoa(n.SubID))},
-		[]btn{{Text: BtnDetails, WebApp: l.Page("/subscriptions/" + strconv.Itoa(n.SubID))}},
+		[]btn{cb(loc.T("btn.renew"), CbRenew+strconv.Itoa(n.SubID))},
+		[]btn{{Text: loc.T("btn.details"), WebApp: l.Page("/subscriptions/" + strconv.Itoa(n.SubID))}},
 	)}
 }

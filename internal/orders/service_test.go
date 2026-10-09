@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"vpn-control-bot/internal/i18n"
 	"vpn-control-bot/internal/payments"
 	"vpn-control-bot/internal/vpnctl"
 )
@@ -18,22 +19,23 @@ func TestQuote(t *testing.T) {
 	f.Tariffs[0].Periods = append(f.Tariffs[0].Periods, vpnctl.Period{Days: 7, Price: 0}) // a free trial is not for sale
 	ctx := context.Background()
 	cases := []struct {
-		name  string
-		r     Request
-		price float64
-		title string
+		name   string
+		r      Request
+		price  float64
+		en, ru string
 	}{
-		{"renew", Request{Kind: KindRenew, ItemKind: "subscription", ItemID: 3, Months: 3}, 900, "Продление «Дом» · 3 мес."},
-		{"renew addon", Request{Kind: KindRenew, ItemKind: "addon", ItemID: 8, Months: 1}, 50, "Продление «Доп. устройства» · 1 мес."},
-		{"subscribe period", Request{Kind: KindSubscribe, TariffID: 1, Months: 3}, 800, "Новая подписка «Базовый» · 3 мес."},
-		{"addon", Request{Kind: KindAddon, ItemID: 3, TariffID: 9, Months: 2}, 100, "Устройства «+2» к «Дом» · 2 мес."},
-		{"change tariff", Request{Kind: KindChangeTariff, ItemKind: "subscription", ItemID: 3, TariffID: 2}, 13.33, "Смена тарифа «Дом» → «Про»"},
-		{"topup", Request{Kind: KindTopup, Amount: 250}, 250, "Пополнение баланса"},
+		{"renew", Request{Kind: KindRenew, ItemKind: "subscription", ItemID: 3, Months: 3}, 900, "Renewal of “Дом” · 3 mo.", "Продление «Дом» · 3 мес."},
+		{"renew addon", Request{Kind: KindRenew, ItemKind: "addon", ItemID: 8, Months: 1, Days: 5}, 58.33, "Renewal of “Доп. устройства” · 1 mo. 5 d.", "Продление «Доп. устройства» · 1 мес. 5 дн."},
+		{"subscribe period", Request{Kind: KindSubscribe, TariffID: 1, Months: 3}, 800, "New subscription “Базовый” · 3 mo.", "Новая подписка «Базовый» · 3 мес."},
+		{"addon", Request{Kind: KindAddon, ItemID: 3, TariffID: 9, Months: 2}, 100, "Устройства “+2” for “Дом” · 2 mo.", "Устройства «+2» к «Дом» · 2 мес."},
+		{"change tariff", Request{Kind: KindChangeTariff, ItemKind: "subscription", ItemID: 3, TariffID: 2}, 13.33, "Plan change “Дом” → “Про”", "Смена тарифа «Дом» → «Про»"},
+		{"topup", Request{Kind: KindTopup, Amount: 250}, 250, "Balance top-up", "Пополнение баланса"},
 	}
 	for _, tc := range cases {
 		q, err := s.Quote(ctx, c, tc.r)
-		if err != nil || q.Price != tc.price || q.Title != tc.title {
-			t.Errorf("%s: %+v %v", tc.name, q, err)
+		en, ru := i18n.Default.For("en").Text(q.Title), i18n.Default.For("ru").Text(q.Title)
+		if err != nil || q.Price != tc.price || en != tc.en || ru != tc.ru {
+			t.Errorf("%s: %+v %v en=%q ru=%q", tc.name, q, err, en, ru)
 		}
 	}
 	q, _ := s.Quote(ctx, c, Request{Kind: KindRenew, ItemKind: "subscription", ItemID: 3, Months: 3})

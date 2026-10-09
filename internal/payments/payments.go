@@ -54,6 +54,7 @@ type Event struct {
 
 type Provider interface {
 	ID() string // "yookassa"
+	// Title is the English fallback name; people see the catalog's payment.<id> when it has one.
 	Title() string
 	Invoice(ctx context.Context, in InvoiceRequest) (Invoice, error)
 }

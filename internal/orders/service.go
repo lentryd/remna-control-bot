@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"vpn-control-bot/internal/billing"
+	"vpn-control-bot/internal/i18n"
 	"vpn-control-bot/internal/store"
 	"vpn-control-bot/internal/vpnctl"
 )
@@ -86,15 +87,14 @@ func bad(format string, a ...any) error {
 	return fmt.Errorf("%w: "+format, append([]any{ErrBadRequest}, a...)...)
 }
 
-func term(months, days int) string {
-	var p []string
-	if months > 0 {
-		p = append(p, fmt.Sprintf("%d мес.", months))
+func term(months, days int) i18n.Msg {
+	switch {
+	case months > 0 && days > 0:
+		return i18n.M("term.months_days", months, days)
+	case months > 0:
+		return i18n.M("term.months", months)
 	}
-	if days > 0 {
-		p = append(p, fmt.Sprintf("%d дн.", days))
-	}
-	return strings.Join(p, " ")
+	return i18n.M("term.days", days)
 }
 
 func (s *Service) price(ctx context.Context, c *vpnctl.Customer, r Request) (Quote, error) {
@@ -107,7 +107,7 @@ func (s *Service) price(ctx context.Context, c *vpnctl.Customer, r Request) (Quo
 		if p <= 0 || p > 1_000_000 {
 			return Quote{}, bad("amount")
 		}
-		return Quote{Title: "Пополнение баланса", Price: p}, nil
+		return Quote{Title: i18n.M("title.topup").String(), Price: p}, nil
 	case KindRenew:
 		title, ok := itemTitle(c, r.ItemKind, r.ItemID)
 		if !ok {
@@ -117,7 +117,7 @@ func (s *Service) price(ctx context.Context, c *vpnctl.Customer, r Request) (Quo
 		if err != nil {
 			return Quote{}, apiErr(err)
 		}
-		return Quote{Title: fmt.Sprintf("Продление «%s» · %s", title, term(r.Months, r.Days)), Price: eq.Amount}, nil
+		return Quote{Title: i18n.M("title.renew", title, term(r.Months, r.Days)).String(), Price: eq.Amount}, nil
 	case KindSubscribe, KindAddon:
 		t, err := s.tariff(ctx, r.TariffID)
 		if err != nil {
@@ -131,13 +131,13 @@ func (s *Service) price(ctx context.Context, c *vpnctl.Customer, r Request) (Quo
 			if t.Kind != "base" {
 				return Quote{}, bad("tariff kind")
 			}
-			return Quote{Title: fmt.Sprintf("Новая подписка «%s» · %s", t.Name, term(r.Months, r.Days)), Price: price}, nil
+			return Quote{Title: i18n.M("title.subscribe", t.Name, term(r.Months, r.Days)).String(), Price: price}, nil
 		}
 		sub, ok := itemTitle(c, "subscription", r.ItemID)
 		if t.Kind != "addon" || !ok {
 			return Quote{}, bad("addon")
 		}
-		return Quote{Title: fmt.Sprintf("%s «%s» к «%s» · %s", t.AddonName, t.Name, sub, term(r.Months, r.Days)), Price: price}, nil
+		return Quote{Title: i18n.M("title.addon", t.AddonName, t.Name, sub, term(r.Months, r.Days)).String(), Price: price}, nil
 	case KindChangeTariff:
 		title, ok := itemTitle(c, r.ItemKind, r.ItemID)
 		if !ok {
@@ -151,7 +151,7 @@ func (s *Service) price(ctx context.Context, c *vpnctl.Customer, r Request) (Quo
 		if err != nil {
 			return Quote{}, apiErr(err)
 		}
-		return Quote{Title: fmt.Sprintf("Смена тарифа «%s» → «%s»", title, t.Name), Price: math.Max(tq.Surcharge, 0)}, nil
+		return Quote{Title: i18n.M("title.change_tariff", title, t.Name).String(), Price: math.Max(tq.Surcharge, 0)}, nil
 	}
 	return Quote{}, bad("kind %q", r.Kind)
 }

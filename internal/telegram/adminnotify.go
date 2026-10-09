@@ -10,6 +10,7 @@ import (
 	tgbot "github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
+	"vpn-control-bot/internal/i18n"
 	"vpn-control-bot/internal/orders"
 	"vpn-control-bot/internal/telegram/view"
 )
@@ -43,10 +44,12 @@ func (b *Bot) Card(ctx context.Context, o orders.Order) error {
 	if len(have) == 0 && !needsDecision(o.Status) {
 		return nil
 	}
-	s := view.AdminCard(o, b.adminCustomer(ctx, o), b.links.Page("/admin/orders/"+o.ID))
+	cust := b.adminCustomer(ctx, o)
+	page := b.links.Page("/admin/orders/" + o.ID)
 	var errs []error
 	for _, id := range b.Admins {
 		var err error
+		s := view.AdminCard(b.locFor(ctx, id), o, cust, page)
 		if msgID, ok := have[id]; ok {
 			err = b.editCard(ctx, id, msgID, s)
 			if isGoneMessage(err) {
@@ -133,11 +136,11 @@ func (b *Bot) Unreachable() []int64 {
 	return out
 }
 
-// Alert sends a plain message to every admin (no parse mode: the text may hold any characters).
-func (b *Bot) Alert(ctx context.Context, text string) error {
+// Alert sends a plain message to every admin in their language (no parse mode: the arguments may hold any characters).
+func (b *Bot) Alert(ctx context.Context, a orders.Alert) error {
 	var errs []error
 	for _, id := range b.Admins {
-		_, err := b.tg.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: id, Text: text})
+		_, err := b.tg.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: id, Text: b.locFor(ctx, id).Render(a)})
 		b.track(id, err)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("admin %d: %w", id, err))
@@ -146,10 +149,11 @@ func (b *Bot) Alert(ctx context.Context, text string) error {
 	return errors.Join(errs...)
 }
 
-// NotifyAdmins sends every admin text with a button into the given admin page ("/admin/methods").
-func (b *Bot) NotifyAdmins(ctx context.Context, text, page string) {
-	s := view.AdminEntry(text, b.links.Page(page))
+// NotifyAdmins sends every admin m in their language with a button into the given admin page ("/admin/methods").
+func (b *Bot) NotifyAdmins(ctx context.Context, m i18n.Msg, page string) {
 	for _, id := range b.Admins {
+		loc := b.locFor(ctx, id)
+		s := view.AdminEntry(loc, loc.Render(m), b.links.Page(page))
 		_, err := b.tg.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: id, Text: s.Text, ReplyMarkup: s.Keyboard})
 		b.track(id, err)
 	}
@@ -157,11 +161,12 @@ func (b *Bot) NotifyAdmins(ctx context.Context, text, page string) {
 
 // onAdminCmd: /admin opens the admin part for an admin.
 func (b *Bot) onAdminCmd(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
+	loc := b.loc(ctx)
 	m := u.Message
 	if m.Chat.Type != models.ChatTypePrivate || !b.isAdmin(m.From.ID) {
 		return
 	}
-	s := view.AdminEntry(view.TxtAdminOpen, b.links.Page("/admin"))
+	s := view.AdminEntry(loc, loc.T("msg.admin_open"), b.links.Page("/admin"))
 	if _, err := b.tg.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: m.Chat.ID, Text: s.Text, ReplyMarkup: s.Keyboard}); err != nil {
 		b.Log.Error("admin command", "err", err)
 	}

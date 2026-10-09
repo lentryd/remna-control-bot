@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"vpn-control-bot/internal/i18n"
 	"vpn-control-bot/internal/payments"
 	"vpn-control-bot/internal/vpnctl"
 )
@@ -92,7 +93,9 @@ func (s *Service) issue(ctx context.Context, o *Order, p payments.Provider, ttl 
 	if s.CurrencyKnown != nil && !s.CurrencyKnown() {
 		return nil, fmt.Errorf("%w: base currency not confirmed by the panel", ErrProvider)
 	}
-	inv, err := p.Invoice(ctx, payments.InvoiceRequest{OrderID: o.ID, Title: o.Title, Amount: o.ToPay, Currency: s.base(ctx), ExpiresIn: ttl, CustomerID: o.CustomerID})
+	// The payer reads the title on the invoice: in their language when the request carries it, else English.
+	title := i18n.FromContext(ctx).Text(o.Title)
+	inv, err := p.Invoice(ctx, payments.InvoiceRequest{OrderID: o.ID, Title: title, Amount: o.ToPay, Currency: s.base(ctx), ExpiresIn: ttl, CustomerID: o.CustomerID})
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s: %v", ErrProvider, p.ID(), err)
 	}
@@ -172,10 +175,8 @@ func (s *Service) alertUnmatched(ctx context.Context, ev payments.Event) {
 	if !ok {
 		return
 	}
-	text := fmt.Sprintf("⚠️ Платёж провайдера %s не сопоставлен с заказом: заказ %s, счёт %s, сумма %s %s. "+
-		"Деньги получены — проверьте платёж у провайдера и вручную примените или верните.",
-		ev.Provider, ev.OrderID, ev.ExternalID, amount, ev.Currency)
-	if err := a.Alert(ctx, text); err != nil {
+	alert := Alert{Key: "alert.unmatched_payment", Args: []any{ev.Provider, ev.OrderID, ev.ExternalID, amount, ev.Currency}}
+	if err := a.Alert(ctx, alert); err != nil {
 		s.Log.Warn("orders: alert the admins", "err", err)
 	}
 }
@@ -183,9 +184,9 @@ func (s *Service) alertUnmatched(ctx context.Context, ev payments.Event) {
 func reviewNote(o *Order, ev payments.Event) string {
 	billed := strconv.FormatFloat(o.PayAmount, 'f', -1, 64) + " " + o.PayCurrency
 	if ev.Amount <= 0 {
-		return fmt.Sprintf("%s: провайдер сообщил о неверной сумме (счёт %s)", ev.Provider, billed)
+		return i18n.M("review.wrong_amount", ev.Provider, billed).String()
 	}
-	return fmt.Sprintf("%s: сумма не совпала (счёт %s, получено %s %s)", ev.Provider, billed, strconv.FormatFloat(ev.Amount, 'f', -1, 64), ev.Currency)
+	return i18n.M("review.amount_mismatch", ev.Provider, billed, strconv.FormatFloat(ev.Amount, 'f', -1, 64), ev.Currency).String()
 }
 
 // CheckInvoice is Telegram's pre-checkout question: may this payment go

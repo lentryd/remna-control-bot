@@ -32,7 +32,7 @@ var (
 )
 
 func (y *YooKassa) ID() string    { return "yookassa" }
-func (y *YooKassa) Title() string { return "Карта / СБП" }
+func (y *YooKassa) Title() string { return "Card / bank transfer" }
 
 type ykPayment struct {
 	ID     string `json:"id"`

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"vpn-control-bot/internal/config"
+	"vpn-control-bot/internal/i18n"
 	"vpn-control-bot/internal/orders"
 	"vpn-control-bot/internal/payments"
 	"vpn-control-bot/internal/store"
@@ -78,7 +79,8 @@ func TestOrdersFlow(t *testing.T) {
 	n := withOrders(t, f, d)
 	body := `{"kind":"renew","item_kind":"subscription","item_id":3,"months":1}`
 	code, out := do(t, d, "POST", "/bot/api/orders/quote", tma(77), body)
-	if code != 200 || !strings.Contains(out, `"to_pay":300`) {
+	const title = `"title":"Renewal of “Дом” · 1 mo."` // the web API reads stored titles in English
+	if code != 200 || !strings.Contains(out, `"to_pay":300`) || !strings.Contains(out, title) {
 		t.Fatalf("quote %d %s", code, out)
 	}
 	code, out = do(t, d, "POST", "/bot/api/orders", tma(77), body)
@@ -92,14 +94,14 @@ func TestOrdersFlow(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &created); err != nil {
 		t.Fatalf("create body %q: %v", out, err)
 	}
-	if code != 201 || created.Order.Status != "awaiting_receipt" || created.Details != "Карта" {
+	if code != 201 || created.Order.Status != "awaiting_receipt" || created.Details != "Карта" || !strings.Contains(out, title) {
 		t.Fatalf("create %d %s", code, out)
 	}
 	if code, _ := do(t, d, "POST", "/bot/api/orders/"+created.Order.ID+"/receipt", tma(77), ""); code != 204 || n.pay != 1 {
 		t.Fatalf("receipt %d pay screens %d", code, n.pay)
 	}
 	code, out = do(t, d, "GET", "/bot/api/orders", tma(77), "")
-	if code != 200 || !strings.Contains(out, `"total":1`) {
+	if code != 200 || !strings.Contains(out, `"total":1`) || !strings.Contains(out, title) {
 		t.Fatalf("list %d %s", code, out)
 	}
 }
@@ -394,5 +396,48 @@ func TestPayWebhookNeedsOrders(t *testing.T) {
 	d := app(ordersFake()) // no order service
 	if code, _ := hook(t, d, "fake", "x"); code != 404 {
 		t.Errorf("%d", code)
+	}
+}
+
+// The same stored order is rendered in the language of whoever asks.
+func TestOrderTextFollowsRequestLanguage(t *testing.T) {
+	f := ordersFake()
+	d := app(f)
+	withOrders(t, f, d)
+	newOrder(t, d, `{"kind":"topup","amount":100,"method":"manual"}`)
+	for lang, want := range map[string]string{"ru": "Пополнение баланса", "en": "Balance top-up", "": "Balance top-up", "xx": "Balance top-up"} {
+		code, out := do(t, d, "GET", "/bot/api/orders", tmaLang(77, lang), "")
+		if code != 200 || !strings.Contains(out, `"title":"`+want+`"`) {
+			t.Errorf("list %q: %d %s", lang, code, out)
+		}
+		code, out = do(t, d, "POST", "/bot/api/orders/quote", tmaLang(77, lang), `{"kind":"topup","amount":100}`)
+		if code != 200 || !strings.Contains(out, `"title":"`+want+`"`) {
+			t.Errorf("quote %q: %d %s", lang, code, out)
+		}
+	}
+}
+
+func TestAdminOrderTextFollowsRequestLanguage(t *testing.T) {
+	f := ordersFake()
+	d := app(f)
+	d.IsAdmin = func(int64) bool { return true }
+	withOrders(t, f, d)
+	newOrder(t, d, `{"kind":"topup","amount":100,"method":"manual"}`)
+	_, out := do(t, d, "GET", "/bot/api/admin/orders", tmaLang(1, "ru"), "")
+	if !strings.Contains(out, "Пополнение баланса") {
+		t.Errorf("ru: %s", out)
+	}
+	_, out = do(t, d, "GET", "/bot/api/admin/orders", tmaLang(1, "en"), "")
+	if !strings.Contains(out, "Balance top-up") {
+		t.Errorf("en: %s", out)
+	}
+}
+
+func TestProviderLabelsFollowRequestLanguage(t *testing.T) {
+	for lang, want := range map[string]string{"ru": "Карта / СБП", "en": "Card / bank transfer"} {
+		got := quoteTitles(i18n.Default.For(lang), map[string]string{"yookassa": "YooKassa", "custom": "Custom"})
+		if got["yookassa"] != want || got["custom"] != "Custom" {
+			t.Errorf("%s: %v", lang, got)
+		}
 	}
 }

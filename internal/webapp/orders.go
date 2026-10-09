@@ -7,6 +7,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
+	"vpn-control-bot/internal/i18n"
 	"vpn-control-bot/internal/orders"
 	"vpn-control-bot/internal/vpnctl"
 )
@@ -28,8 +29,8 @@ type orderView struct {
 	CreatedAt   time.Time  `json:"created_at"`
 }
 
-func orderJSON(o orders.Order) orderView {
-	return orderView{ID: o.ID, Number: o.Short(), Kind: string(o.Kind), Title: o.Title, Price: o.Price, FromBalance: o.FromBalance, ToPay: o.ToPay,
+func orderJSON(l i18n.Localizer, o orders.Order) orderView {
+	return orderView{ID: o.ID, Number: o.Short(), Kind: string(o.Kind), Title: l.Text(o.Title), Price: o.Price, FromBalance: o.FromBalance, ToPay: o.ToPay,
 		Paid: o.Paid(), Method: string(o.Method), Status: string(o.Status), Reason: o.RejectReason,
 		Until: o.ResultUntil, PayURL: o.PayURL, CreatedAt: o.CreatedAt}
 }
@@ -71,7 +72,22 @@ func (s *server) quoteOrder(c *fiber.Ctx) error {
 	if err != nil {
 		return s.orderErr(c, err)
 	}
+	l := loc(c)
+	q.Title = l.Text(q.Title)
+	q.Titles = quoteTitles(l, q.Titles)
 	return c.JSON(q)
+}
+
+// quoteTitles names payment providers in the reader's language (payment.<id>), else by their own title.
+func quoteTitles(l i18n.Localizer, titles map[string]string) map[string]string {
+	if titles == nil {
+		return nil
+	}
+	out := make(map[string]string, len(titles))
+	for id, own := range titles {
+		out[id] = l.Or("payment."+id, own)
+	}
+	return out
 }
 
 func (s *server) createOrder(c *fiber.Ctx) error {
@@ -86,7 +102,7 @@ func (s *server) createOrder(c *fiber.Ctx) error {
 	if err != nil {
 		return s.orderErr(c, err)
 	}
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"order": orderJSON(*o), "details": s.Orders.Live().Details})
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"order": orderJSON(loc(c), *o), "details": s.Orders.Live().Details})
 }
 
 func (s *server) listOrders(c *fiber.Ctx) error {
@@ -95,9 +111,10 @@ func (s *server) listOrders(c *fiber.Ctx) error {
 	if err != nil {
 		return s.orderErr(c, err)
 	}
+	l := loc(c)
 	out := make([]orderView, 0, len(list))
 	for _, o := range list {
-		out = append(out, orderJSON(o))
+		out = append(out, orderJSON(l, o))
 	}
 	return c.JSON(fiber.Map{"orders": out, "total": total})
 }
@@ -128,7 +145,7 @@ func (s *server) payBalance(c *fiber.Ctx, customerID int, id string) error {
 	if err != nil {
 		return s.orderErr(c, err)
 	}
-	return c.JSON(orderJSON(*o))
+	return c.JSON(orderJSON(loc(c), *o))
 }
 
 func (s *server) cancel(c *fiber.Ctx, customerID int, id string) error {

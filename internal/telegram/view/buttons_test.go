@@ -3,9 +3,9 @@ package view
 import "testing"
 
 func TestHomeOpensAppFirst(t *testing.T) {
-	for _, s := range []Screen{Home(fixture(), links, now), Home(fixture(), links, now.AddDate(1, 0, 0))} {
+	for _, s := range []Screen{Home(ru, fixture(), links, now), Home(ru, fixture(), links, now.AddDate(1, 0, 0))} {
 		first := s.Keyboard.InlineKeyboard[0][0]
-		if first.WebApp == nil || first.Text != BtnApp {
+		if first.WebApp == nil || first.Text != ru.T("btn.app") {
 			t.Fatalf("first button = %+v", first)
 		}
 	}
@@ -14,7 +14,7 @@ func TestHomeOpensAppFirst(t *testing.T) {
 // The subscription page has the setup instructions: open it inside Telegram
 // or in the browser.
 func TestSubscriptionLinkOpens(t *testing.T) {
-	s, _ := Subscription(fixture(), 3, links, now)
+	s, _ := Subscription(ru, fixture(), 3, links, now)
 	var inApp, inBrowser bool
 	for _, row := range s.Keyboard.InlineKeyboard {
 		for _, b := range row {

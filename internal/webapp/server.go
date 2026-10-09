@@ -15,6 +15,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/filesystem"
 
 	"vpn-control-bot/internal/config"
+	"vpn-control-bot/internal/i18n"
 	"vpn-control-bot/internal/orders"
 	"vpn-control-bot/internal/profile"
 	"vpn-control-bot/internal/refcode"
@@ -49,6 +50,7 @@ type Deps struct {
 	PublicURL   string         // the origin providers call back to; shown next to webhook settings
 	Receipts    ReceiptSource  // streams receipts from Telegram; nil: receipts are unavailable
 	Unreachable func() []int64 // admins the bot could not reach; nil: none
+	Langs       LangStore      // remembers the language of people who open the app; nil: not remembered
 }
 
 func New(d Deps) *fiber.App {
@@ -92,7 +94,21 @@ func New(d Deps) *fiber.App {
 	return app
 }
 
+// LangStore remembers each person's Telegram language for messages the bot sends on its own (*store.Store).
+type LangStore interface {
+	SetLang(ctx context.Context, tgID int64, lang string) error
+}
+
 type server struct{ Deps }
+
+// loc is the language of the person making the request (English when Telegram reported none we have).
+func loc(c *fiber.Ctx) i18n.Localizer {
+	l, ok := c.Locals("loc").(i18n.Localizer)
+	if !ok {
+		return i18n.Default.For(i18n.Base)
+	}
+	return l
+}
 
 func fail(c *fiber.Ctx, status int, code string) error {
 	return c.Status(status).JSON(fiber.Map{"code": code})
@@ -111,6 +127,14 @@ func (s *server) initAuth(c *fiber.Ctx) error {
 	}
 	c.Locals("tg", u.ID)
 	c.Locals("tguser", u)
+	c.Locals("loc", i18n.Default.For(u.LanguageCode))
+	// A missing code stores nothing, so it never overwrites a remembered language; a failure to remember
+	// one must never fail the request.
+	if s.Langs != nil && strings.TrimSpace(u.LanguageCode) != "" {
+		if err := s.Langs.SetLang(c.UserContext(), u.ID, i18n.Default.Resolve(u.LanguageCode)); err != nil && s.Log != nil {
+			s.Log.Warn("webapp remember language", "err", err)
+		}
+	}
 	return c.Next()
 }
 

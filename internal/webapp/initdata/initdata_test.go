@@ -44,3 +44,18 @@ func TestRejects(t *testing.T) {
 		}
 	}
 }
+
+func TestLanguageCode(t *testing.T) {
+	for name, tc := range map[string]struct{ user, want string }{
+		"ru":     {`{"id":1,"first_name":"A","language_code":"ru"}`, "ru"},
+		"absent": {`{"id":1,"first_name":"A"}`, ""},
+	} {
+		v := url.Values{}
+		v.Set("auth_date", strconv.FormatInt(now.Add(-time.Minute).Unix(), 10))
+		v.Set("user", tc.user)
+		u, err := Validate(Sign(v, "123:ABC"), "123:ABC", 24*time.Hour, now)
+		if err != nil || u.LanguageCode != tc.want {
+			t.Errorf("%s: u=%+v err=%v", name, u, err)
+		}
+	}
+}

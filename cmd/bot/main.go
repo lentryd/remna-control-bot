@@ -13,6 +13,7 @@ import (
 	"vpn-control-bot/internal/access"
 	"vpn-control-bot/internal/config"
 	"vpn-control-bot/internal/currency"
+	"vpn-control-bot/internal/i18n"
 	"vpn-control-bot/internal/notify"
 	"vpn-control-bot/internal/orders"
 	"vpn-control-bot/internal/payments"
@@ -97,7 +98,7 @@ func run() error {
 	}
 
 	bot, err = telegram.New(ctx, cfg.BotToken, telegram.Deps{
-		Access: acc, API: api, Codec: codec, Orders: svc, IsAdmin: cfg.IsAdmin, Admins: cfg.AdminIDs, Notices: st,
+		Access: acc, API: api, Codec: codec, Orders: svc, IsAdmin: cfg.IsAdmin, Admins: cfg.AdminIDs, Notices: st, Langs: st,
 		WebAppURL: cfg.WebAppURL(), PayMode: payMode, Log: log,
 	})
 	if err != nil {
@@ -105,12 +106,12 @@ func run() error {
 	}
 	svc.Notify = bot
 	if live := svc.Live(); !live.Manual && len(live.Providers.IDs()) == 0 && len(cfg.AdminIDs) > 0 {
-		bot.NotifyAdmins(ctx, "Способы оплаты не настроены — настройте их в админке.", "/admin/methods")
+		bot.NotifyAdmins(ctx, i18n.M("admin.no_methods"), "/admin/methods")
 	}
 	app := webapp.New(webapp.Deps{
 		API: api, Codec: codec, BotToken: cfg.BotToken, BotUsername: bot.Username(),
 		Path: cfg.WebAppPath, PayMode: payMode, Orders: svc, Currency: cur.Get, Static: web.Dist, Log: log,
-		Settings: set, IsAdmin: cfg.IsAdmin, PublicURL: cfg.PublicURL, Receipts: bot, Unreachable: bot.Unreachable,
+		Settings: set, IsAdmin: cfg.IsAdmin, PublicURL: cfg.PublicURL, Receipts: bot, Unreachable: bot.Unreachable, Langs: st,
 	})
 
 	errc := make(chan error, 1)

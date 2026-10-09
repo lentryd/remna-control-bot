@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	"vpn-control-bot/internal/i18n"
 	"vpn-control-bot/internal/store"
 )
 
@@ -70,7 +71,7 @@ type Request struct {
 }
 
 type Quote struct {
-	Title       string            `json:"title"`
+	Title       string            `json:"title"` // a stored i18n.Msg, like Order.Title
 	Price       float64           `json:"price"`
 	FromBalance float64           `json:"from_balance"`
 	ToPay       float64           `json:"to_pay"`
@@ -82,8 +83,8 @@ type Order struct {
 	ID             string
 	CustomerID     int
 	ChatID         int64
-	Request        // embedded: Kind, ItemKind, ItemID, TariffID, Months, Days, Amount (Amount unused after creation)
-	Title          string
+	Request               // embedded: Kind, ItemKind, ItemID, TariffID, Months, Days, Amount (Amount unused after creation)
+	Title          string // a stored i18n.Msg (read it with Localizer.Text); plain text in rows from before localization
 	Price          float64
 	FromBalance    float64
 	ToPay          float64
@@ -139,9 +140,12 @@ type Notifier interface {
 	Customer(ctx context.Context, o Order) error // decision notice to the customer
 }
 
+// Alert is a catalog message for the admins (Key "alert.…" with its Args), rendered in each admin's language.
+type Alert = i18n.Msg
+
 // Alerter is an optional Notifier capability: a plain message to every admin.
 type Alerter interface {
-	Alert(ctx context.Context, text string) error
+	Alert(ctx context.Context, a Alert) error
 }
 
 type ChatStates interface { // implemented by *store.Store

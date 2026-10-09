@@ -37,7 +37,7 @@ var (
 )
 
 func (p *Platega) ID() string    { return "platega" }
-func (p *Platega) Title() string { return "СБП / карта (Platega)" }
+func (p *Platega) Title() string { return "Bank transfer / card (Platega)" }
 
 // plategaID is what a transaction id may look like. The webhook's id is attacker-controlled until
 // the headers are checked and is used in a credentialed request path, so anything else is refused.

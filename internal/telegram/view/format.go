@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"vpn-control-bot/internal/i18n"
 )
 
 func Esc(s string) string { return html.EscapeString(s) }
@@ -60,9 +62,10 @@ func CurrencyHints() []string {
 	return []string{code}
 }
 
-// Money formats an amount in the current currency Russian-style:
-// "1 234,50 ₽", whole amounts without a fraction.
-func Money(v float64) string {
+// Money formats an amount in the current currency using the language's
+// separators (fmt.decimal, fmt.group): "1 234,50 ₽" in ru, "1,234.50 ₽" in en;
+// whole amounts have no fraction.
+func Money(loc i18n.Localizer, v float64) string {
 	cur := suffix()
 	sign := ""
 	if v < 0 {
@@ -73,35 +76,35 @@ func Money(v float64) string {
 	var b strings.Builder
 	for i, r := range whole {
 		if i > 0 && (len(whole)-i)%3 == 0 {
-			b.WriteRune(' ')
+			b.WriteString(loc.T("fmt.group"))
 		}
 		b.WriteRune(r)
 	}
 	if frac := cents % 100; frac != 0 {
-		return fmt.Sprintf("%s%s,%02d %s", sign, b.String(), frac, cur)
+		return fmt.Sprintf("%s%s%s%02d %s", sign, b.String(), loc.T("fmt.decimal"), frac, cur)
 	}
 	return sign + b.String() + " " + cur
 }
 
 const unlimitedYear = 2090 // vpn-control's "never expires" dates
 
-func Date(t *time.Time) string {
+func Date(loc i18n.Localizer, t *time.Time) string {
 	switch {
 	case t == nil:
 		return "—"
 	case t.Year() >= unlimitedYear:
 		return "∞"
 	}
-	return t.Format("02.01.2006")
+	return t.Format(loc.T("fmt.date"))
 }
 
-func Bytes(n int64) string {
+func Bytes(loc i18n.Localizer, n int64) string {
 	const gb, mb = 1 << 30, 1 << 20
 	switch {
 	case n <= 0:
 		return "∞"
 	case n >= gb:
-		return strings.TrimSuffix(fmt.Sprintf("%.1f", float64(n)/gb), ".0") + " ГБ"
+		return strings.TrimSuffix(fmt.Sprintf("%.1f", float64(n)/gb), ".0") + " " + loc.T("unit.gb")
 	}
-	return strings.TrimSuffix(fmt.Sprintf("%.1f", float64(n)/mb), ".0") + " МБ"
+	return strings.TrimSuffix(fmt.Sprintf("%.1f", float64(n)/mb), ".0") + " " + loc.T("unit.mb")
 }

@@ -50,38 +50,38 @@ func has(list []string, v string) bool {
 
 func TestSubscriptionsPaging(t *testing.T) {
 	p := manySubs(20) // 8 per page → 3 pages
-	first := buttons(Subscriptions(p, 0, now))
+	first := buttons(Subscriptions(ru, p, 0, now))
 	if !has(first, CbSub+"1") || has(first, CbSub+"9") || !has(first, CbSubsPage+"1") || has(first, CbSubsPage+"-1") {
 		t.Fatalf("page 0: %v", first)
 	}
-	mid := Subscriptions(p, 1, now)
+	mid := Subscriptions(ru, p, 1, now)
 	b := buttons(mid)
 	if !has(b, CbSub+"9") || !has(b, CbSubsPage+"0") || !has(b, CbSubsPage+"2") || !strings.Contains(mid.Text, "2 из 3") {
 		t.Fatalf("page 1: %v\n%s", b, mid.Text)
 	}
-	last := buttons(Subscriptions(p, 99, now)) // clamps to the last page
+	last := buttons(Subscriptions(ru, p, 99, now)) // clamps to the last page
 	if !has(last, CbSub+"20") || has(last, CbSubsPage+"3") {
 		t.Fatalf("page 99: %v", last)
 	}
-	if one := buttons(Subscriptions(manySubs(3), 0, now)); has(one, CbSubsPage+"1") {
+	if one := buttons(Subscriptions(ru, manySubs(3), 0, now)); has(one, CbSubsPage+"1") {
 		t.Fatalf("single page has nav: %v", one)
 	}
 }
 
 func TestTariffsPaging(t *testing.T) {
 	ts := manyTariffs(12) // 5 per page → 3 pages
-	first := Tariffs(ts, 0, links)
+	first := Tariffs(ru, ts, 0, links)
 	if b := buttons(first); !has(b, CbTariffsPage+"1") || has(b, CbTariffsPage+"-1") || !strings.Contains(first.Text, "Тариф 1") || strings.Contains(first.Text, "Тариф 6") {
 		t.Fatalf("page 0: %v\n%s", b, first.Text)
 	}
-	if b := buttons(Tariffs(ts, 2, links)); !has(b, CbTariffsPage+"1") || has(b, CbTariffsPage+"3") {
+	if b := buttons(Tariffs(ru, ts, 2, links)); !has(b, CbTariffsPage+"1") || has(b, CbTariffsPage+"3") {
 		t.Fatalf("page 2: %v", b)
 	}
 }
 
 // Tariffs are picked only in the WebApp: the bot's catalog has no pick buttons.
 func TestTariffsHaveNoPickButtons(t *testing.T) {
-	for _, b := range buttons(Tariffs(manyTariffs(3), 0, links)) {
+	for _, b := range buttons(Tariffs(ru, manyTariffs(3), 0, links)) {
 		if strings.HasPrefix(b, "t:") {
 			t.Fatalf("pick button %q in the bot", b)
 		}
@@ -89,7 +89,7 @@ func TestTariffsHaveNoPickButtons(t *testing.T) {
 }
 
 func TestSubscriptionBackGoesToItsPage(t *testing.T) {
-	s, _ := Subscription(manySubs(20), 17, links, now)
+	s, _ := Subscription(ru, manySubs(20), 17, links, now)
 	if b := buttons(s); !has(b, CbSubsPage+"2") {
 		t.Fatalf("back button: %v", b)
 	}
@@ -99,13 +99,13 @@ func TestSubscriptionBackGoesToItsPage(t *testing.T) {
 func TestScreensFitTelegramLimit(t *testing.T) {
 	p := manySubs(200)
 	for page := 0; page < 25; page++ {
-		check(t, fmt.Sprintf("subscriptions %d", page), Subscriptions(p, page, now))
+		check(t, fmt.Sprintf("subscriptions %d", page), Subscriptions(ru, p, page, now))
 	}
-	s, _ := Subscription(p, 1, links, now)
+	s, _ := Subscription(ru, p, 1, links, now)
 	check(t, "subscription", s)
 	ts := manyTariffs(50)
 	for page := 0; page < 10; page++ {
-		check(t, fmt.Sprintf("tariffs %d", page), Tariffs(ts, page, links))
+		check(t, fmt.Sprintf("tariffs %d", page), Tariffs(ru, ts, page, links))
 	}
 }
 

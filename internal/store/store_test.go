@@ -134,3 +134,30 @@ func TestOrdersProviderColumns(t *testing.T) {
 		t.Fatalf("provider columns: %v", err)
 	}
 }
+
+func TestLang(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(filepath.Join(t.TempDir(), "bot.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if got, err := s.Lang(ctx, 7); err != nil || got != "" {
+		t.Fatalf("unknown user: got %q, %v", got, err)
+	}
+	if err := s.SetLang(ctx, 7, "ru"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetLang(ctx, 7, ""); err != nil { // empty is ignored
+		t.Fatal(err)
+	}
+	if got, _ := s.Lang(ctx, 7); got != "ru" {
+		t.Fatalf("got %q, want ru", got)
+	}
+	if err := s.SetLang(ctx, 7, "en"); err != nil { // user switched Telegram language
+		t.Fatal(err)
+	}
+	if got, _ := s.Lang(ctx, 7); got != "en" {
+		t.Fatalf("got %q, want en", got)
+	}
+}

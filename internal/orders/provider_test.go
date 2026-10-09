@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"vpn-control-bot/internal/i18n"
 	"vpn-control-bot/internal/payments"
 	"vpn-control-bot/internal/store"
 	"vpn-control-bot/internal/vpnctl"
@@ -42,8 +43,12 @@ func TestCreateWithProvider(t *testing.T) {
 		o.PayAmount != 800 || o.PayCurrency != "RUB" || o.ToPay != 800 {
 		t.Fatalf("%+v", o)
 	}
-	if len(fp.Invoices) != 1 || fp.Invoices[0].Amount != 800 || fp.Invoices[0].OrderID != o.ID || fp.Invoices[0].ExpiresIn != 48*time.Hour || fp.Invoices[0].Title != o.Title {
-		t.Fatalf("invoice request %+v", fp.Invoices)
+	if len(fp.Invoices) != 1 || fp.Invoices[0].Amount != 800 || fp.Invoices[0].OrderID != o.ID || fp.Invoices[0].ExpiresIn != 48*time.Hour || fp.Invoices[0].Title != "Renewal of “Дом” · 3 mo." {
+		t.Fatalf("invoice request (English without a payer's language) %+v", fp.Invoices)
+	}
+	ru := i18n.NewContext(context.Background(), i18n.Default.For("ru"))
+	if _, err := s.CreateWith(ru, c, 77, renew3, "fake"); err != nil || len(fp.Invoices) != 2 || fp.Invoices[1].Title != "Продление «Дом» · 3 мес." {
+		t.Fatalf("the invoice title is in the payer's language: %v %+v", err, fp.Invoices)
 	}
 	got, err := s.Get(context.Background(), o.ID)
 	if err != nil || got.ExternalID != "ext-1" || got.Status != StatusAwaitingPayment {
@@ -203,8 +208,15 @@ func TestPaidNeedsReview(t *testing.T) {
 			if len(f.Payments) != 0 {
 				t.Fatal("a doubtful payment must not reach the panel")
 			}
-			if len(sp.cards) != 1 || sp.cards[0].Status != StatusPendingReview || !strings.Contains(got.Comment, "fake") {
+			en, ru := i18n.Default.For("en").Text(got.Comment), i18n.Default.For("ru").Text(got.Comment)
+			if len(sp.cards) != 1 || sp.cards[0].Status != StatusPendingReview || !strings.HasPrefix(en, "fake: ") || !strings.HasPrefix(ru, "fake: ") {
 				t.Errorf("an admin card explaining it: cards=%d comment=%q", len(sp.cards), got.Comment)
+			}
+			if name == "review flag" && (!strings.Contains(en, "wrong amount") || !strings.Contains(ru, "неверной сумме")) {
+				t.Errorf("review note: en=%q ru=%q", en, ru)
+			}
+			if name == "less money" && (!strings.Contains(en, "didn’t match") || !strings.Contains(ru, "не совпала") || !strings.Contains(en, "500")) {
+				t.Errorf("mismatch note: en=%q ru=%q", en, ru)
 			}
 			if name == "less money" && (got.Received == nil || *got.Received != 500) {
 				t.Errorf("received %v", got.Received)
@@ -269,8 +281,15 @@ func TestPaidUnmatchedAlertsAdmin(t *testing.T) {
 			if _, err := s.Paid(context.Background(), ev); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("want ErrNotFound, got %v", err)
 			}
-			if len(sp.alerts) != 1 || !strings.Contains(sp.alerts[0], ev.Provider) || !strings.Contains(sp.alerts[0], "123.45") {
-				t.Fatalf("want one alert naming the provider and amount: %q", sp.alerts)
+			if len(sp.alerts) != 1 || sp.alerts[0].Key != "alert.unmatched_payment" || sp.alerts[0].Args[0] != ev.Provider {
+				t.Fatalf("want one unmatched-payment alert naming the provider: %+v", sp.alerts)
+			}
+			en, ru := i18n.Default.For("en").Render(sp.alerts[0]), i18n.Default.For("ru").Render(sp.alerts[0])
+			if !strings.Contains(en, "couldn’t be matched") || !strings.Contains(en, "123.45") || !strings.Contains(en, ev.Provider) {
+				t.Errorf("en alert: %q", en)
+			}
+			if !strings.Contains(ru, "не удалось сопоставить") || !strings.Contains(ru, "123.45") || !strings.Contains(ru, "платёжном сервисе") {
+				t.Errorf("ru alert: %q", ru)
 			}
 			if len(f.Payments) != 0 {
 				t.Errorf("nothing may be applied: %+v", f.Payments)
@@ -292,7 +311,7 @@ func TestPaidUnmatchedAlertsAdmin(t *testing.T) {
 			t.Fatal(err)
 		}
 		if len(sp.alerts) != 0 {
-			t.Errorf("unexpected alerts: %q", sp.alerts)
+			t.Errorf("unexpected alerts: %+v", sp.alerts)
 		}
 	})
 }

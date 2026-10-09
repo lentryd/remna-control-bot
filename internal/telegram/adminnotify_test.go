@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"testing"
 
+	"vpn-control-bot/internal/i18n"
 	"vpn-control-bot/internal/orders"
 	"vpn-control-bot/internal/store"
 	"vpn-control-bot/internal/vpnctl"
@@ -23,6 +25,9 @@ type fakeTelegram struct {
 	mu    sync.Mutex
 	calls []string // "method chat_id"
 
+	texts    map[int64][]string // chat -> text of each sendMessage
+	commands []setCmd           // every setMyCommands call
+
 	editFail map[int64]string // chat -> "code description" for editMessageText
 }
 
@@ -32,6 +37,23 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	chat, _ := strconv.ParseInt(r.FormValue("chat_id"), 10, 64)
 	f.mu.Lock()
 	f.calls = append(f.calls, method+" "+strconv.FormatInt(chat, 10))
+	if method == "sendMessage" {
+		if f.texts == nil {
+			f.texts = map[int64][]string{}
+		}
+		f.texts[chat] = append(f.texts[chat], r.FormValue("text")+"\n"+r.FormValue("reply_markup"))
+	}
+	if method == "setMyCommands" {
+		var cmds []struct {
+			Description string `json:"description"`
+		}
+		json.Unmarshal([]byte(r.FormValue("commands")), &cmds)
+		c := setCmd{LanguageCode: r.FormValue("language_code")}
+		for _, x := range cmds {
+			c.Descriptions = append(c.Descriptions, x.Description)
+		}
+		f.commands = append(f.commands, c)
+	}
 	f.mu.Unlock()
 	f.mu.Lock()
 	fail, failing := f.editFail[chat]
@@ -53,6 +75,16 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"ok":true,"result":true}`)
 	}
 }
+
+type setCmd struct {
+	LanguageCode string
+	Descriptions []string
+}
+
+type memLangs map[int64]string
+
+func (m memLangs) SetLang(_ context.Context, id int64, l string) error { m[id] = l; return nil }
+func (m memLangs) Lang(_ context.Context, id int64) (string, error)    { return m[id], nil }
 
 func (f *fakeTelegram) count(prefix string) int {
 	f.mu.Lock()
@@ -165,5 +197,57 @@ func TestCardNon403FailureKeepsAdminReachable(t *testing.T) {
 	}
 	if u := b.Unreachable(); len(u) != 0 {
 		t.Fatalf("a 5xx is not a reason to mark the admin unreachable: %v", u)
+	}
+}
+
+func TestCardIsLocalizedPerAdmin(t *testing.T) {
+	b, ft, _ := newCardBot(t)
+	b.Langs = memLangs{1: "ru"} // admin 3 has no stored language
+	o := orders.Order{ID: "55555555-6666", CustomerID: 5, ChatID: 77, Title: "t", Price: 10, ToPay: 10, Status: orders.StatusPendingReview}
+	b.Card(context.Background(), o)
+	ft.mu.Lock()
+	defer ft.mu.Unlock()
+	ru, en := ft.texts[1], ft.texts[3]
+	if len(ru) != 1 || len(en) != 1 {
+		t.Fatalf("each admin gets one card: %v", ft.texts)
+	}
+	if !strings.Contains(ru[0], "Ждёт решения") || strings.Contains(ru[0], "Awaiting a decision") {
+		t.Errorf("admin 1 must get a Russian card: %q", ru[0])
+	}
+	if !strings.Contains(en[0], "Awaiting a decision") || strings.Contains(en[0], "Ждёт решения") {
+		t.Errorf("admin 3 must get an English card: %q", en[0])
+	}
+}
+
+func TestNotifyAdminsLocalizedButton(t *testing.T) {
+	b, ft, _ := newCardBot(t)
+	b.Langs = memLangs{1: "ru"}
+	b.NotifyAdmins(context.Background(), i18n.M("admin.no_methods"), "/admin/methods")
+	ft.mu.Lock()
+	defer ft.mu.Unlock()
+	ru, en := i18n.Default.For("ru"), i18n.Default.For("")
+	if got := ft.texts[1][0]; !strings.Contains(got, ru.T("btn.open_admin")) || !strings.Contains(got, "Способы оплаты не настроены") {
+		t.Errorf("admin 1 text and button must be Russian: %q", got)
+	}
+	if got := ft.texts[3][0]; !strings.Contains(got, en.T("btn.open_admin")) || !strings.Contains(got, "Payment methods aren’t set up") {
+		t.Errorf("admin 3 text and button must be English: %q", got)
+	}
+}
+
+func TestAlertIsLocalizedPerAdmin(t *testing.T) {
+	b, ft, _ := newCardBot(t)
+	b.Langs = memLangs{1: "ru"} // admin 3 has no stored language
+	err := b.Alert(context.Background(), orders.Alert{Key: "alert.unmatched_payment", Args: []any{"pal24", "ord-1", "inv-9", "123.45", "RUB"}})
+	if err == nil || !strings.Contains(err.Error(), "admin 2") {
+		t.Errorf("admin 2 never started the bot: %v", err)
+	}
+	ft.mu.Lock()
+	defer ft.mu.Unlock()
+	ru, en := ft.texts[1], ft.texts[3]
+	if len(ru) != 1 || !strings.Contains(ru[0], "Платёж из сервиса pal24 не удалось сопоставить") || !strings.Contains(ru[0], "123.45 RUB") {
+		t.Errorf("admin 1 must get a Russian alert: %q", ru)
+	}
+	if len(en) != 1 || !strings.Contains(en[0], "A payment from pal24 couldn’t be matched") || !strings.Contains(en[0], "inv-9") {
+		t.Errorf("admin 3 must get an English alert: %q", en)
 	}
 }

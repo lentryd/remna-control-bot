@@ -3,6 +3,8 @@ package payments
 import (
 	"slices"
 	"testing"
+
+	"vpn-control-bot/internal/i18n"
 )
 
 func TestRegistry(t *testing.T) {
@@ -60,5 +62,20 @@ func TestFakeInvoiceCurrency(t *testing.T) {
 	f.Currency = "XTR"
 	if inv, _ = f.Invoice(t.Context(), InvoiceRequest{Currency: "USD", OrderID: "o", Amount: 1}); inv.Currency != "XTR" {
 		t.Errorf("Fake.Currency overrides: %+v", inv)
+	}
+}
+
+// TestTitlesHaveCatalogEntries: every provider Build can register has a name in each language (payment.<id>);
+// its Title() is only the fallback.
+func TestTitlesHaveCatalogEntries(t *testing.T) {
+	for _, p := range []Provider{&YooKassa{}, &CryptoBot{}, &Heleket{}, &Pal24{}, &Platega{}, &Stars{}} {
+		if p.Title() == "" {
+			t.Errorf("%s: empty fallback title", p.ID())
+		}
+		for _, lang := range []string{"en", "ru"} {
+			if loc := i18n.Default.For(lang); !loc.Has("payment."+p.ID()) || loc.T("payment."+p.ID()) == "" {
+				t.Errorf("%s: no payment.%s", lang, p.ID())
+			}
+		}
 	}
 }

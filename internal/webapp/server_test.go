@@ -3,6 +3,7 @@ package webapp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http/httptest"
@@ -129,5 +130,58 @@ func TestTariffsAndStatic(t *testing.T) {
 	}
 	if code, _ := get(t, d, "/other", ""); code != 404 {
 		t.Fatalf("outside path: %d", code)
+	}
+}
+
+type fakeLangs struct {
+	got  map[int64]string
+	fail bool
+}
+
+func (f *fakeLangs) SetLang(_ context.Context, id int64, lang string) error {
+	if f.got == nil {
+		f.got = map[int64]string{}
+	}
+	f.got[id] = lang
+	if f.fail {
+		return errors.New("db down")
+	}
+	return nil
+}
+
+func tmaLang(id int64, lang string) string {
+	v := url.Values{}
+	v.Set("auth_date", strconv.FormatInt(time.Now().Unix(), 10))
+	v.Set("user", `{"id":`+strconv.FormatInt(id, 10)+`,"first_name":"Ann","language_code":"`+lang+`"}`)
+	return "tma " + initdata.Sign(v, token)
+}
+
+func TestAuthRemembersLanguage(t *testing.T) {
+	f := vpnctl.NewFake()
+	f.Add(vpnctl.Customer{ID: 5, Name: "Ann", TelegramID: ptr(int64(77))})
+	d := app(f)
+	l := &fakeLangs{}
+	d.Langs = l
+	if code, _ := get(t, d, "/bot/api/me", tmaLang(77, "ru")); code != 200 || l.got[77] != "ru" {
+		t.Fatalf("code=%d got=%v", code, l.got)
+	}
+	get(t, d, "/bot/api/me", tmaLang(78, "xx-YY")) // unsupported: stored as the base language
+	if l.got[78] != "en" {
+		t.Fatalf("got=%v", l.got)
+	}
+	l.got = map[int64]string{77: "ru"} // no language_code: nothing is stored, the remembered one survives
+	if code, _ := get(t, d, "/bot/api/me", tma(77)); code != 200 || l.got[77] != "ru" || len(l.got) != 1 {
+		t.Fatalf("code=%d got=%v", code, l.got)
+	}
+	l.got = nil
+	if code, _ := get(t, d, "/bot/api/me", "tma bad"); code != 401 || len(l.got) != 0 {
+		t.Fatalf("code=%d got=%v", code, l.got)
+	}
+	if code, _ := get(t, d, "/bot/api/me", ""); code != 401 || len(l.got) != 0 {
+		t.Fatalf("code=%d got=%v", code, l.got)
+	}
+	l.fail = true // failing to remember never fails the request
+	if code, _ := get(t, d, "/bot/api/me", tmaLang(77, "ru")); code != 200 {
+		t.Fatalf("code=%d", code)
 	}
 }

@@ -33,7 +33,7 @@ var (
 )
 
 func (h *Heleket) ID() string    { return "heleket" }
-func (h *Heleket) Title() string { return "Криптовалюта (Heleket)" }
+func (h *Heleket) Title() string { return "Crypto (Heleket)" }
 
 // hkSign is hex(md5(base64(body) + api key)).
 func hkSign(signed []byte, key string) string {

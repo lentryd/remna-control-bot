@@ -2,7 +2,11 @@
 // It is pure: no network, so screens are covered by golden tests.
 package view
 
-import "github.com/go-telegram/bot/models"
+import (
+	"github.com/go-telegram/bot/models"
+
+	"vpn-control-bot/internal/i18n"
+)
 
 type Screen struct {
 	Text     string
@@ -47,4 +51,4 @@ func kb(rows ...[]btn) *models.InlineKeyboardMarkup {
 
 func cb(text, data string) btn { return btn{Text: text, CallbackData: data} }
 
-func back(to string) []btn { return []btn{cb(BtnBack, to)} }
+func back(loc i18n.Localizer, to string) []btn { return []btn{cb(loc.T("btn.back"), to)} }

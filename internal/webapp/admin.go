@@ -12,6 +12,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
+	"vpn-control-bot/internal/i18n"
 	"vpn-control-bot/internal/orders"
 	"vpn-control-bot/internal/payments"
 	"vpn-control-bot/internal/settings"
@@ -74,11 +75,11 @@ type adminOrderView struct {
 	PayCurrency  string   `json:"pay_currency,omitempty"`
 }
 
-func adminOrderJSON(o orders.Order, customerName string) adminOrderView {
+func adminOrderJSON(l i18n.Localizer, o orders.Order, customerName string) adminOrderView {
 	return adminOrderView{
-		orderView: orderJSON(o), CustomerID: o.CustomerID, CustomerName: customerName, TelegramID: o.ChatID,
-		Comment: o.Comment, ReceiptKind: string(o.ReceiptKind), Received: o.Received, Admin: o.Admin,
-		Decision: string(o.Decision), Error: o.Error, ExternalID: o.ExternalID, PayAmount: o.PayAmount, PayCurrency: o.PayCurrency,
+		orderView: orderJSON(l, o), CustomerID: o.CustomerID, CustomerName: customerName, TelegramID: o.ChatID,
+		Comment: l.Text(o.Comment), ReceiptKind: string(o.ReceiptKind), Received: o.Received, Admin: o.Admin,
+		Decision: string(o.Decision), Error: l.Text(o.Error), ExternalID: o.ExternalID, PayAmount: o.PayAmount, PayCurrency: o.PayCurrency,
 	}
 }
 
@@ -98,9 +99,10 @@ func (s *server) adminListOrders(c *fiber.Ctx) error {
 	if err != nil {
 		return s.orderErr(c, err)
 	}
+	l := loc(c)
 	out := make([]adminOrderView, 0, len(list))
 	for _, o := range list {
-		out = append(out, adminOrderJSON(o, ""))
+		out = append(out, adminOrderJSON(l, o, ""))
 	}
 	unreachable := []int64{}
 	if s.Unreachable != nil {
@@ -124,7 +126,7 @@ func (s *server) adminOrder(fn func(c *fiber.Ctx, id, admin string) (*orders.Ord
 		if cu, err := s.API.GetCustomer(c.UserContext(), o.CustomerID); err == nil {
 			name = cu.Name
 		}
-		return c.JSON(adminOrderJSON(*o, name))
+		return c.JSON(adminOrderJSON(loc(c), *o, name))
 	}
 }
 

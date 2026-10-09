@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"vpn-control-bot/internal/i18n"
 	"vpn-control-bot/internal/vpnctl"
 )
 
@@ -159,23 +160,22 @@ func failText(o *Order, err error) string {
 		return errText(err)
 	}
 	if o.PanelPaymentID == 0 {
-		return fmt.Sprintf("результат неизвестен — проверьте в панели платёж «%s» перед повтором: %s", o.Note(), errText(err))
+		return i18n.M("alert.result_unknown", o.Note(), errText(err)).String()
 	}
-	return fmt.Sprintf("результат неизвестен — проверьте в панели %s (платёж «%s» записан) перед повтором: %s",
-		o.target(), o.Note(), errText(err))
+	return i18n.M("alert.result_unknown_recorded", o.target(), o.Note(), errText(err)).String()
 }
 
 // target names what the order changes in the panel.
-func (o *Order) target() string {
+func (o *Order) target() i18n.Msg {
 	switch o.Kind {
 	case KindSubscribe:
-		return fmt.Sprintf("подписки клиента #%d", o.CustomerID)
+		return i18n.M("target.subscribe", o.CustomerID)
 	case KindAddon:
-		return fmt.Sprintf("доп. услуги подписки #%d", o.ItemID)
+		return i18n.M("target.addon", o.ItemID)
 	case KindChangeTariff:
-		return fmt.Sprintf("тариф %s #%d", o.ItemKind, o.ItemID)
+		return i18n.M("target.change_tariff", o.ItemKind, o.ItemID)
 	}
-	return fmt.Sprintf("срок %s #%d", o.ItemKind, o.ItemID)
+	return i18n.M("target.term", o.ItemKind, o.ItemID)
 }
 
 // staleApproving is how long an approval may run before it is presumed dead.
@@ -207,8 +207,7 @@ func (s *Service) failStaleApprovals(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		msg := fmt.Sprintf("результат неизвестен — подтверждение прервалось; проверьте в панели платёж «%s» и %s перед повтором",
-			o.Note(), o.target())
+		msg := i18n.M("alert.approval_interrupted", o.Note(), o.target()).String()
 		if err := s.move(ctx, id, []Status{StatusApproving}, StatusFailed, map[string]any{"error": msg}); err != nil {
 			if errors.Is(err, ErrStateChanged) {
 				continue // finished meanwhile

@@ -15,7 +15,7 @@ import (
 )
 
 func (b *Bot) PayScreen(ctx context.Context, o orders.Order, details string) error {
-	s := view.PayScreen(o, details)
+	s := view.PayScreen(b.locFor(ctx, o.ChatID), o, details)
 	_, err := b.tg.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: o.ChatID, Text: s.Text, ParseMode: models.ParseModeHTML, ReplyMarkup: s.Keyboard})
 	return err
 }
@@ -32,13 +32,14 @@ func (b *Bot) adminCustomer(ctx context.Context, o orders.Order) view.AdminCusto
 }
 
 func (b *Bot) Customer(ctx context.Context, o orders.Order) error {
-	s := view.OrderNotice(o)
+	s := view.OrderNotice(b.locFor(ctx, o.ChatID), o)
 	_, err := b.tg.SendMessage(ctx, &tgbot.SendMessageParams{ChatID: o.ChatID, Text: s.Text, ParseMode: models.ParseModeHTML, ReplyMarkup: s.Keyboard})
 	return err
 }
 
 // onReceipt takes a receipt when the chat waits for one; false: it doesn't.
 func (b *Bot) onReceipt(ctx context.Context, m *models.Message) bool {
+	loc := b.loc(ctx)
 	if b.Orders == nil {
 		return false
 	}
@@ -58,20 +59,21 @@ func (b *Bot) onReceipt(ctx context.Context, m *models.Message) bool {
 	case errors.Is(err, orders.ErrNotFound):
 		return false
 	case errors.Is(err, orders.ErrBadRequest):
-		b.show(ctx, m.Chat.ID, 0, view.Plain(view.TxtReceiptHint))
+		b.show(ctx, m.Chat.ID, 0, view.Plain(loc, "msg.receipt_hint"))
 	case errors.Is(err, orders.ErrStateChanged):
-		b.show(ctx, m.Chat.ID, 0, view.Plain(view.TxtOrderDone))
+		b.show(ctx, m.Chat.ID, 0, view.Plain(loc, "msg.order_done"))
 	case err != nil:
 		b.Log.Error("receipt", "err", err)
-		b.show(ctx, m.Chat.ID, 0, view.Plain(view.TxtDown))
+		b.show(ctx, m.Chat.ID, 0, view.Plain(loc, "msg.down"))
 	default:
-		b.show(ctx, m.Chat.ID, 0, view.Plain(view.TxtReceiptSent))
+		b.show(ctx, m.Chat.ID, 0, view.Plain(loc, "msg.receipt_sent"))
 	}
 	return true
 }
 
 // renewPeriods offers the subscription tariff's periods (or 1/3/6/12 months).
 func (b *Bot) renewPeriods(ctx context.Context, chatID int64, msgID int, c *vpnctl.Customer, subID int) {
+	loc := b.loc(ctx)
 	var sub *vpnctl.Subscription
 	for i := range c.Subscriptions {
 		if c.Subscriptions[i].ID == subID {
@@ -105,15 +107,16 @@ func (b *Bot) renewPeriods(ctx context.Context, chatID int64, msgID int, c *vpnc
 		opts = append(opts, t)
 	}
 	if len(opts) == 0 {
-		b.show(ctx, chatID, msgID, view.Notice(view.TxtDown))
+		b.show(ctx, chatID, msgID, view.Notice(loc, loc.T("msg.down")))
 		return
 	}
-	b.show(ctx, chatID, msgID, view.RenewPeriods(subID, sub.Title, opts))
+	b.show(ctx, chatID, msgID, view.RenewPeriods(loc, subID, sub.Title, opts))
 }
 
 const ordersPage = 10
 
 func (b *Bot) showOrders(ctx context.Context, chatID int64, msgID, customerID, page int) {
+	loc := b.loc(ctx)
 	list, total, err := b.Orders.List(ctx, customerID, ordersPage, page*ordersPage)
 	if err == nil && len(list) == 0 && total > 0 && page > 0 { // a stale page past the end
 		page = (total - 1) / ordersPage
@@ -121,24 +124,25 @@ func (b *Bot) showOrders(ctx context.Context, chatID int64, msgID, customerID, p
 	}
 	if err != nil {
 		b.Log.Error("orders list", "err", err)
-		b.show(ctx, chatID, msgID, view.Notice(view.TxtDown))
+		b.show(ctx, chatID, msgID, view.Notice(loc, loc.T("msg.down")))
 		return
 	}
-	b.show(ctx, chatID, msgID, view.Orders(list, page, total))
+	b.show(ctx, chatID, msgID, view.Orders(loc, list, page, total))
 }
 
 // onOrderCallback: rp: pr: pb: pc: from the customer.
 func (b *Bot) onOrderCallback(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
+	loc := b.loc(ctx)
 	q := u.CallbackQuery
 	answer := &tgbot.AnswerCallbackQueryParams{CallbackQueryID: q.ID}
 	defer func() { b.tg.AnswerCallbackQuery(ctx, answer) }()
 	if b.Orders == nil {
-		answer.Text, answer.ShowAlert = view.TxtSoon, true
+		answer.Text, answer.ShowAlert = loc.T("msg.soon"), true
 		return
 	}
 	chatID, msgID := q.Message.Message.Chat.ID, q.Message.Message.ID
 	r, err := b.Access.Start(ctx, user(&q.From), "")
-	if s, done := b.outcome(r, err); done {
+	if s, done := b.outcome(loc, r, err); done {
 		b.show(ctx, chatID, msgID, s)
 		return
 	}
@@ -147,12 +151,12 @@ func (b *Bot) onOrderCallback(ctx context.Context, _ *tgbot.Bot, u *models.Updat
 		o, err := b.Orders.Create(ctx, c, chatID, orders.Request{Kind: orders.KindRenew, ItemKind: "subscription", ItemID: v[0], Months: v[1], Days: v[2]})
 		switch {
 		case errors.Is(err, orders.ErrManualOff):
-			answer.Text, answer.ShowAlert = view.TxtPayManualOff, true
+			answer.Text, answer.ShowAlert = loc.T("msg.pay_manual_off"), true
 		case err != nil:
 			b.Log.Error("create order", "err", err)
-			answer.Text, answer.ShowAlert = view.TxtDown, true
+			answer.Text, answer.ShowAlert = loc.T("msg.down"), true
 		default:
-			b.show(ctx, chatID, msgID, view.Confirm(*o, b.providerButtons()...))
+			b.show(ctx, chatID, msgID, view.Confirm(loc, *o, b.providerButtons()...))
 		}
 		return
 	}
@@ -160,12 +164,12 @@ func (b *Bot) onOrderCallback(ctx context.Context, _ *tgbot.Bot, u *models.Updat
 		o, err := b.Orders.Pay(ctx, c.ID, id, provider)
 		switch {
 		case errors.Is(err, orders.ErrStateChanged), errors.Is(err, orders.ErrNotFound), errors.Is(err, orders.ErrBadRequest):
-			answer.Text = view.TxtOrderDone
+			answer.Text = loc.T("msg.order_done")
 		case err != nil:
 			b.Log.Error("pay with provider", "provider", provider, "err", err)
-			answer.Text, answer.ShowAlert = view.TxtProviderDown, true
+			answer.Text, answer.ShowAlert = loc.T("msg.provider_down"), true
 		default:
-			b.show(ctx, chatID, msgID, view.ProviderPay(*o, b.Orders.Live().Providers.Title(provider)))
+			b.show(ctx, chatID, msgID, view.ProviderPay(loc, *o, b.Orders.Live().Providers.Title(provider)))
 		}
 		return
 	}
@@ -176,7 +180,7 @@ func (b *Bot) onOrderCallback(ctx context.Context, _ *tgbot.Bot, u *models.Updat
 			if err := b.Orders.Cancel(ctx, c.ID, id); err != nil {
 				return err
 			}
-			b.show(ctx, chatID, msgID, view.Plain("Заказ отменён."))
+			b.show(ctx, chatID, msgID, view.Plain(loc, "msg.order_cancelled"))
 			return nil
 		},
 	} {
@@ -187,10 +191,10 @@ func (b *Bot) onOrderCallback(ctx context.Context, _ *tgbot.Bot, u *models.Updat
 		err := act(id)
 		switch {
 		case errors.Is(err, orders.ErrStateChanged), errors.Is(err, orders.ErrNotFound):
-			answer.Text = view.TxtOrderDone
+			answer.Text = loc.T("msg.order_done")
 		case err != nil:
 			b.Log.Error("order action", "data", q.Data, "err", err)
-			answer.Text, answer.ShowAlert = view.TxtDown, true
+			answer.Text, answer.ShowAlert = loc.T("msg.down"), true
 		}
 		return
 	}
@@ -200,18 +204,19 @@ func (b *Bot) onOrderCallback(ctx context.Context, _ *tgbot.Bot, u *models.Updat
 func (b *Bot) InvoiceLink(ctx context.Context, title, description, payload string, stars int) (string, error) {
 	return b.tg.CreateInvoiceLink(ctx, &tgbot.CreateInvoiceLinkParams{
 		Title: title, Description: description, Payload: payload, Currency: "XTR",
-		Prices: []models.LabeledPrice{{Label: "Оплата", Amount: stars}},
+		Prices: []models.LabeledPrice{{Label: b.loc(ctx).T("invoice.label"), Amount: stars}},
 	})
 }
 
 // onPreCheckout answers Telegram's "may this payment go ahead?" within its
 // 10 s limit: only for an order of this very user that still waits for it.
 func (b *Bot) onPreCheckout(ctx context.Context, q *models.PreCheckoutQuery) {
+	loc := b.loc(ctx)
 	ans := &tgbot.AnswerPreCheckoutQueryParams{PreCheckoutQueryID: q.ID, OK: true}
 	if b.Orders == nil || q.Currency != "XTR" {
-		ans.OK, ans.ErrorMessage = false, "Оплата недоступна."
+		ans.OK, ans.ErrorMessage = false, loc.T("invoice.unavailable")
 	} else if err := b.Orders.CheckInvoice(ctx, "stars", q.InvoicePayload, q.From.ID, float64(q.TotalAmount), q.Currency); err != nil {
-		ans.OK, ans.ErrorMessage = false, "Этот счёт больше недействителен. Создайте заказ заново."
+		ans.OK, ans.ErrorMessage = false, loc.T("invoice.stale")
 		b.Log.Warn("pre-checkout refused", "payload", q.InvoicePayload, "user", q.From.ID, "err", err)
 	}
 	if _, err := b.tg.AnswerPreCheckoutQuery(ctx, ans); err != nil {
