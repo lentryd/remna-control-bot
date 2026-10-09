@@ -17,6 +17,7 @@ import (
 	"vpn-control-bot/internal/orders"
 	"vpn-control-bot/internal/payments"
 	"vpn-control-bot/internal/refcode"
+	"vpn-control-bot/internal/settings"
 	"vpn-control-bot/internal/store"
 	"vpn-control-bot/internal/telegram"
 	"vpn-control-bot/internal/telegram/view"
@@ -49,93 +50,84 @@ func run() error {
 		return err
 	}
 	defer st.Close()
+	set, err := settings.Open(ctx, st.DB(), cfg.RefSecret)
+	if err != nil {
+		return err
+	}
+	for _, k := range set.Lost() {
+		log.Warn("stored secrets cannot be decrypted (REF_SECRET changed?): re-enter them in the admin settings", "section", k)
+	}
 
 	api := vpnctl.New(cfg.VpnctlURL, cfg.VpnctlToken)
-	cur := &currency.Source{API: api, Fallback: cfg.BaseCurrency, Log: log, OnChange: view.SetCurrency}
+	cur := &currency.Source{API: api, Log: log, OnChange: view.SetCurrency}
+	cur.SetFallback(fallbackCurrency(set.Snapshot()))
 	base := cur.Get(ctx) // resolves once at startup: with the panel down the fallback is used and a warning is logged
 	codec := refcode.New(cfg.RefSecret)
-	acc := access.New(api, codec, cfg.Mode, st)
+	mode := func() config.Mode { return set.Snapshot().General().Mode }
+	payMode := func() config.PayMode { return set.Snapshot().General().PayMode }
+	acc := access.New(api, codec, mode, st)
 
-	svc := &orders.Service{
-		DB: st.DB(), Chats: st, API: api, PayMode: cfg.PayMode, Manual: cfg.ManualEnabled(),
-		Details: cfg.ManualPayDetails, TTL: cfg.OrderTTL, Now: time.Now, Log: log,
-	}
+	svc := &orders.Service{DB: st.DB(), Chats: st, API: api, Now: time.Now, Log: log}
 	svc.BaseCurrency = cur.Get
-	// Provider invoices need a confirmed currency: the panel answered, or the operator set BASE_CURRENCY explicitly.
-	svc.CurrencyKnown = func() bool { return cur.Known() || cfg.BaseCurrencySet }
-	var stars *payments.Stars
-	var provs []payments.Provider
-	pc := cfg.Pay
-	if pc.YooKassaOn() {
-		provs = append(provs, &payments.YooKassa{ShopID: pc.YooKassaShopID, Secret: pc.YooKassaSecret, ReturnURL: pc.YooKassaReturnURL,
-			ReceiptEmail: pc.YooKassaReceiptEmail, VAT: pc.YooKassaVAT})
+	// Provider invoices need a confirmed currency: the panel answered, or the operator set one explicitly.
+	svc.CurrencyKnown = func() bool { return cur.Known() || set.Snapshot().General().BaseCurrency != "" }
+
+	var bot *telegram.Bot
+	starsLink := func(ctx context.Context, title, description, payload string, stars int) (string, error) {
+		return bot.InvoiceLink(ctx, title, description, payload, stars)
 	}
-	if pc.CryptoBotOn() {
-		provs = append(provs, &payments.CryptoBot{Token: pc.CryptoBotToken, Testnet: pc.CryptoBotTestnet, Assets: pc.CryptoBotAssets})
+	apply := func(snap settings.Snapshot) {
+		reg := payments.Build(payments.BuildInput{Settings: snap, PublicURL: cfg.PublicURL, WebAppURL: cfg.WebAppURL(), StarsLink: starsLink})
+		g, m := snap.General(), snap.Manual()
+		cur.SetFallback(fallbackCurrency(snap))
+		svc.SetLive(orders.Live{PayMode: g.PayMode, Manual: manualOn(cfg, m), Details: m.Details, TTL: g.OrderTTL(), Providers: reg})
+		log.Info("settings applied", "mode", g.Mode, "pay", g.PayMode, "manual", manualOn(cfg, m), "providers", reg.IDs())
+		if len(reg.IDs()) > 0 && !strings.HasPrefix(cfg.PublicURL, "https://") {
+			log.Warn("payment providers are on but PUBLIC_URL is not https: webhooks will not reach the bot", "url", cfg.PublicURL)
+		}
 	}
-	if pc.HeleketOn() {
-		provs = append(provs, &payments.Heleket{MerchantID: pc.HeleketMerchantID, APIKey: pc.HeleketAPIKey, ToCurrency: pc.HeleketToCurrency,
-			Network: pc.HeleketNetwork, CallbackURL: cfg.PublicURL + "/pay/heleket"})
+	apply(set.Snapshot())
+	set.OnChange(apply)
+	if len(svc.Live().Providers.IDs()) > 0 {
+		log.Info("payment providers invoice in the base currency", "currency", base, "providers", svc.Live().Providers.IDs())
 	}
-	if pc.Pal24On() {
-		provs = append(provs, &payments.Pal24{APIToken: pc.Pal24APIToken, ShopID: pc.Pal24ShopID, SignatureToken: pc.Pal24SignatureToken})
-	}
-	if pc.PlategaOn() {
-		provs = append(provs, &payments.Platega{MerchantID: pc.PlategaMerchantID, Secret: pc.PlategaSecret, PaymentMethod: pc.PlategaPaymentMethod,
-			APIVersion: pc.PlategaAPIVersion, ReturnURL: pc.PlategaReturnURL, FailedURL: pc.PlategaFailedURL})
-	}
-	if pc.StarsOn() {
-		stars = &payments.Stars{PerStar: pc.StarsRate}
-		provs = append(provs, stars)
-	}
-	svc.Providers = payments.NewRegistry(provs...)
-	if len(provs) > 0 {
-		log.Info("payment providers invoice in the base currency", "currency", base, "providers", svc.Providers.IDs())
-	}
-	unconfirmed := len(provs) > 0 && !svc.CurrencyKnown()
+	unconfirmed := len(svc.Live().Providers.IDs()) > 0 && !svc.CurrencyKnown()
 	if unconfirmed {
 		logCurrencyUnconfirmed(log, base)
 	}
-	if len(provs) > 0 && !strings.HasPrefix(cfg.PublicURL, "https://") {
-		log.Warn("payment providers are on but PUBLIC_URL is not https: webhooks will not reach the bot", "url", cfg.PublicURL)
-	}
-	bot, err := telegram.New(ctx, cfg.BotToken, telegram.Deps{
+
+	bot, err = telegram.New(ctx, cfg.BotToken, telegram.Deps{
 		Access: acc, API: api, Codec: codec, Orders: svc, Prompts: st, AdminChatID: cfg.AdminChatID, IsAdmin: cfg.IsAdmin,
-		WebAppURL: cfg.WebAppURL(), PayMode: cfg.PayMode, Log: log,
+		WebAppURL: cfg.WebAppURL(), PayMode: payMode, Log: log,
 	})
 	if err != nil {
 		return err
 	}
 	svc.Notify = bot
-	if stars != nil {
-		stars.Link = bot.InvoiceLink
-	}
-	if cfg.ManualEnabled() {
+	if svc.Live().Manual {
 		bot.CheckAdminChat(ctx)
 	}
 	app := webapp.New(webapp.Deps{
 		API: api, Codec: codec, BotToken: cfg.BotToken, BotUsername: bot.Username(),
-		Path: cfg.WebAppPath, PayMode: cfg.PayMode, Orders: svc, Currency: cur.Get, Static: web.Dist, Log: log,
+		Path: cfg.WebAppPath, PayMode: payMode, Orders: svc, Currency: cur.Get, Static: web.Dist, Log: log,
+		Settings: set, IsAdmin: cfg.IsAdmin, PublicURL: cfg.PublicURL, Receipts: bot,
 	})
 
 	errc := make(chan error, 1)
 	go func() { errc <- app.Listen(cfg.HTTPAddr) }()
 	go bot.Run(ctx)
-	if cfg.NotifyInterval > 0 {
-		n := &notify.Runner{
-			API: api, Store: st, Send: bot.SendNotice, Interval: cfg.NotifyInterval, Log: log,
-			Sweep: svc.ExpireStale,
-			Rules: notify.Rules{TrafficPct: cfg.TrafficAlertPct, RemindDays: cfg.RemindDays},
-		}
-		go n.Run(ctx)
-	} else {
-		go sweepLoop(ctx, svc, log)
+	n := &notify.Runner{
+		API: api, Store: st, Send: bot.SendNotice, Log: log,
+		Conf: func() notify.Conf {
+			g := set.Snapshot().General()
+			return notify.Conf{Interval: g.NotifyEvery(), Rules: notify.Rules{TrafficPct: g.TrafficAlertPct, RemindDays: g.RemindDescending()}}
+		},
 	}
-	if len(provs) > 0 {
-		go providerLoop(ctx, svc, log)
-	}
-	go currencyLoop(ctx, cur, log, len(provs) > 0, svc.CurrencyKnown, unconfirmed)
-	log.Info("started", "mode", cfg.Mode, "pay", cfg.PayMode, "manual", cfg.ManualEnabled(), "currency", base, "notify", cfg.NotifyInterval, "bot", "@"+bot.Username(), "webapp", cfg.WebAppURL(), "addr", cfg.HTTPAddr, "providers", svc.Providers.IDs())
+	go n.Run(ctx)
+	go sweepLoop(ctx, svc, log)
+	go providerLoop(ctx, svc, log)
+	go currencyLoop(ctx, cur, log, func() bool { return len(svc.Live().Providers.IDs()) > 0 }, svc.CurrencyKnown, unconfirmed)
+	log.Info("started", "currency", base, "bot", "@"+bot.Username(), "webapp", cfg.WebAppURL(), "addr", cfg.HTTPAddr)
 
 	select {
 	case <-ctx.Done():
@@ -146,7 +138,20 @@ func run() error {
 	return app.Shutdown()
 }
 
-// sweepLoop expires stale orders when the notifier (which normally does it) is off.
+// manualOn: transfers need a text to show, and (for now) a chat to send receipts to and someone to decide.
+func manualOn(cfg config.Config, m settings.Manual) bool {
+	return m.Active() && cfg.AdminChatID != 0 && len(cfg.AdminIDs) > 0
+}
+
+// fallbackCurrency is what is shown while the panel cannot say: the operator's explicit choice, else RUB.
+func fallbackCurrency(s settings.Snapshot) string {
+	if c := s.General().BaseCurrency; c != "" {
+		return c
+	}
+	return "RUB"
+}
+
+// sweepLoop expires stale orders and fails interrupted approvals.
 func sweepLoop(ctx context.Context, svc *orders.Service, log *slog.Logger) {
 	t := time.NewTicker(10 * time.Minute)
 	defer t.Stop()
@@ -162,7 +167,8 @@ func sweepLoop(ctx context.Context, svc *orders.Service, log *slog.Logger) {
 	}
 }
 
-// providerLoop recovers lost provider webhooks and expires stale invoices.
+// providerLoop recovers lost provider webhooks and expires stale invoices; it also covers retired providers,
+// whose invoices may still be paid.
 func providerLoop(ctx context.Context, svc *orders.Service, log *slog.Logger) {
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()
@@ -180,15 +186,15 @@ func providerLoop(ctx context.Context, svc *orders.Service, log *slog.Logger) {
 
 // logCurrencyUnconfirmed explains why provider payments refuse to invoice.
 func logCurrencyUnconfirmed(log *slog.Logger, fallback string) {
-	log.Error("provider payments are disabled until the panel reports its base currency: re-issue the bot token with the `stats:settings` scope or set BASE_CURRENCY",
+	log.Error("provider payments are disabled until the panel reports its base currency: re-issue the bot token with the `stats:settings` scope or set the base currency in the admin settings",
 		"fallback", fallback)
 }
 
 // currencyLoop keeps the displayed base currency fresh even when no invoice or WebApp request asks for it: Get
 // refreshes the Source (whose TTL/backoff decides when the panel is really called) and feeds view.SetCurrency.
-// With providers on it also repeats the "currency not confirmed" error every 10 minutes while it holds and says
-// when it clears; unconfirmed is the state already reported at startup.
-func currencyLoop(ctx context.Context, cur *currency.Source, log *slog.Logger, providers bool, known func() bool, unconfirmed bool) {
+// While providers are on it also repeats the "currency not confirmed" error every 10 minutes and says when it
+// clears; unconfirmed is the state already reported at startup.
+func currencyLoop(ctx context.Context, cur *currency.Source, log *slog.Logger, providers, known func() bool, unconfirmed bool) {
 	const repeat = 10 * time.Minute
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()
@@ -200,7 +206,8 @@ func currencyLoop(ctx context.Context, cur *currency.Source, log *slog.Logger, p
 		case <-t.C:
 		}
 		code := cur.Get(ctx)
-		if !providers {
+		if !providers() {
+			unconfirmed = false
 			continue
 		}
 		switch {

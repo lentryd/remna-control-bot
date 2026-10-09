@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"time"
 )
 
@@ -70,13 +71,52 @@ type Poller interface {
 	Status(ctx context.Context, externalID string) (Event, error)
 }
 
-// Registry is the set of enabled providers, in registration order. All
-// methods are safe on a nil Registry.
-type Registry struct{ list []Provider }
+// Checker can verify its credentials with a harmless authenticated call; the
+// message describes what the provider answered ("shop 42").
+type Checker interface {
+	Provider
+	Check(ctx context.Context) (string, error)
+}
+
+// Registry is the set of enabled providers, in registration order, plus
+// retired ones: switched off for new invoices but still resolvable, because
+// customers may pay an invoice issued before the switch-off. All methods are
+// safe on a nil Registry.
+type Registry struct{ list, retired []Provider }
 
 func NewRegistry(ps ...Provider) *Registry { return &Registry{list: ps} }
 
+// Retire returns a registry that also resolves ps through Get (webhooks, polling) without offering them.
+func (r *Registry) Retire(ps ...Provider) *Registry {
+	c := Registry{retired: append(slices.Clone(r.retiredOrNil()), ps...)}
+	if r != nil {
+		c.list = r.list
+	}
+	return &c
+}
+
+func (r *Registry) retiredOrNil() []Provider {
+	if r == nil {
+		return nil
+	}
+	return r.retired
+}
+
+// Get finds a provider to receive a payment for: offered or retired.
 func (r *Registry) Get(id string) (Provider, bool) {
+	if p, ok := r.Offer(id); ok {
+		return p, true
+	}
+	for _, p := range r.retiredOrNil() {
+		if p.ID() == id {
+			return p, true
+		}
+	}
+	return nil, false
+}
+
+// Offer finds a provider that may issue new invoices.
+func (r *Registry) Offer(id string) (Provider, bool) {
 	if r == nil {
 		return nil, false
 	}

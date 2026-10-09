@@ -16,7 +16,7 @@ func setupP(t *testing.T) (*Service, *vpnctl.Fake, *spy, *vpnctl.Customer, *paym
 	t.Helper()
 	s, f, sp, c := setup(t)
 	fp := &payments.Fake{Name: "fake"}
-	s.Providers = payments.NewRegistry(fp)
+	s.UpdateLive(func(l *Live) { l.Providers = payments.NewRegistry(fp) })
 	return s, f, sp, c, fp
 }
 
@@ -61,12 +61,12 @@ func TestCreateDefaultMethods(t *testing.T) {
 	if err != nil || o.Method != MethodManual || o.Status != StatusAwaitingReceipt {
 		t.Fatalf("manual default: %+v %v", o, err)
 	}
-	s.Manual = false // providers only: the customer must pick one
+	s.UpdateLive(func(l *Live) { l.Manual = false }) // providers only: the customer must pick one
 	o, err = s.Create(ctx, c, 77, renew3)
 	if err != nil || o.Method != "" || o.Status != StatusNew {
 		t.Fatalf("undecided: %+v %v", o, err)
 	}
-	s.Providers = nil
+	s.UpdateLive(func(l *Live) { l.Providers = nil })
 	if _, err := s.Create(ctx, c, 77, renew3); !errors.Is(err, ErrManualOff) {
 		t.Errorf("nothing configured: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestPayOnExistingOrder(t *testing.T) {
 	if _, err := s.Pay(ctx, c.ID, o.ID, "zzz"); !errors.Is(err, ErrBadRequest) {
 		t.Errorf("unknown provider: %v", err)
 	}
-	s.Providers = payments.NewRegistry(fp, &payments.Fake{Name: "other"})
+	s.UpdateLive(func(l *Live) { l.Providers = payments.NewRegistry(fp, &payments.Fake{Name: "other"}) })
 	if _, err := s.Pay(ctx, c.ID, o.ID, "other"); !errors.Is(err, ErrStateChanged) {
 		t.Errorf("switching an issued invoice to another provider: %v", err)
 	}

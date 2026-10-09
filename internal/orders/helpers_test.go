@@ -81,8 +81,8 @@ func setup(t *testing.T) (*Service, *vpnctl.Fake, *spy, *vpnctl.Customer) {
 	f.Quotes = map[string]vpnctl.ExtendQuote{"subscription:3": {CustomerID: 5, Amount: 300}, "addon:8": {CustomerID: 5, Amount: 50}}
 	f.TariffQuotes = map[string]vpnctl.TariffQuote{"subscription:3:2": {Surcharge: 13.33}}
 	sp := &spy{}
-	s := &Service{DB: st.DB(), Chats: st, API: f, PayMode: config.PayMixed, Manual: true, Details: "Карта 2200",
-		TTL: 48 * time.Hour, Notify: sp, Now: func() time.Time { return now }, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), NewID: counter()}
+	s := &Service{DB: st.DB(), Chats: st, API: f, Notify: sp, Now: func() time.Time { return now }, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), NewID: counter()}
+	s.SetLive(Live{PayMode: config.PayMixed, Manual: true, Details: "Карта 2200", TTL: 48 * time.Hour})
 	return s, f, sp, c
 }
 

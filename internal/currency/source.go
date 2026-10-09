@@ -90,6 +90,13 @@ func (s *Source) get(ctx context.Context) (code string, changed bool) {
 	return code, true
 }
 
+// SetFallback changes the currency served while the panel cannot say (the operator's explicit choice).
+func (s *Source) SetFallback(code string) {
+	s.mu.Lock()
+	s.Fallback = code
+	s.mu.Unlock()
+}
+
 // Known reports whether the panel has answered at least once, i.e. the value served is not just the fallback.
 func (s *Source) Known() bool {
 	s.mu.Lock()

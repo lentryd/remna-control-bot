@@ -1,16 +1,14 @@
-// Package config reads the bot's settings from the environment.
+// Package config reads the settings the bot needs before its database is
+// open: where things are, the secrets that identify it, and who the admins
+// are. Everything else is edited in the admin part of the WebApp.
 package config
 
 import (
 	"fmt"
-	"math"
 	"os"
-	"regexp"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type Mode string
@@ -20,7 +18,7 @@ const (
 	ModeClosed Mode = "closed"
 )
 
-// PayMode is how renewals may use the balance (BALANCE_PAY_MODE).
+// PayMode is how renewals may use the balance.
 type PayMode string
 
 const (
@@ -29,77 +27,24 @@ const (
 )
 
 type Config struct {
-	BotToken     string
-	Mode         Mode
-	VpnctlURL    string
-	VpnctlToken  string
-	PublicURL    string
-	WebAppPath   string // "" or "/x[/y]", no trailing slash
-	HTTPAddr     string
-	DBPath       string
-	LogLevel     string
-	RefSecret    string
-	BaseCurrency string // fallback while the panel can't tell its base currency
-	// BaseCurrencySet: BASE_CURRENCY was given explicitly, i.e. the operator vouches for the currency.
-	BaseCurrencySet bool
+	BotToken    string
+	VpnctlURL   string
+	VpnctlToken string
+	PublicURL   string
+	WebAppPath  string // "" or "/x[/y]", no trailing slash
+	HTTPAddr    string
+	DBPath      string
+	LogLevel    string
+	RefSecret   string // also the root of the key that encrypts stored secrets
 
-	PayMode         PayMode
-	NotifyInterval  time.Duration // 0 disables notifications
-	TrafficAlertPct int           // traffic share that triggers an alert
-	RemindDays      []int         // days before the end to remind about payment, descending
-
-	AdminChatID      int64         // where receipts go; 0 disables manual payment
-	AdminIDs         []int64       // who may decide on them
-	ManualPayDetails string        // where to send money, shown with the amount
-	OrderTTL         time.Duration // unpaid orders expire after this
-	Pay              PayConfig
+	AdminChatID int64   // removed together with the Telegram admin flow
+	AdminIDs    []int64 // who may open the admin part and receives order cards
 }
-
-// PayConfig holds the online payment providers' credentials. A provider is
-// on when its required keys are set.
-type PayConfig struct {
-	YooKassaShopID, YooKassaSecret string
-	YooKassaReturnURL              string // where the customer lands after paying
-	YooKassaReceiptEmail           string // fiscal receipt customer; no receipt when empty
-	YooKassaVAT                    int    // 1..6
-
-	CryptoBotToken   string
-	CryptoBotTestnet bool
-	CryptoBotAssets  string // accepted assets, e.g. "USDT,TON"; empty: all
-
-	HeleketMerchantID, HeleketAPIKey  string
-	HeleketToCurrency, HeleketNetwork string // optional fixed asset / network
-
-	Pal24APIToken, Pal24ShopID string // both required to enable PayPalych
-	Pal24SignatureToken        string // optional; postback signing token, empty: the API token
-
-	PlategaMerchantID, PlategaSecret   string // both required to enable Platega
-	PlategaPaymentMethod               int    // 2 SBP QR (default), 11 cards, 12 international cards, 13 crypto
-	PlategaAPIVersion                  string // "v1" (default) | "v2"
-	PlategaReturnURL, PlategaFailedURL string // optional; return default = WebAppURL()+"/"
-
-	StarsRate float64 // base-currency units per Telegram Star; > 0 enables Stars
-}
-
-func (p PayConfig) YooKassaOn() bool  { return p.YooKassaShopID != "" && p.YooKassaSecret != "" }
-func (p PayConfig) CryptoBotOn() bool { return p.CryptoBotToken != "" }
-func (p PayConfig) HeleketOn() bool   { return p.HeleketMerchantID != "" && p.HeleketAPIKey != "" }
-func (p PayConfig) Pal24On() bool     { return p.Pal24APIToken != "" && p.Pal24ShopID != "" }
-func (p PayConfig) PlategaOn() bool   { return p.PlategaMerchantID != "" && p.PlategaSecret != "" }
-func (p PayConfig) StarsOn() bool     { return p.StarsRate > 0 }
 
 // WebAppURL is where Telegram opens the WebApp.
 func (c Config) WebAppURL() string { return c.PublicURL + c.WebAppPath }
 
-// ManualEnabled: receipts need somewhere to go, someone to decide and
-// details to pay by.
-func (c Config) ManualEnabled() bool {
-	return c.AdminChatID != 0 && len(c.AdminIDs) > 0 && c.ManualPayDetails != ""
-}
-
 func (c Config) IsAdmin(id int64) bool { return slices.Contains(c.AdminIDs, id) }
-
-var currencyRe = regexp.MustCompile(`^[A-Z]{3}$`)
 
 func Load() (Config, error) { return load(os.Getenv) }
 
@@ -112,7 +57,6 @@ func load(get func(string) string) (Config, error) {
 	}
 	c := Config{
 		BotToken:    or("BOT_TOKEN", ""),
-		Mode:        Mode(or("BOT_MODE", string(ModeClosed))),
 		VpnctlURL:   strings.TrimRight(or("VPNCTL_URL", ""), "/"),
 		VpnctlToken: or("VPNCTL_TOKEN", ""),
 		PublicURL:   strings.TrimRight(or("PUBLIC_URL", ""), "/"),
@@ -122,44 +66,20 @@ func load(get func(string) string) (Config, error) {
 		LogLevel:    or("LOG_LEVEL", "info"),
 		RefSecret:   or("REF_SECRET", ""),
 	}
-	for k, v := range map[string]string{
-		"BOT_TOKEN": c.BotToken, "VPNCTL_URL": c.VpnctlURL, "VPNCTL_TOKEN": c.VpnctlToken,
-		"PUBLIC_URL": c.PublicURL, "REF_SECRET": c.RefSecret,
+	for _, r := range []struct{ k, v string }{
+		{"BOT_TOKEN", c.BotToken}, {"VPNCTL_URL", c.VpnctlURL}, {"VPNCTL_TOKEN", c.VpnctlToken},
+		{"PUBLIC_URL", c.PublicURL}, {"REF_SECRET", c.RefSecret},
 	} {
-		if v == "" {
-			return Config{}, fmt.Errorf("config: %s is required", k)
+		if r.v == "" {
+			return Config{}, fmt.Errorf("config: %s is required", r.k)
 		}
 	}
-	c.BaseCurrency = strings.ToUpper(or("BASE_CURRENCY", "RUB"))
-	c.BaseCurrencySet = strings.TrimSpace(get("BASE_CURRENCY")) != ""
-	if !currencyRe.MatchString(c.BaseCurrency) {
-		return Config{}, fmt.Errorf("config: BASE_CURRENCY must be a 3-letter ISO 4217 code like RUB, got %q", c.BaseCurrency)
-	}
-	c.PayMode = PayMode(or("BALANCE_PAY_MODE", string(PayMixed)))
-	if c.PayMode != PayMixed && c.PayMode != PayReferralFull {
-		return Config{}, fmt.Errorf("config: BALANCE_PAY_MODE must be mixed or referral_full, got %q", c.PayMode)
-	}
-	var err error
-	if v := or("NOTIFY_INTERVAL", "1h"); v != "0" {
-		if c.NotifyInterval, err = time.ParseDuration(v); err != nil || c.NotifyInterval < 0 {
-			return Config{}, fmt.Errorf("config: NOTIFY_INTERVAL %q: want a duration like 1h or 0", v)
-		}
-	}
-	if c.TrafficAlertPct, err = strconv.Atoi(or("TRAFFIC_ALERT_PCT", "80")); err != nil || c.TrafficAlertPct < 1 || c.TrafficAlertPct > 100 {
-		return Config{}, fmt.Errorf("config: TRAFFIC_ALERT_PCT must be 1..100")
-	}
-	for _, f := range strings.Split(or("REMIND_DAYS", "3,1"), ",") {
-		d, err := strconv.Atoi(strings.TrimSpace(f))
-		if err != nil || d < 1 {
-			return Config{}, fmt.Errorf("config: REMIND_DAYS must be positive day counts like 3,1")
-		}
-		c.RemindDays = append(c.RemindDays, d)
-	}
-	sort.Sort(sort.Reverse(sort.IntSlice(c.RemindDays)))
 	if v := or("ADMIN_CHAT_ID", ""); v != "" {
-		if c.AdminChatID, err = strconv.ParseInt(v, 10, 64); err != nil {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
 			return Config{}, fmt.Errorf("config: ADMIN_CHAT_ID must be a chat id")
 		}
+		c.AdminChatID = id
 	}
 	for _, f := range strings.Split(or("ADMIN_IDS", ""), ",") {
 		if f = strings.TrimSpace(f); f == "" {
@@ -170,61 +90,6 @@ func load(get func(string) string) (Config, error) {
 			return Config{}, fmt.Errorf("config: ADMIN_IDS must be Telegram ids like 5,7")
 		}
 		c.AdminIDs = append(c.AdminIDs, id)
-	}
-	c.ManualPayDetails = strings.ReplaceAll(or("MANUAL_PAY_DETAILS", ""), `\n`, "\n")
-	if c.OrderTTL, err = time.ParseDuration(or("ORDER_TTL", "48h")); err != nil || c.OrderTTL <= 0 {
-		return Config{}, fmt.Errorf("config: ORDER_TTL must be a positive duration like 48h")
-	}
-	c.Pay = PayConfig{
-		YooKassaShopID:       or("YOOKASSA_SHOP_ID", ""),
-		YooKassaSecret:       or("YOOKASSA_SECRET_KEY", ""),
-		YooKassaReturnURL:    or("YOOKASSA_RETURN_URL", c.WebAppURL()+"/"),
-		YooKassaReceiptEmail: or("YOOKASSA_RECEIPT_EMAIL", ""),
-		CryptoBotToken:       or("CRYPTOBOT_TOKEN", ""),
-		CryptoBotAssets:      or("CRYPTOBOT_ASSETS", ""),
-		HeleketMerchantID:    or("HELEKET_MERCHANT_ID", ""),
-		HeleketAPIKey:        or("HELEKET_API_KEY", ""),
-		HeleketToCurrency:    or("HELEKET_TO_CURRENCY", ""),
-		HeleketNetwork:       or("HELEKET_NETWORK", ""),
-
-		Pal24APIToken:       or("PAL24_API_TOKEN", ""),
-		Pal24ShopID:         or("PAL24_SHOP_ID", ""),
-		Pal24SignatureToken: or("PAL24_SIGNATURE_TOKEN", ""),
-		PlategaMerchantID:   or("PLATEGA_MERCHANT_ID", ""),
-		PlategaSecret:       or("PLATEGA_SECRET", ""),
-		PlategaAPIVersion:   strings.ToLower(or("PLATEGA_API_VERSION", "v1")),
-		PlategaReturnURL:    or("PLATEGA_RETURN_URL", c.WebAppURL()+"/"),
-		PlategaFailedURL:    or("PLATEGA_FAILED_URL", ""),
-	}
-	if (c.Pay.YooKassaShopID == "") != (c.Pay.YooKassaSecret == "") {
-		return Config{}, fmt.Errorf("config: YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY go together")
-	}
-	if (c.Pay.HeleketMerchantID == "") != (c.Pay.HeleketAPIKey == "") {
-		return Config{}, fmt.Errorf("config: HELEKET_MERCHANT_ID and HELEKET_API_KEY go together")
-	}
-	if (c.Pay.Pal24APIToken == "") != (c.Pay.Pal24ShopID == "") {
-		return Config{}, fmt.Errorf("config: PAL24_API_TOKEN and PAL24_SHOP_ID go together")
-	}
-	if (c.Pay.PlategaMerchantID == "") != (c.Pay.PlategaSecret == "") {
-		return Config{}, fmt.Errorf("config: PLATEGA_MERCHANT_ID and PLATEGA_SECRET go together")
-	}
-	if c.Pay.PlategaPaymentMethod, err = strconv.Atoi(or("PLATEGA_PAYMENT_METHOD", "2")); err != nil || c.Pay.PlategaPaymentMethod < 1 {
-		return Config{}, fmt.Errorf("config: PLATEGA_PAYMENT_METHOD must be a positive integer (2 SBP QR, 11 cards, 12 international cards, 13 crypto)")
-	}
-	if c.Pay.PlategaAPIVersion != "v1" && c.Pay.PlategaAPIVersion != "v2" {
-		return Config{}, fmt.Errorf("config: PLATEGA_API_VERSION must be v1 or v2, got %q", c.Pay.PlategaAPIVersion)
-	}
-	if c.Pay.YooKassaVAT, err = strconv.Atoi(or("YOOKASSA_VAT_CODE", "1")); err != nil || c.Pay.YooKassaVAT < 1 || c.Pay.YooKassaVAT > 6 {
-		return Config{}, fmt.Errorf("config: YOOKASSA_VAT_CODE must be 1..6")
-	}
-	if c.Pay.CryptoBotTestnet, err = strconv.ParseBool(or("CRYPTOBOT_TESTNET", "false")); err != nil {
-		return Config{}, fmt.Errorf("config: CRYPTOBOT_TESTNET must be true or false")
-	}
-	if c.Pay.StarsRate, err = strconv.ParseFloat(or("STARS_RATE", "0"), 64); err != nil || c.Pay.StarsRate < 0 || math.IsNaN(c.Pay.StarsRate) || math.IsInf(c.Pay.StarsRate, 0) {
-		return Config{}, fmt.Errorf("config: STARS_RATE must be a number ≥ 0 (base currency per Telegram Star)")
-	}
-	if c.Mode != ModeOpen && c.Mode != ModeClosed {
-		return Config{}, fmt.Errorf("config: BOT_MODE must be open or closed, got %q", c.Mode)
 	}
 	return c, nil
 }

@@ -88,6 +88,38 @@ func (s *Service) List(ctx context.Context, customerID, limit, offset int) ([]Or
 	return out, total, rows.Err()
 }
 
+// ListAll is every customer's orders for the admins, newest first. With no
+// statuses it hides drafts nobody paid for (StatusNew), like List does.
+func (s *Service) ListAll(ctx context.Context, statuses []Status, limit, offset int) ([]Order, int, error) {
+	where, args := `status != ?`, []any{StatusNew}
+	if len(statuses) > 0 {
+		where = `status IN (` + strings.TrimSuffix(strings.Repeat("?,", len(statuses)), ",") + `)`
+		args = args[:0]
+		for _, st := range statuses {
+			args = append(args, st)
+		}
+	}
+	var total int
+	if err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM orders WHERE `+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := s.DB.QueryContext(ctx, `SELECT `+cols+` FROM orders WHERE `+where+` ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,
+		append(args, limit, offset)...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	out := []Order{}
+	for rows.Next() {
+		o, err := scan(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		out = append(out, *o)
+	}
+	return out, total, rows.Err()
+}
+
 // move changes the status only from one of the expected ones; set holds
 // extra columns to write in the same statement ("col = ?" → value).
 func (s *Service) move(ctx context.Context, id string, from []Status, to Status, set map[string]any) error {

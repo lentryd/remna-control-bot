@@ -34,8 +34,8 @@ func withOrders(t *testing.T, f *vpnctl.Fake, d *Deps) *nopNotify {
 	}
 	t.Cleanup(func() { st.Close() })
 	n := &nopNotify{}
-	d.Orders = &orders.Service{DB: st.DB(), Chats: st, API: f, PayMode: config.PayMixed, Manual: true, Details: "Карта",
-		TTL: time.Hour, Notify: n, Now: time.Now, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	d.Orders = &orders.Service{DB: st.DB(), Chats: st, API: f, Notify: n, Now: time.Now, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	d.Orders.SetLive(orders.Live{PayMode: config.PayMixed, Manual: true, Details: "Карта", TTL: time.Hour})
 	return n
 }
 
@@ -193,7 +193,7 @@ func TestOrdersCreateManualOff(t *testing.T) {
 	f := ordersFake()
 	d := app(f)
 	withOrders(t, f, d)
-	d.Orders.Manual = false
+	d.Orders.UpdateLive(func(l *orders.Live) { l.Manual = false })
 	code, out := do(t, d, "POST", "/bot/api/orders", tma(77), `{"kind":"topup","amount":100}`)
 	if code != 409 || !strings.Contains(out, `"code":"manual_off"`) {
 		t.Fatalf("manual off: %d %s", code, out)
@@ -249,7 +249,7 @@ func TestOrdersListPagination(t *testing.T) {
 // withProvider attaches a fake provider to the service.
 func withProvider(d *Deps) *payments.Fake {
 	fp := &payments.Fake{Name: "fake"}
-	d.Orders.Providers = payments.NewRegistry(fp)
+	d.Orders.UpdateLive(func(l *orders.Live) { l.Providers = payments.NewRegistry(fp) })
 	return fp
 }
 

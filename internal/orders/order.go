@@ -3,6 +3,7 @@ package orders
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"vpn-control-bot/internal/store"
@@ -33,6 +34,12 @@ const (
 	StatusExpired         Status = "expired"
 	StatusCancelled       Status = "cancelled"
 )
+
+var allStatuses = []Status{StatusNew, StatusAwaitingReceipt, StatusAwaitingPayment, StatusPendingReview, StatusApproving,
+	StatusApproved, StatusCredited, StatusFailed, StatusRejected, StatusExpired, StatusCancelled}
+
+// Valid: s is one of the order statuses (admin filters come from the client).
+func (s Status) Valid() bool { return slices.Contains(allStatuses, s) }
 
 type Method string
 

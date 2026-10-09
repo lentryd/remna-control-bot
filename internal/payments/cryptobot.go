@@ -163,3 +163,19 @@ func (c *CryptoBot) Webhook(_ context.Context, h http.Header, body []byte) (Even
 	}
 	return u.Payload.event(), true, nil
 }
+
+var _ Checker = (*CryptoBot)(nil)
+
+// Check calls getMe, which needs a valid token and moves no money.
+func (c *CryptoBot) Check(ctx context.Context) (string, error) {
+	var r cbReply[struct {
+		Name string `json:"name"`
+	}]
+	if err := c.call(ctx, http.MethodGet, "/getMe", nil, &r); err != nil {
+		return "", err
+	}
+	if !r.OK {
+		return "", fmt.Errorf("cryptobot: getMe refused the token")
+	}
+	return "app " + r.Result.Name, nil
+}

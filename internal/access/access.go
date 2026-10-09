@@ -46,11 +46,11 @@ type State interface {
 type Service struct {
 	api   vpnctl.Client
 	codec *refcode.Codec
-	mode  config.Mode
+	mode  func() config.Mode
 	state State
 }
 
-func New(api vpnctl.Client, codec *refcode.Codec, mode config.Mode, state State) *Service {
+func New(api vpnctl.Client, codec *refcode.Codec, mode func() config.Mode, state State) *Service {
 	return &Service{api: api, codec: codec, mode: mode, state: state}
 }
 
@@ -78,11 +78,11 @@ func (s *Service) Start(ctx context.Context, u User, payload string) (Result, er
 		}
 		if ok {
 			referrer = &id
-		} else if s.mode == config.ModeClosed {
+		} else if s.mode() == config.ModeClosed {
 			return Result{Outcome: BadReferral}, s.state.SetAwaitingLink(ctx, u.ID, true)
 		}
 	}
-	if referrer == nil && s.mode == config.ModeClosed {
+	if referrer == nil && s.mode() == config.ModeClosed {
 		return Result{Outcome: NeedLink}, s.state.SetAwaitingLink(ctx, u.ID, true)
 	}
 	return s.create(ctx, u, referrer)

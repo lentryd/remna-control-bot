@@ -158,3 +158,17 @@ func (y *YooKassa) Webhook(ctx context.Context, _ http.Header, body []byte) (Eve
 	ev := p.event()
 	return ev, ev.Paid, nil
 }
+
+var _ Checker = (*YooKassa)(nil)
+
+// Check reads the shop's own account (GET /me), which needs valid credentials and moves no money.
+func (y *YooKassa) Check(ctx context.Context) (string, error) {
+	var r struct {
+		AccountID string `json:"account_id"`
+		Status    string `json:"status"`
+	}
+	if err := y.do(ctx, http.MethodGet, "/me", "", nil, &r); err != nil {
+		return "", err
+	}
+	return "shop " + r.AccountID + " (" + r.Status + ")", nil
+}

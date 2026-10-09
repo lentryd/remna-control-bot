@@ -235,7 +235,7 @@ func (b *Bot) onOrderCallback(ctx context.Context, _ *tgbot.Bot, u *models.Updat
 			b.Log.Error("pay with provider", "provider", provider, "err", err)
 			answer.Text, answer.ShowAlert = view.TxtProviderDown, true
 		default:
-			b.show(ctx, chatID, msgID, view.ProviderPay(*o, b.Orders.Providers.Title(provider)))
+			b.show(ctx, chatID, msgID, view.ProviderPay(*o, b.Orders.Live().Providers.Title(provider)))
 		}
 		return
 	}
@@ -315,7 +315,7 @@ func (b *Bot) onStarsPaid(ctx context.Context, m *models.Message) {
 
 func (b *Bot) providerButtons() []view.ProviderButton {
 	var out []view.ProviderButton
-	for _, p := range b.Orders.Providers.Enabled() {
+	for _, p := range b.Orders.Live().Providers.Enabled() {
 		out = append(out, view.ProviderButton{ID: p.ID(), Title: p.Title()})
 	}
 	return out

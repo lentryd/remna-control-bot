@@ -8,34 +8,31 @@ import (
 	"log/slog"
 	"math"
 	"strings"
+	"sync"
 	"time"
 
 	"vpn-control-bot/internal/billing"
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/payments"
 	"vpn-control-bot/internal/store"
 	"vpn-control-bot/internal/vpnctl"
 )
 
 type Service struct {
-	DB        *sql.DB
-	Chats     ChatStates
-	API       vpnctl.Client
-	PayMode   config.PayMode
-	Manual    bool
-	Providers *payments.Registry // online payment providers; nil: none
-	Details   string
-	TTL       time.Duration
-	Notify    Notifier
-	Now       func() time.Time
-	Log       *slog.Logger
-	NewID     func() string // order id source; nil: UUIDs (tests use a counter)
+	DB     *sql.DB
+	Chats  ChatStates
+	API    vpnctl.Client
+	Notify Notifier
+	Now    func() time.Time
+	Log    *slog.Logger
+	NewID  func() string // order id source; nil: UUIDs (tests use a counter)
 	// BaseCurrency is the currency of the panel's prices and balances (ISO
 	// code); nil or empty means RUB. Invoices are issued in it.
 	BaseCurrency func(context.Context) string
 	// CurrencyKnown says whether BaseCurrency is confirmed (by the panel or by the operator) rather than a blind
 	// default; provider invoices are refused while it is false. nil: always known.
 	CurrencyKnown func() bool
+
+	mu   sync.RWMutex
+	live Live
 }
 
 // base is the upper-cased base currency, "RUB" when unknown.
@@ -51,12 +48,17 @@ func (s *Service) base(ctx context.Context) string {
 // Quote prices r for c on the server; nothing the client sends but the
 // choice itself is trusted.
 func (s *Service) Quote(ctx context.Context, c *vpnctl.Customer, r Request) (Quote, error) {
+	return s.quote(ctx, s.Live(), c, r)
+}
+
+// quote prices r against one Live snapshot, so a caller can use the same values for the rest of its operation.
+func (s *Service) quote(ctx context.Context, lv Live, c *vpnctl.Customer, r Request) (Quote, error) {
 	q, err := s.price(ctx, c, r)
 	if err != nil {
 		return Quote{}, err
 	}
 	if r.Kind != KindTopup {
-		sp := billing.Split(q.Price, c.BalanceOwn, c.BalanceReferral, s.PayMode)
+		sp := billing.Split(q.Price, c.BalanceOwn, c.BalanceReferral, lv.PayMode)
 		q.FromBalance, q.ToPay = round2(sp.FromOwn+sp.FromReferral), sp.ToPay
 	} else {
 		q.ToPay = q.Price
@@ -66,10 +68,10 @@ func (s *Service) Quote(ctx context.Context, c *vpnctl.Customer, r Request) (Quo
 	case q.ToPay == 0:
 		q.Methods = []Method{MethodBalance}
 	default:
-		if s.Manual {
+		if lv.Manual {
 			q.Methods = append(q.Methods, MethodManual)
 		}
-		for _, p := range s.Providers.Enabled() {
+		for _, p := range lv.Providers.Enabled() {
 			q.Methods = append(q.Methods, Method(p.ID()))
 			if q.Titles == nil {
 				q.Titles = map[string]string{}
@@ -212,7 +214,7 @@ func (s *Service) RequestReceipt(ctx context.Context, customerID int, id string)
 	if err := s.Chats.SetChatState(ctx, o.ChatID, store.ChatState{Kind: "receipt", OrderID: o.ID}); err != nil {
 		return nil, err
 	}
-	return o, s.Notify.PayScreen(ctx, *o, s.Details)
+	return o, s.Notify.PayScreen(ctx, *o, s.Live().Details)
 }
 
 // AttachReceipt takes the receipt the chat was asked for and hands the
@@ -275,8 +277,9 @@ func (s *Service) ExpireStale(ctx context.Context) error {
 	if err := s.failStaleApprovals(ctx); err != nil {
 		s.Log.Error("orders: stale approvals", "err", err)
 	}
+	ttl := s.Live().TTL
 	_, err := s.DB.ExecContext(ctx, `UPDATE orders SET status = ?, updated_at = ? WHERE status IN (?, ?) AND created_at < ?`,
-		StatusExpired, s.Now(), StatusNew, StatusAwaitingReceipt, s.Now().Add(-s.TTL))
+		StatusExpired, s.Now(), StatusNew, StatusAwaitingReceipt, s.Now().Add(-ttl))
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 
 	"vpn-control-bot/internal/vpnctl"
 )
@@ -23,7 +24,7 @@ func TestRunOnceSendsEachNoticeOnce(t *testing.T) {
 	}})
 	var sent []Notice
 	fail := true
-	r := &Runner{API: f, Store: memSent{}, Rules: rules, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	r := &Runner{API: f, Store: memSent{}, Conf: func() Conf { return Conf{Rules: rules} }, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Send: func(_ context.Context, n Notice) error {
 			if fail && n.Kind == Reminder {
 				return errors.New("telegram down")
@@ -51,7 +52,7 @@ func TestRunOncePanelDown(t *testing.T) {
 	f := vpnctl.NewFake()
 	f.Err = vpnctl.ErrUnavailable
 	called := false
-	r := &Runner{API: f, Store: memSent{}, Rules: rules, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	r := &Runner{API: f, Store: memSent{}, Conf: func() Conf { return Conf{Rules: rules} }, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Send: func(context.Context, Notice) error { called = true; return nil }}
 	r.RunOnce(context.Background(), now)
 	if called {
@@ -60,12 +61,31 @@ func TestRunOncePanelDown(t *testing.T) {
 }
 
 func TestRunOnceCallsSweep(t *testing.T) {
-	r := &Runner{API: vpnctl.NewFake(), Store: memSent{}, Rules: rules, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	r := &Runner{API: vpnctl.NewFake(), Store: memSent{}, Conf: func() Conf { return Conf{Rules: rules} }, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Send: func(context.Context, Notice) error { return nil }}
 	called := false
 	r.Sweep = func(context.Context) error { called = true; return nil }
 	r.RunOnce(context.Background(), now)
 	if !called {
 		t.Fatal("sweep not called")
+	}
+}
+
+func TestDue(t *testing.T) {
+	now := time.Now()
+	for name, c := range map[string]struct {
+		last     time.Time
+		interval time.Duration
+		want     bool
+	}{
+		"off":            {time.Time{}, 0, false},
+		"first pass":     {time.Time{}, time.Hour, true},
+		"too early":      {now.Add(-30 * time.Minute), time.Hour, false},
+		"interval gone":  {now.Add(-time.Hour), time.Hour, true},
+		"turned off now": {now.Add(-time.Hour), 0, false},
+	} {
+		if got := due(c.last, now, c.interval); got != c.want {
+			t.Errorf("%s: due = %v, want %v", name, got, c.want)
+		}
 	}
 }

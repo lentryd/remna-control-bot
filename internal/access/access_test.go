@@ -22,7 +22,7 @@ var codec = refcode.New("s")
 func setup(mode config.Mode) (*Service, *vpnctl.Fake, memState) {
 	f := vpnctl.NewFake()
 	st := memState{}
-	return New(f, codec, mode, st), f, st
+	return New(f, codec, func() config.Mode { return mode }, st), f, st
 }
 
 var ann = User{ID: 100, Name: "Ann"}

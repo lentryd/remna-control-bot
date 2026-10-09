@@ -312,3 +312,16 @@ func TestPanelRefreshSurvivesACancelledCaller(t *testing.T) {
 		t.Errorf("got %q, entered %d", got, len(g.entered))
 	}
 }
+
+func TestSetFallback(t *testing.T) {
+	r := newRig("RUB")
+	r.api.set("", errors.New("down"))
+	ctx := context.Background()
+	if got := r.src.Get(ctx); got != "RUB" {
+		t.Fatalf("fallback: %q", got)
+	}
+	r.src.SetFallback("USD")
+	if got := r.src.Get(ctx); got != "USD" {
+		t.Fatalf("after SetFallback: %q", got)
+	}
+}

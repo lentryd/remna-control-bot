@@ -52,6 +52,8 @@ func (s *server) orderErr(c *fiber.Ctx, err error) error {
 		return fail(c, fiber.StatusConflict, "state_changed")
 	case errors.Is(err, orders.ErrManualOff):
 		return fail(c, fiber.StatusConflict, "manual_off")
+	case errors.Is(err, orders.ErrUnderpaid):
+		return fail(c, fiber.StatusConflict, "underpaid")
 	case errors.Is(err, orders.ErrProvider):
 		s.Log.Warn("webapp orders", "err", err)
 		return fail(c, fiber.StatusFailedDependency, "provider_failed")
@@ -84,7 +86,7 @@ func (s *server) createOrder(c *fiber.Ctx) error {
 	if err != nil {
 		return s.orderErr(c, err)
 	}
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"order": orderJSON(*o), "details": s.Orders.Details})
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"order": orderJSON(*o), "details": s.Orders.Live().Details})
 }
 
 func (s *server) listOrders(c *fiber.Ctx) error {

@@ -27,12 +27,19 @@ type PromptStore interface {
 	TakePrompt(ctx context.Context, chatID int64, msgID int) (store.Prompt, bool, error)
 }
 
+func (d Deps) payMode() config.PayMode {
+	if d.PayMode == nil {
+		return config.PayMixed
+	}
+	return d.PayMode()
+}
+
 type Deps struct {
 	Access    *access.Service
 	API       vpnctl.Client
 	Codec     *refcode.Codec
 	WebAppURL string
-	PayMode   config.PayMode
+	PayMode   func() config.PayMode
 	Log       *slog.Logger
 
 	Orders      *orders.Service // nil: payments in the bot are off
@@ -157,7 +164,7 @@ func (b *Bot) outcome(r access.Result, err error) (view.Screen, bool) {
 }
 
 func (b *Bot) profile(c *vpnctl.Customer) profile.Profile {
-	return profile.Build(c, RefLink(b.username, b.Codec, c.ID), b.PayMode)
+	return profile.Build(c, RefLink(b.username, b.Codec, c.ID), b.payMode())
 }
 
 func (b *Bot) home(r access.Result, prefix string) view.Screen {

@@ -19,7 +19,8 @@ import (
 // Create). A provider method issues its invoice at once; if the provider
 // fails, the order is cancelled so no dangling order is left.
 func (s *Service) CreateWith(ctx context.Context, c *vpnctl.Customer, chatID int64, r Request, method Method) (*Order, error) {
-	q, err := s.Quote(ctx, c, r)
+	lv := s.Live() // one snapshot for the whole operation
+	q, err := s.quote(ctx, lv, c, r)
 	if err != nil {
 		return nil, err
 	}
@@ -46,8 +47,14 @@ func (s *Service) CreateWith(ctx context.Context, c *vpnctl.Customer, chatID int
 	if !method.IsProvider() {
 		return o, nil
 	}
-	p, _ := s.Providers.Get(string(method)) // Quote only offers registered providers
-	got, err := s.issue(ctx, o, p)
+	p, ok := lv.Providers.Offer(string(method))
+	if !ok { // cannot happen while lv is the snapshot Quote used; never call a nil provider
+		if cerr := s.move(ctx, o.ID, []Status{StatusNew}, StatusCancelled, nil); cerr != nil {
+			s.Log.Error("orders: cancel after a missing provider", "order", o.ID, "err", cerr)
+		}
+		return nil, bad("provider %q", method)
+	}
+	got, err := s.issue(ctx, o, p, lv.TTL)
 	if err != nil {
 		if cerr := s.move(ctx, o.ID, []Status{StatusNew}, StatusCancelled, nil); cerr != nil {
 			s.Log.Error("orders: cancel after a failed invoice", "order", o.ID, "err", cerr)
@@ -65,7 +72,8 @@ func (s *Service) Pay(ctx context.Context, customerID int, id, provider string) 
 	if err != nil {
 		return nil, err
 	}
-	p, ok := s.Providers.Get(provider)
+	lv := s.Live()
+	p, ok := lv.Providers.Offer(provider)
 	if !ok || o.ToPay <= 0 {
 		return nil, bad("provider %q", provider)
 	}
@@ -75,16 +83,16 @@ func (s *Service) Pay(ctx context.Context, customerID int, id, provider string) 
 	if o.Status != StatusNew && o.Status != StatusAwaitingReceipt {
 		return nil, ErrStateChanged
 	}
-	return s.issue(ctx, o, p)
+	return s.issue(ctx, o, p, lv.TTL)
 }
 
 // issue bills the order: the invoice is created first; if the order moved on
 // meanwhile the invoice is simply left to expire at the provider.
-func (s *Service) issue(ctx context.Context, o *Order, p payments.Provider) (*Order, error) {
+func (s *Service) issue(ctx context.Context, o *Order, p payments.Provider, ttl time.Duration) (*Order, error) {
 	if s.CurrencyKnown != nil && !s.CurrencyKnown() {
 		return nil, fmt.Errorf("%w: base currency not confirmed by the panel", ErrProvider)
 	}
-	inv, err := p.Invoice(ctx, payments.InvoiceRequest{OrderID: o.ID, Title: o.Title, Amount: o.ToPay, Currency: s.base(ctx), ExpiresIn: s.TTL, CustomerID: o.CustomerID})
+	inv, err := p.Invoice(ctx, payments.InvoiceRequest{OrderID: o.ID, Title: o.Title, Amount: o.ToPay, Currency: s.base(ctx), ExpiresIn: ttl, CustomerID: o.CustomerID})
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s: %v", ErrProvider, p.ID(), err)
 	}
@@ -216,9 +224,10 @@ const pollAfter = 2 * time.Minute
 // too, but only to apply a payment — its status never changes otherwise. An
 // unreachable provider changes nothing.
 func (s *Service) SweepProviders(ctx context.Context) error {
+	ttl := s.Live().TTL
 	rows, err := s.DB.QueryContext(ctx, `SELECT id FROM orders WHERE status = ?
 		OR (status = ? AND external_id != '' AND created_at > ?) ORDER BY created_at`,
-		StatusAwaitingPayment, StatusCancelled, s.Now().Add(-s.TTL))
+		StatusAwaitingPayment, StatusCancelled, s.Now().Add(-ttl))
 	if err != nil {
 		return err
 	}
@@ -249,7 +258,7 @@ func (s *Service) SweepProviders(ctx context.Context) error {
 			s.Log.Warn("orders: provider status", "order", o.ID, "provider", o.Method, "err", err)
 			continue // unknown: neither apply nor expire
 		}
-		if applied || o.Status != StatusAwaitingPayment || age < s.TTL {
+		if applied || o.Status != StatusAwaitingPayment || age < ttl {
 			continue
 		}
 		if err := s.move(ctx, o.ID, []Status{StatusAwaitingPayment}, StatusExpired, nil); err != nil && !errors.Is(err, ErrStateChanged) {
@@ -263,7 +272,7 @@ func (s *Service) SweepProviders(ctx context.Context) error {
 // looks wrong), applies that through Paid. An order whose provider cannot be
 // asked is simply not applied; an error means the answer is unknown.
 func (s *Service) pollPaid(ctx context.Context, o *Order) (applied bool, err error) {
-	p, ok := s.Providers.Get(string(o.Method))
+	p, ok := s.Live().Providers.Get(string(o.Method))
 	if !ok || o.ExternalID == "" {
 		return false, nil
 	}

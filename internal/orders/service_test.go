@@ -66,7 +66,7 @@ func TestQuote(t *testing.T) {
 
 func TestManualOffOnlyBalance(t *testing.T) {
 	s, _, _, c := setup(t)
-	s.Manual = false
+	s.UpdateLive(func(l *Live) { l.Manual = false })
 	ctx := context.Background()
 	if _, err := s.Create(ctx, c, 77, Request{Kind: KindRenew, ItemKind: "subscription", ItemID: 3, Months: 1}); !errors.Is(err, ErrManualOff) {
 		t.Fatalf("want ErrManualOff, got %v", err)
@@ -185,12 +185,12 @@ func TestQuoteListsProviders(t *testing.T) {
 	if err != nil || !slices.Equal(q.Methods, []Method{MethodManual}) || len(q.Titles) != 0 {
 		t.Fatalf("no providers: %+v %v", q, err)
 	}
-	s.Providers = payments.NewRegistry(&payments.Fake{Name: "fake"})
+	s.UpdateLive(func(l *Live) { l.Providers = payments.NewRegistry(&payments.Fake{Name: "fake"}) })
 	q, _ = s.Quote(ctx, c, r)
 	if !slices.Equal(q.Methods, []Method{MethodManual, "fake"}) || q.Titles["fake"] != "Fake pay" {
 		t.Fatalf("with a provider: %+v", q)
 	}
-	s.Manual = false
+	s.UpdateLive(func(l *Live) { l.Manual = false })
 	if q, _ = s.Quote(ctx, c, r); !slices.Equal(q.Methods, []Method{"fake"}) {
 		t.Fatalf("providers only: %+v", q)
 	}

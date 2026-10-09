@@ -19,7 +19,7 @@ func (s *server) payWebhook(c *fiber.Ctx) error {
 	if s.Orders == nil {
 		return fail(c, fiber.StatusNotFound, "not_found")
 	}
-	p, ok := s.Orders.Providers.Get(c.Params("provider"))
+	p, ok := s.Orders.Live().Providers.Get(c.Params("provider"))
 	wp, hook := p.(payments.WebhookProvider)
 	if !ok || !hook {
 		return fail(c, fiber.StatusNotFound, "not_found")
