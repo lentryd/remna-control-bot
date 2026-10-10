@@ -6,7 +6,7 @@ import i18n from '../i18n'
 // Money is shown in the base currency with the UI locale; main.tsx sets the
 // locale and App sets the base currency from the profile before it renders pages.
 let base = 'RUB'
-let locale = 'ru-RU'
+let locale = 'en-US'
 let money0: Intl.NumberFormat
 let money2: Intl.NumberFormat
 

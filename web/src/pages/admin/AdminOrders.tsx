@@ -10,13 +10,14 @@ import { Dot } from '@shared/ui/status'
 import { useAdminOrders } from '../../adminApi'
 import classes from './admin-orders.module.css'
 import { OrderStatusPill, statusColor } from './status'
-import { A } from './text'
+import { useTranslation } from 'react-i18next'
 
 const FILTERS: Record<string, string> = { review: 'pending_review,failed', all: 'all', failed: 'failed' }
 const PAGE = 20 // matches the server's page size
 
 export function AdminOrders() {
     const [filter, setFilter] = useState('review')
+    const { t } = useTranslation('admin')
     const navigate = useNavigate()
     const [page, setPage] = useState(0)
     const q = useAdminOrders(FILTERS[filter], page)
@@ -30,7 +31,7 @@ export function AdminOrders() {
         <Stack gap="md">
             <SegmentedControl
                 classNames={{ root: classes.filter, indicator: classes.indicator }}
-                data={Object.keys(FILTERS).map((k) => ({ value: k, label: A.orders.filters[k as keyof typeof A.orders.filters] }))}
+                data={Object.keys(FILTERS).map((k) => ({ value: k, label: t(`orders.filters.${k}`) }))}
                 fullWidth
                 onChange={(v) => {
                     setFilter(v)
@@ -40,7 +41,7 @@ export function AdminOrders() {
             />
             {q.data && q.data.unreachable_admins.length > 0 && (
                 <Alert color="yellow" variant="soft">
-                    {A.orders.unreachable(q.data.unreachable_admins)}
+                    {t('orders.unreachable', { ids: q.data.unreachable_admins.join(', ') })}
                 </Alert>
             )}
             {q.isPending ? (
@@ -52,9 +53,9 @@ export function AdminOrders() {
             ) : q.isError ? (
                 <Alert color="red" variant="soft">
                     <Stack align="flex-start" gap="xs">
-                        <Text size="sm">{A.orders.loadFailed}</Text>
+                        <Text size="sm">{t('orders.loadFailed')}</Text>
                         <Button onClick={() => q.refetch()} size="compact-sm" variant="light">
-                            {A.orders.retry}
+                            {t('orders.retry')}
                         </Button>
                     </Stack>
                 </Alert>
@@ -69,7 +70,7 @@ export function AdminOrders() {
                                         №{o.number} · {o.title}
                                     </Text>
                                     <Text c="dimmed" mt={2} size="xs" truncate="end">
-                                        {fmtDate(o.created_at)} · клиент #{o.customer_id}
+                                        {fmtDate(o.created_at)} · {t('orders.customer', { id: o.customer_id })}
                                     </Text>
                                 </div>
                                 <div className={classes.side}>
@@ -87,7 +88,7 @@ export function AdminOrders() {
                     <div className="vpnc-empty">
                         <IconInbox size={28} stroke={1.75} />
                         <Text c="dimmed" mt={6} size="sm">
-                            {A.orders.empty}
+                            {t('orders.empty')}
                         </Text>
                     </div>
                 </SectionCard.Root>
@@ -95,13 +96,13 @@ export function AdminOrders() {
             {q.data && (q.data.total > PAGE || page > 0) && (
                 <div className={classes.pager}>
                     <Button disabled={page === 0} onClick={() => setPage(page - 1)} variant="default">
-                        {A.orders.prev}
+                        {t('orders.prev')}
                     </Button>
                     <Text c="dimmed" size="sm">
-                        {A.orders.page(page + 1, pages)}
+                        {t('orders.page', { n: page + 1, of: pages })}
                     </Text>
                     <Button disabled={page + 1 >= pages} onClick={() => setPage(page + 1)} variant="default">
-                        {A.orders.next}
+                        {t('orders.next')}
                     </Button>
                 </div>
             )}

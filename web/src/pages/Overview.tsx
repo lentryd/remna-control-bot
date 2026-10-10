@@ -38,7 +38,7 @@ export function Overview({ p }: { p: Profile }) {
             <Title order={3}>{t('overview.hello', { name: p.name })}</Title>
             {p.is_admin && (
                 <Button leftSection={<IconSettings size={18} />} onClick={() => navigate('/admin')} variant="light">
-                    Админка
+                    {t('overview.manage')}
                 </Button>
             )}
             <BalanceCard p={p} />

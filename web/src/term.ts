@@ -1,4 +1,4 @@
-// term: a tariff period as text, e.g. "3 мес" or "1 мес 15 дней".
+// term: a tariff period as text, e.g. "3 mo" or "1 mo 15 d".
 import type { TFunction } from 'i18next'
 
 import type { Period } from './types'

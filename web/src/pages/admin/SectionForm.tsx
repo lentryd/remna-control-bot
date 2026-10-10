@@ -1,13 +1,13 @@
 import { ActionIcon, Button, NumberInput, PasswordInput, SegmentedControl, Select, Stack, Switch, TagsInput, Text, Textarea, TextInput } from '@mantine/core'
 import { IconX } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { ActionBar } from '@shared/ui/action-bar'
 import { CopyableFieldShared } from '@shared/ui/copyable-field/copyable-field'
 import { SettingsGroup, SettingsRow } from '@shared/ui/settings-row'
 import { Dot } from '@shared/ui/status'
 import classes from './section-form.module.css'
-import { A } from './text'
 import { fieldGroups } from './sections'
 import { isDay, type SectionCtl } from './use-section-forms'
 import type { Field } from './sections'
@@ -22,10 +22,11 @@ const unitSection = (unit?: string) =>
     ) : undefined
 
 function SecretState({ v, base }: { v: unknown; base: unknown }) {
+    const { t } = useTranslation('admin')
     const s = String(v ?? '')
-    if (s === '') return <SecretLine color="gray" text={A.settings.secretNone} />
-    if (s.startsWith(MASK) && s === String(base ?? '')) return <SecretLine color="teal" text={A.settings.secretSaved(s)} />
-    return <SecretLine color="blue" text={A.settings.secretNew} />
+    if (s === '') return <SecretLine color="gray" text={t('settings.secretNone')} />
+    if (s.startsWith(MASK) && s === String(base ?? '')) return <SecretLine color="teal" text={t('settings.secretSaved', { mask: s })} />
+    return <SecretLine color="blue" text={t('settings.secretNew')} />
 }
 
 function SecretLine({ color, text }: { color: string; text: string }) {
@@ -38,7 +39,8 @@ function SecretLine({ color, text }: { color: string; text: string }) {
 }
 
 function FieldInput({ f, v, base, set }: { f: Field; v: unknown; base: unknown; set: (x: unknown) => void }) {
-    const common = { 'aria-label': f.label, size: 'md' as const }
+    const { t } = useTranslation('admin')
+    const common = { 'aria-label': t(f.labelKey), size: 'md' as const }
     switch (f.kind) {
         case 'bool':
             return <Switch {...common} checked={!!v} onChange={(e) => set(e.currentTarget.checked)} />
@@ -64,9 +66,9 @@ function FieldInput({ f, v, base, set }: { f: Field; v: unknown; base: unknown; 
                     hideControls
                     inputMode={f.decimal ? 'decimal' : 'numeric'}
                     onChange={set}
-                    rightSection={unitSection(f.unit)}
+                    rightSection={unitSection(f.unitKey ? t(f.unitKey) : undefined)}
                     rightSectionPointerEvents="none"
-                    rightSectionWidth={f.unit ? 52 : undefined}
+                    rightSectionWidth={f.unitKey ? 52 : undefined}
                     value={v as number | string}
                 />
             )
@@ -75,40 +77,40 @@ function FieldInput({ f, v, base, set }: { f: Field; v: unknown; base: unknown; 
             return (
                 <TagsInput
                     {...common}
-                    error={tags.some((d) => !isDay(d)) ? A.settings.daysInvalid : undefined}
+                    error={tags.some((d) => !isDay(d)) ? t('settings.daysInvalid') : undefined}
                     inputMode="numeric"
                     onChange={set}
-                    placeholder={tags.length === 0 ? A.settings.daysPlaceholder : undefined}
-                    rightSection={unitSection(f.unit)}
+                    placeholder={tags.length === 0 ? t('settings.daysPlaceholder') : undefined}
+                    rightSection={unitSection(f.unitKey ? t(f.unitKey) : undefined)}
                     rightSectionPointerEvents="none"
-                    rightSectionWidth={f.unit ? 52 : undefined}
+                    rightSectionWidth={f.unitKey ? 52 : undefined}
                     splitChars={[',', ' ', ';']}
                     value={tags}
                 />
             )
         }
         case 'segmented': {
-            const hint = f.options?.find((o) => o.value === String(v))?.hint
+            const hintKey = f.options?.find((o) => o.value === String(v))?.hintKey
             return (
                 <Stack gap={8}>
                     <SegmentedControl
-                        aria-label={f.label}
+                        aria-label={t(f.labelKey)}
                         classNames={{ label: classes.segLabel }}
-                        data={(f.options ?? []).map(({ value, label }) => ({ value, label }))}
+                        data={(f.options ?? []).map(({ value, labelKey }) => ({ value, label: t(labelKey) }))}
                         fullWidth
                         onChange={set}
                         value={String(v ?? '')}
                     />
-                    {hint && (
+                    {hintKey && (
                         <Text c="dimmed" lh={1.35} size="xs">
-                            {hint}
+                            {t(hintKey)}
                         </Text>
                     )}
                 </Stack>
             )
         }
         case 'select':
-            return <Select {...common} allowDeselect={false} data={f.options ?? []} onChange={set} value={String(v ?? '')} />
+            return <Select {...common} allowDeselect={false} data={(f.options ?? []).map(({ value, labelKey }) => ({ value, label: t(labelKey) }))} onChange={set} value={String(v ?? '')} />
         case 'textarea':
             return <Textarea {...common} autosize minRows={3} onChange={(e) => set(e.currentTarget.value)} value={String(v ?? '')} />
         default:
@@ -128,8 +130,9 @@ function FieldInput({ f, v, base, set }: { f: Field; v: unknown; base: unknown; 
 }
 
 function Rows({ ctl, fields }: { ctl: SectionCtl; fields: Field[] }) {
+    const { t } = useTranslation('admin')
     return fields.map((f) => (
-        <SettingsRow description={f.hint} inline={f.kind === 'bool'} key={f.name} label={f.label}>
+        <SettingsRow description={f.hintKey ? t(f.hintKey) : undefined} inline={f.kind === 'bool'} key={f.name} label={t(f.labelKey)}>
             <FieldInput base={ctl.base[f.name]} f={f} set={(x) => ctl.set(f.name, x)} v={ctl.v[f.name]} />
         </SettingsRow>
     ))
@@ -137,10 +140,11 @@ function Rows({ ctl, fields }: { ctl: SectionCtl; fields: Field[] }) {
 
 /** Fields of a section as titled cards (the general settings screen). */
 export function SectionGroups({ ctl }: { ctl: SectionCtl }) {
+    const { t } = useTranslation('admin')
     return (
         <Stack className={classes.form} gap="md">
             {fieldGroups(ctl.def.fields).map((g) => (
-                <SettingsGroup key={g.title} title={g.title}>
+                <SettingsGroup key={g.key} title={g.key ? t(g.key) : ''}>
                     <Rows ctl={ctl} fields={g.fields} />
                 </SettingsGroup>
             ))}
@@ -150,6 +154,7 @@ export function SectionGroups({ ctl }: { ctl: SectionCtl }) {
 
 /** Fields of a section as blocks with small titles (the body of a provider card). */
 export function SectionBlocks({ ctl, webhookBase, lost, intro }: { ctl: SectionCtl; webhookBase: string; lost?: boolean; intro?: ReactNode }) {
+    const { t } = useTranslation('admin')
     const { def } = ctl
     const groups = fieldGroups(def.fields.filter((f) => f.name !== 'enabled'))
     return (
@@ -163,25 +168,25 @@ export function SectionBlocks({ ctl, webhookBase, lost, intro }: { ctl: SectionC
                     )}
                     {lost && (
                         <Text c="yellow" lh={1.4} size="xs">
-                            {A.settings.lostHere}
+                            {t('settings.lostHere')}
                         </Text>
                     )}
                 </div>
             )}
             {groups.map((g) => (
-                <section key={g.title}>
-                    <Text className={classes.blockTitle}>{g.title}</Text>
+                <section key={g.key}>
+                    <Text className={classes.blockTitle}>{g.key ? t(g.key) : ''}</Text>
                     <Rows ctl={ctl} fields={g.fields} />
                 </section>
             ))}
             {def.webhook && (
                 <section>
-                    <Text className={classes.blockTitle}>{A.settings.notifications}</Text>
-                    <SettingsRow description={A.settings.webhookHint} label={A.settings.webhook}>
+                    <Text className={classes.blockTitle}>{t('settings.notifications')}</Text>
+                    <SettingsRow description={t('settings.webhookHint')} label={t('settings.webhook')}>
                         <Stack gap="sm">
                             <CopyableFieldShared size="md" value={`${webhookBase}/pay/${def.webhook}`} />
                             <Button fullWidth loading={ctl.busy === 'test'} onClick={ctl.test} size="md" variant="default">
-                                {A.settings.test}
+                                {t('settings.test')}
                             </Button>
                         </Stack>
                     </SettingsRow>
@@ -193,20 +198,21 @@ export function SectionBlocks({ ctl, webhookBase, lost, intro }: { ctl: SectionC
 
 /** The one sticky bar of a screen: for `ctl`, the section being edited. */
 export function SaveBar({ ctl }: { ctl: SectionCtl | undefined }) {
+    const { t } = useTranslation('admin')
     const msg = ctl?.msg
     return (
-        <ActionBar message={msg ? msg.text : ctl?.dirty ? A.settings.unsaved : undefined} mounted={!!ctl} title={ctl?.def.title} tone={msg ? (msg.ok ? 'ok' : 'error') : undefined}>
+        <ActionBar message={msg ? msg.text : ctl?.dirty ? t('settings.unsaved') : undefined} mounted={!!ctl} title={ctl ? t(ctl.def.titleKey) : undefined} tone={msg ? (msg.ok ? 'ok' : 'error') : undefined}>
             {ctl?.dirty ? (
                 <>
                     <Button disabled={!!ctl.busy} onClick={ctl.discard} size="md" variant="default">
-                        {A.settings.discard}
+                        {t('settings.discard')}
                     </Button>
                     <Button loading={ctl.busy === 'save'} onClick={ctl.save} size="md" variant="filled">
-                        {A.settings.save}
+                        {t('settings.save')}
                     </Button>
                 </>
             ) : (
-                <ActionIcon aria-label={A.settings.close} onClick={ctl?.dismiss} size={40}>
+                <ActionIcon aria-label={t('settings.close')} onClick={ctl?.dismiss} size={40}>
                     <IconX size={18} stroke={1.75} />
                 </ActionIcon>
             )}

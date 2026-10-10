@@ -441,3 +441,20 @@ func TestProviderLabelsFollowRequestLanguage(t *testing.T) {
 		}
 	}
 }
+
+// The invoice the payer sees is titled in the payer's language, not always English.
+func TestInvoiceTitleFollowsPayerLanguage(t *testing.T) {
+	for lang, want := range map[string]string{"ru": "Пополнение баланса", "en": "Balance top-up", "": "Balance top-up", "xx": "Balance top-up"} {
+		f := ordersFake()
+		d := app(f)
+		withOrders(t, f, d)
+		fp := withProvider(d)
+		code, out := do(t, d, "POST", "/bot/api/orders", tmaLang(77, lang), `{"kind":"topup","amount":100,"method":"fake"}`)
+		if code != 201 || len(fp.Invoices) != 1 {
+			t.Fatalf("%q: create %d %s", lang, code, out)
+		}
+		if got := fp.Invoices[0].Title; got != want {
+			t.Errorf("%q: invoice title %q, want %q", lang, got, want)
+		}
+	}
+}

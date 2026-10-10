@@ -9,7 +9,7 @@ export const needsRenewal = (s: Subscription) => !s.unlimited && !!s.expire_at &
 
 export const isExpired = (s: Subscription) => !!s.expire_at && new Date(s.expire_at).getTime() <= Date.now()
 
-// daysLeftText: "сегодня" / "через 2 дня"
+// daysLeftText: "today" / "in 2 days"
 export function daysLeftText(s: Subscription) {
     const days = Math.floor((new Date(s.expire_at!).getTime() - Date.now()) / (24 * 3600 * 1000))
     return days < 1 ? i18n.t('renew.today') : i18n.t('renew.in_days', { count: days })

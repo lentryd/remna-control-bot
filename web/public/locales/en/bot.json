@@ -1,0 +1,173 @@
+{
+    "format": {
+        "date": "MMM D, YYYY",
+        "datetime": "MMM D, YYYY HH:mm",
+        "units": {
+            "b": "B",
+            "kb": "KB",
+            "mb": "MB",
+            "gb": "GB",
+            "tb": "TB"
+        }
+    },
+    "nav": {
+        "overview": "Home",
+        "subscriptions": "Subscriptions",
+        "balance": "Balance",
+        "referrals": "Referrals"
+    },
+    "overview": {
+        "hello": "Hi, {{name}}!",
+        "manage": "Manage",
+        "balance": "Balance",
+        "monthly": "Per month",
+        "nearest": "Next expiry",
+        "subs": "My subscriptions",
+        "all": "All",
+        "tariffs": "Plans",
+        "monthly_line": "{{sum}} per month for subscriptions",
+        "all_good": "Everything is paid — next renewal {{date}}",
+        "start_title": "Connect your first subscription",
+        "start_text": "Pick a plan — the subscription will appear here, along with its link and setup instructions.",
+        "start_button": "Choose a plan"
+    },
+    "sub": {
+        "until": "until {{date}}",
+        "forever": "no expiry",
+        "traffic": "Traffic",
+        "devices": "Devices: up to {{n}}",
+        "link": "Subscription link",
+        "addons": "Extras",
+        "included": "included in the plan",
+        "per_month": "{{price}} / mo",
+        "status": {
+            "ACTIVE": "Active",
+            "EXPIRED": "Expired",
+            "DISABLED": "Disabled",
+            "LIMITED": "Traffic limit reached",
+            "PENDING": "Connecting"
+        },
+        "addons_count_one": "{{count}} extra",
+        "addons_count_other": "{{count}} extras",
+        "connect_more": "Connect another",
+        "open_page": "Open the subscription page",
+        "open_hint": "It has the link for the app and setup instructions",
+        "change_tariff": "Change plan"
+    },
+    "balance": {
+        "title": "Balance",
+        "own": "Own funds",
+        "referral": "Referral",
+        "history": "Transaction history",
+        "types": {
+            "payment": "Top-up",
+            "charge": "Charge",
+            "adjustment": "Adjustment",
+            "refund": "Refund",
+            "referral": "Referral reward"
+        },
+        "available": "Available",
+        "top_up": "Top up balance"
+    },
+    "refs": {
+        "title": "Referrals",
+        "share": "Share",
+        "earned": "Earned",
+        "share_text": "Join using my link",
+        "friends": "Friends",
+        "pitch": "Share your link — you get a percentage of every payment your friend makes added to your balance.",
+        "invite_title": "Invite friends",
+        "copy": "Copy"
+    },
+    "tariffs": {
+        "title": "Plans",
+        "per_month": "/ mo",
+        "addon": "Extra",
+        "subtitle": "Pick what suits you — connect in a couple of minutes.",
+        "connect": "Connect",
+        "addon_hint": "Added to your subscription",
+        "traffic": "{{size}} of traffic per month",
+        "traffic_unlimited": "Unlimited traffic",
+        "devices_one": "Up to {{count}} device",
+        "devices_other": "Up to {{count}} devices",
+        "period": "{{term}} — {{price}}",
+        "months_one": "{{count}} mo",
+        "months_other": "{{count}} mo",
+        "days_one": "{{count}} day",
+        "days_other": "{{count}} days",
+        "save_up_to": "up to −{{pct}}%",
+        "addons_title": "Extras",
+        "addons_subtitle": "Expand your subscription with what you need.",
+        "empty": "No plans available right now"
+    },
+    "empty": {
+        "subs": "No subscriptions yet",
+        "subs_hint": "Pick a plan — the subscription will appear here.",
+        "ledger": "No transactions yet",
+        "refs": "You haven't invited anyone yet",
+        "refs_hint": "Share your link — you get a percentage of your friends' payments added to your balance."
+    },
+    "errors": {
+        "no_tg": "Open the app from the Telegram bot.",
+        "no_access": "Access is for customers only. Open the bot and send your subscription link.",
+        "unavailable": "The service is temporarily unavailable. Please try again later.",
+        "retry": "Retry"
+    },
+    "copied": "Copied",
+    "renew": {
+        "button": "Renew",
+        "today": "expires today",
+        "in_days_one": "expires in {{count}} day",
+        "in_days_other": "expires in {{count}} days",
+        "expired": "expired on {{date}}",
+        "button_expired": "Reactivate subscription",
+        "month_price": "Renew for a month",
+        "from_referral": "From referral funds",
+        "from_own": "From your balance",
+        "to_pay": "To pay",
+        "covered": "The full amount will be charged to your balance"
+    },
+    "checkout": {
+        "title": "Payment",
+        "term": "Term",
+        "price": "Price",
+        "from_balance": "From balance",
+        "to_pay": "To pay",
+        "amount": "Top-up amount",
+        "subscription": "Subscription",
+        "tariff": "New plan",
+        "pay_balance": "Pay from balance",
+        "pay_manual": "Pay by transfer",
+        "details": "Payment details",
+        "send_receipt": "Send the payment receipt to the chat",
+        "receipt_hint": "Transfer the amount using the details, then send a photo or PDF of the payment receipt to the bot chat.",
+        "manual_off": "Payment by transfer is not set up — contact support to top up your balance.",
+        "unavailable": "This option is unavailable right now",
+        "provider_failed": "Couldn't create an invoice with the payment service. Try another method.",
+        "failed": "The payment couldn't be processed. Contact support and we'll sort it out.",
+        "subtitle": "Check your order and choose a payment method",
+        "method": "Payment method",
+        "pending": "The order is created but not paid yet. Retry the payment or cancel the order.",
+        "manual_title": "Payment by transfer"
+    },
+    "orders": {
+        "title": "Payment requests",
+        "send_receipt": "Send payment receipt",
+        "cancel": "Cancel",
+        "pay": "Pay",
+        "failed": "Payment failed — contact support",
+        "status": {
+            "new": "Created",
+            "awaiting_payment": "Awaiting payment",
+            "awaiting_receipt": "Awaiting receipt",
+            "pending_review": "Under review",
+            "approving": "Processing",
+            "approved": "Paid",
+            "credited": "Credited to balance",
+            "failed": "Failed",
+            "rejected": "Rejected",
+            "expired": "Expired",
+            "cancelled": "Cancelled"
+        }
+    }
+}

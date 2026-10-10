@@ -1,9 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query'
+import type { TFunction } from 'i18next'
 import { useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { ApiError } from '../../api'
 import { checkSection, saveSection } from '../../adminApi'
-import { A } from './text'
 import type { SectionDef } from './sections'
 
 export type Values = Record<string, unknown>
@@ -32,18 +33,18 @@ const toForm = (def: SectionDef, v: Values): Values =>
 export const isDay = (d: string) => /^\d+$/.test(d.trim()) && Number(d) > 0
 
 // Returns the request body, or the first validation message.
-function toBody(def: SectionDef, v: Values): { body: Values } | { error: string } {
+function toBody(t: TFunction<'admin'>, def: SectionDef, v: Values): { body: Values } | { error: string } {
     const out: Values = {}
     for (const f of def.fields) {
         const x = v[f.name]
         if (f.kind === 'number') {
             const n = typeof x === 'number' ? x : typeof x === 'string' && x.trim() !== '' ? Number(x) : NaN
-            if (!Number.isFinite(n)) return { error: A.settings.badNumber(f.label) }
+            if (!Number.isFinite(n)) return { error: t('settings.badNumber', { label: t(f.labelKey) }) }
             out[f.name] = n
         } else if (f.kind === 'tags') {
             const parts = ((x as string[] | undefined) ?? []).map((d) => d.trim()).filter((d) => d !== '')
             const days = parts.map((d) => (/^\d+$/.test(d) ? Number(d) : NaN))
-            if (days.some((d) => !Number.isInteger(d) || d <= 0)) return { error: A.settings.badDays(f.label) }
+            if (days.some((d) => !Number.isInteger(d) || d <= 0)) return { error: t('settings.badDays', { label: t(f.labelKey) }) }
             out[f.name] = days
         } else out[f.name] = x
     }
@@ -57,6 +58,7 @@ const errorText = (e: unknown) => (e instanceof ApiError ? (e.detail ?? e.code) 
  * (or leaving a card collapsed) never loses what was typed.
  */
 export function useSectionForms(defs: SectionDef[], sections: Record<string, Values>): Record<string, SectionCtl> {
+    const { t } = useTranslation('admin')
     const qc = useQueryClient()
     const [st, setSt] = useState<Record<string, Entry>>(() =>
         Object.fromEntries(defs.map((d) => [d.key, { v: toForm(d, sections[d.key] ?? {}), base: toForm(d, sections[d.key] ?? {}), msg: null, busy: null }]))
@@ -93,22 +95,22 @@ export function useSectionForms(defs: SectionDef[], sections: Record<string, Val
                 dismiss: () => patch(key, { msg: null }),
                 save: () =>
                     run(key, 'save', async () => {
-                        const r = toBody(def, ref.current[key].v)
+                        const r = toBody(t, def, ref.current[key].v)
                         if ('error' in r) throw new Error(r.error)
                         const saved = toForm(def, await saveSection(key, r.body))
                         patch(key, { v: saved, base: saved })
                         await qc.invalidateQueries({ queryKey: ['admin', 'settings'] })
-                        return A.settings.saved
+                        return t('settings.saved')
                     }),
                 test: () =>
                     run(key, 'test', async () => {
                         try {
                             const r = await checkSection(key)
-                            if (!r.supported) return A.settings.noCheck
-                            if (!r.ok) throw new Error(r.message ?? A.settings.checkFailed)
+                            if (!r.supported) return t('settings.noCheck')
+                            if (!r.ok) throw new Error(r.message ?? t('settings.checkFailed'))
                             return r.message ?? 'OK'
                         } catch (err) {
-                            if (err instanceof ApiError && err.code === 'not_active') throw new Error(A.settings.notActive)
+                            if (err instanceof ApiError && err.code === 'not_active') throw new Error(t('settings.notActive'))
                             throw err
                         }
                     })

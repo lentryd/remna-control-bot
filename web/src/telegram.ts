@@ -9,6 +9,7 @@ interface BackButton {
 }
 interface WebApp {
     initData: string
+    initDataUnsafe?: { user?: { language_code?: string } }
     colorScheme: 'light' | 'dark'
     themeParams: ThemeParams
     ready(): void

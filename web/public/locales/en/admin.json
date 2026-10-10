@@ -1,0 +1,167 @@
+{
+    "title": "Manage",
+    "tabs": { "orders": "Orders", "methods": "Payment", "general": "General" },
+    "orders": {
+        "filters": { "review": "Need a decision", "all": "All", "failed": "Errors" },
+        "empty": "No orders",
+        "loadFailed": "Couldn’t load the orders",
+        "retry": "Try again",
+        "prev": "Back",
+        "next": "Next",
+        "page": "Page {{n}} of {{of}}",
+        "unreachable": "Notifications aren’t reaching these people: {{ids}}. Ask them to press /start in the bot.",
+        "customer": "customer #{{id}}"
+    },
+    "order": {
+        "back": "To orders",
+        "customer": "Customer",
+        "method": "Method",
+        "price": "Amount",
+        "priceWithBalance": "{{price}} · from balance −{{balance}}",
+        "toPay": "To pay",
+        "received": "Received",
+        "decidedByLabel": "Decided by",
+        "decision": "Decision",
+        "comment": "Customer’s comment",
+        "receipt": "Payment receipt",
+        "receiptOpen": "Open the file",
+        "amount": "Received",
+        "approve": "Confirm",
+        "debt": "Extend on credit",
+        "credit": "Balance only",
+        "reject": "Decline",
+        "reason": "Reason for declining (optional)",
+        "retry": "Try again",
+        "failed": "Error",
+        "done": "This order has already been handled",
+        "amountInvalid": "Enter an amount above zero",
+        "loadFailed": "Couldn’t load the order",
+        "receiptFailed": "Couldn’t load the payment receipt",
+        "receiptAlt": "Payment receipt",
+        "errors": {
+            "underpaid": "The amount received is less than the order total",
+            "state_changed": "This order has already been handled",
+            "unavailable": "The service is temporarily unavailable, please try again",
+            "not_found": "Order not found",
+            "bad_request": "Invalid request"
+        }
+    },
+    "status": {
+        "new": "Draft",
+        "awaiting_receipt": "Waiting for the payment receipt",
+        "awaiting_payment": "Waiting for payment",
+        "pending_review": "Under review",
+        "approving": "Being processed",
+        "approved": "Paid",
+        "credited": "Added to balance",
+        "failed": "Error",
+        "rejected": "Declined",
+        "expired": "Expired",
+        "cancelled": "Cancelled"
+    },
+    "settings": {
+        "save": "Save",
+        "saved": "Saved",
+        "test": "Check",
+        "lost": "The saved keys couldn’t be decrypted (REF_SECRET has changed). Enter them again for:",
+        "webhook": "Webhook URL",
+        "notifications": "Payment service notifications",
+        "webhookHint": "Add this address in the payment service’s dashboard",
+        "unsaved": "You have unsaved changes",
+        "enabled": "Enabled",
+        "close": "Close",
+        "state": { "off": "Off", "on": "On", "incomplete": "Not filled in", "lost": "Keys lost" },
+        "lostHere": "The saved keys couldn’t be decrypted. Enter them again and save.",
+        "secretSaved": "Saved: {{mask}}",
+        "secretNone": "Not set",
+        "secretNew": "The new value will be saved when you press “Save”",
+        "daysPlaceholder": "For example, 3",
+        "daysInvalid": "Whole numbers above zero only",
+        "discard": "Discard",
+        "noCheck": "This method can’t be checked",
+        "notActive": "Turn the method on and save it first",
+        "loadFailed": "Couldn’t load the settings",
+        "checkFailed": "The check didn’t pass",
+        "badNumber": "“{{label}}”: enter a number",
+        "badDays": "“{{label}}”: whole positive numbers separated by commas"
+    },
+    "groups": {
+        "bot": "Bot",
+        "balance": "Paying from balance",
+        "notifications": "Notifications",
+        "orders": "Orders",
+        "access": "Access",
+        "params": "Settings"
+    },
+    "sections": {
+        "general": {
+            "title": "General settings",
+            "mode": {
+                "label": "Bot mode",
+                "closed": { "label": "Closed", "hint": "The bot answers only customers of the VPN panel" },
+                "open": { "label": "Open", "hint": "The bot answers any Telegram user" }
+            },
+            "base_currency": { "label": "Base currency", "hint": "A 3-letter uppercase code, for example RUB. Empty — taken from the VPN panel" },
+            "pay_mode": {
+                "label": "Paying from balance",
+                "mixed": { "label": "Together", "hint": "The main and referral balances are spent together" },
+                "referral_full": { "label": "Referral balance in full only", "hint": "Referral money is spent only if it covers the whole price" }
+            },
+            "notify_minutes": { "label": "Check interval", "unit": "min", "hint": "How often to check traffic and deadlines. 0 — notifications are off" },
+            "traffic_alert_pct": { "label": "Traffic threshold", "unit": "%", "hint": "Warn the customer once this much traffic has been used" },
+            "remind_days": { "label": "Remind before", "unit": "d", "hint": "How many days before the subscription ends. Type a number and press Enter or comma" },
+            "order_ttl_hours": { "label": "Unpaid order lifetime", "unit": "h", "hint": "How many hours until an unpaid order expires" }
+        },
+        "pay_manual": {
+            "title": "Transfer with a payment receipt",
+            "hint": "The customer sends money to your details and sends you a payment receipt; you confirm the payment by hand.",
+            "details": { "label": "Payment details", "hint": "Shown to the customer next to the amount" }
+        },
+        "pay_yookassa": {
+            "title": "YooKassa",
+            "hint": "You need the Shop ID and the secret key from your YooKassa dashboard. Add the webhook in the shop’s notification settings.",
+            "shop_id": { "label": "Shop ID" },
+            "secret_key": { "label": "Secret key" },
+            "return_url": { "label": "Where to send the customer back", "hint": "Empty — to the app" },
+            "receipt_email": { "label": "Email for the receipt", "hint": "Empty — no receipt" },
+            "vat_code": { "label": "VAT code (1–6)" }
+        },
+        "pay_cryptobot": {
+            "title": "CryptoBot",
+            "hint": "You need the app’s API token from @CryptoBot (Crypto Pay). Add the webhook in the app’s settings.",
+            "token": { "label": "API token" },
+            "testnet": { "label": "Test network" },
+            "assets": { "label": "Accepted assets", "hint": "USDT,TON — empty: all" }
+        },
+        "pay_heleket": {
+            "title": "Heleket",
+            "hint": "You need the Merchant ID and the API key from your Heleket dashboard. Add the webhook in the shop’s settings.",
+            "merchant_id": { "label": "Merchant ID" },
+            "api_key": { "label": "API key" },
+            "to_currency": { "label": "Asset", "hint": "Optional" },
+            "network": { "label": "Network", "hint": "Optional" }
+        },
+        "pay_pal24": {
+            "title": "PayPalych",
+            "hint": "You need the API token and the Shop ID from your PayPalych dashboard. Add the postback address in the shop’s settings.",
+            "api_token": { "label": "API token" },
+            "shop_id": { "label": "Shop ID" },
+            "signature_token": { "label": "Postback signature token", "hint": "Empty — the API token is used" }
+        },
+        "pay_platega": {
+            "title": "Platega",
+            "hint": "You need the Merchant ID and the secret from your Platega dashboard. Add the webhook in the merchant settings.",
+            "merchant_id": { "label": "Merchant ID" },
+            "secret": { "label": "Secret" },
+            "payment_method": { "label": "Payment method", "hint": "2 SBP QR, 11 cards, 12 foreign cards, 13 crypto" },
+            "api_version": { "label": "API version", "v1": { "label": "v1" }, "v2": { "label": "v2" } },
+            "return_url": { "label": "Success URL", "hint": "Empty — to the app" },
+            "failed_url": { "label": "Failure URL" }
+        },
+        "pay_stars": {
+            "title": "Telegram Stars",
+            "hint": "Payment with Telegram Stars, no external dashboard needed: just set the rate.",
+            "rate": { "label": "Price of one star", "hint": "How much of the base currency 1 ⭐ costs" }
+        }
+    }
+}

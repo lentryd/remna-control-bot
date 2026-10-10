@@ -127,7 +127,10 @@ func (s *server) initAuth(c *fiber.Ctx) error {
 	}
 	c.Locals("tg", u.ID)
 	c.Locals("tguser", u)
-	c.Locals("loc", i18n.Default.For(u.LanguageCode))
+	l := i18n.Default.For(u.LanguageCode)
+	c.Locals("loc", l)
+	// Order and invoice texts are rendered from the request context, so it carries the payer's language too.
+	c.SetUserContext(i18n.NewContext(c.UserContext(), l))
 	// A missing code stores nothing, so it never overwrites a remembered language; a failure to remember
 	// one must never fail the request.
 	if s.Langs != nil && strings.TrimSpace(u.LanguageCode) != "" {

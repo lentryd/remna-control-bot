@@ -125,3 +125,7 @@ plus the WebApp dev server; it stops the bot container, and traefik then routes 
 Put `compose.yml` and `.env` next to the panel and run `docker compose up -d --build`. The container joins
 the panel's docker network; its Traefik labels route `Host(APP_DOMAIN)` with `PathPrefix(WEBAPP_PATH)` or `PathPrefix(/pay/)` (provider webhooks) to the bot
 with a higher priority than the panel's router. With another balancer, route both paths to port 8090.
+
+## Languages
+
+The bot and the web app speak English and Russian, following Telegram's language. See [docs/i18n.md](docs/i18n.md) for how to add one.

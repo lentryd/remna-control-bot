@@ -85,7 +85,8 @@ func baseKey(k string) string {
 	return k
 }
 
-// TestCatalogParity: every shipped language has the keys of en and the same format verbs.
+// TestCatalogParity: every shipped language has the base keys of en and the same format verbs.
+// Plural forms are compared too: every form of every language must use the verbs of en's base key.
 func TestCatalogParity(t *testing.T) {
 	b := Default
 	en := b.cats[Base]
@@ -96,26 +97,20 @@ func TestCatalogParity(t *testing.T) {
 		}
 	}
 	for _, lang := range b.Langs() {
-		if lang == Base {
-			continue
-		}
-		got := map[string]string{}
+		got := map[string]bool{}
 		for k, v := range b.cats[lang] {
-			if k == baseKey(k) || strings.HasSuffix(k, "_other") {
-				got[baseKey(k)] = verbs(v)
-			}
-		}
-		for k, want := range enKeys {
-			g, ok := got[k]
+			base := baseKey(k)
+			got[base] = true
+			want, ok := enKeys[base]
 			if !ok {
-				t.Errorf("%s: missing key %q", lang, k)
-			} else if g != want {
+				t.Errorf("%s: extra key %q not in en", lang, k)
+			} else if g := verbs(v); g != want {
 				t.Errorf("%s: key %q verbs %q, en has %q", lang, k, g, want)
 			}
 		}
-		for k := range got {
-			if _, ok := enKeys[k]; !ok {
-				t.Errorf("%s: extra key %q not in en", lang, k)
+		for k := range enKeys {
+			if !got[k] {
+				t.Errorf("%s: missing key %q", lang, k)
 			}
 		}
 	}

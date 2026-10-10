@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	tgbot "github.com/go-telegram/bot"
@@ -66,9 +67,39 @@ func TestMiddlewareStoresAndInjects(t *testing.T) {
 	if seen.Lang() != "en" || langs[1] != "en" {
 		t.Fatalf("seen %q, stored %q", seen.Lang(), langs[1])
 	}
-	// no language_code: keep the stored one, answer in it
+	// a different person: ru, then no language_code - the stored ru must be kept and used
+	h(context.Background(), nil, &models.Update{Message: &models.Message{From: &models.User{ID: 2, LanguageCode: "ru"}}})
+	h(context.Background(), nil, &models.Update{Message: &models.Message{From: &models.User{ID: 2}}})
+	if seen.Lang() != "ru" || langs[2] != "ru" {
+		t.Fatalf("empty code: seen %q, stored %q", seen.Lang(), langs[2])
+	}
+}
+
+func TestMiddlewareWithoutStore(t *testing.T) {
+	b := &Bot{}
+	var seen i18n.Localizer
+	h := b.langMiddleware()(func(ctx context.Context, _ *tgbot.Bot, _ *models.Update) { seen = b.loc(ctx) })
+	h(context.Background(), nil, &models.Update{Message: &models.Message{From: &models.User{ID: 1, LanguageCode: "ru"}}})
+	if seen.Lang() != "ru" {
+		t.Fatalf("nil Langs: seen %q", seen.Lang())
+	}
 	h(context.Background(), nil, &models.Update{Message: &models.Message{From: &models.User{ID: 1}}})
 	if seen.Lang() != "en" {
-		t.Fatalf("empty code: seen %q", seen.Lang())
+		t.Fatalf("nil Langs, no code: seen %q", seen.Lang())
+	}
+}
+
+type failingLangs struct{ fakeLangs }
+
+func (failingLangs) SetLang(context.Context, int64, string) error { return errors.New("db down") }
+
+func TestMiddlewareSurvivesSetLangError(t *testing.T) {
+	b := &Bot{Deps: Deps{Langs: failingLangs{fakeLangs{}}}}
+	var seen i18n.Localizer
+	called := false
+	h := b.langMiddleware()(func(ctx context.Context, _ *tgbot.Bot, _ *models.Update) { called, seen = true, b.loc(ctx) })
+	h(context.Background(), nil, &models.Update{Message: &models.Message{From: &models.User{ID: 1, LanguageCode: "ru"}}})
+	if !called || seen.Lang() != "ru" {
+		t.Fatalf("called %v, seen %q", called, seen.Lang())
 	}
 }

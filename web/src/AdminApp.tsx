@@ -1,5 +1,6 @@
 import { Box } from '@mantine/core'
 import { IconCreditCard, IconReceipt, IconSettings } from '@tabler/icons-react'
+import { useTranslation } from 'react-i18next'
 import { Route, Routes, useLocation, useNavigate } from 'react-router'
 
 import { setFormat } from '@shared/format'
@@ -11,18 +12,19 @@ import { AdminGeneral } from './pages/admin/AdminGeneral'
 import { AdminMethods } from './pages/admin/AdminMethods'
 import { AdminOrder } from './pages/admin/AdminOrder'
 import { AdminOrders } from './pages/admin/AdminOrders'
-import { A } from './pages/admin/text'
 import { tg } from './telegram'
 import { ErrorScreen } from './ui/ErrorScreen'
 import { PageSkeleton } from './ui/PageSkeleton'
 
-const TABS = [
-    { value: '/admin', label: A.tabs.orders, icon: IconReceipt },
-    { value: '/admin/methods', label: A.tabs.methods, icon: IconCreditCard },
-    { value: '/admin/general', label: A.tabs.general, icon: IconSettings }
+const TAB_DEFS = [
+    { value: '/admin', key: 'tabs.orders', icon: IconReceipt },
+    { value: '/admin/methods', key: 'tabs.methods', icon: IconCreditCard },
+    { value: '/admin/general', key: 'tabs.general', icon: IconSettings }
 ]
 
 export function AdminApp() {
+    const { t } = useTranslation('admin')
+    const TABS = TAB_DEFS.map((d) => ({ value: d.value, label: t(d.key), icon: d.icon }))
     const me = useAdminMe()
     const { pathname } = useLocation()
     const navigate = useNavigate()
@@ -34,7 +36,7 @@ export function AdminApp() {
         return <ErrorScreen code={code} onRetry={code === 'unavailable' ? () => me.refetch() : undefined} />
     }
     setFormat({ base: me.data.currency })
-    const tab = TABS.find((t) => t.value !== '/admin' && pathname.startsWith(t.value))?.value ?? '/admin'
+    const tab = TABS.find((x) => x.value !== '/admin' && pathname.startsWith(x.value))?.value ?? '/admin'
     // An order has its own header with a way back; the tabs belong to the lists.
     const detail = pathname.startsWith('/admin/orders/')
     const routes = (
@@ -52,7 +54,7 @@ export function AdminApp() {
                 <div className="vpnc-enter">{routes}</div>
             ) : (
                 <>
-                    <PageHeaderShared description={me.data.name} title={A.title} />
+                    <PageHeaderShared description={me.data.name} title={t('title')} />
                     <SectionNav items={TABS} onChange={(v) => navigate(v)} value={tab}>
                         <div className="vpnc-enter" key={tab}>
                             {routes}
