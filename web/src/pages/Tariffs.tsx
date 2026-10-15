@@ -1,30 +1,24 @@
 // Tariffs.tsx — the catalog as cards worth tapping: price up front, what's
 // included, savings for longer terms and a bright "connect" button.
 import { Badge, Card, Group, List, Stack, Text, ThemeIcon, Title } from '@mantine/core'
-import { IconBolt, IconCheck, IconDevices, IconGauge, IconPuzzle } from '@tabler/icons-react'
+import { IconBolt, IconCheck, IconDevices, IconGauge, IconGift, IconPuzzle } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
 import { fmtBytes, fmtMoney } from '@shared/format'
 import { useTariffs } from '../api'
-import type { Period, Tariff } from '../types'
+import { bestPeriod, termKey } from '../pricing'
+import type { Tariff } from '../types'
 import { term } from '../term'
 import { CtaButton } from '../ui/CtaButton'
 import { Empty } from '../ui/Empty'
+import { OldPrice } from '../ui/OldPrice'
 import { PageSkeleton } from '../ui/PageSkeleton'
 import classes from './tariffs.module.css'
 
-// saving of a period against paying monthly, in whole percent
-const saving = (tf: Tariff, p: Period) => {
-    const months = p.months + p.days / 30
-    const full = tf.monthly_price * months
-    return full > 0 ? Math.round((1 - p.price / full) * 100) : 0
-}
-
 function TariffCard({ tf }: { tf: Tariff }) {
     const { t } = useTranslation()
-    const periods = (tf.periods ?? []).filter((p) => p.months > 0 || p.days > 0)
-    const best = Math.max(0, ...periods.map((p) => saving(tf, p)))
+    const best = bestPeriod(tf)
     const addon = tf.kind === 'addon'
     const navigate = useNavigate()
     return (
@@ -32,20 +26,32 @@ function TariffCard({ tf }: { tf: Tariff }) {
             <Stack gap="md">
                 <Group align="flex-start" justify="space-between" wrap="nowrap">
                     <Stack gap={2} style={{ minWidth: 0 }}>
-                        {addon && tf.addon_name && <Text c="dimmed" size="xs" tt="uppercase">{t('tariffs.addon')}</Text>}
-                        <Text fw={700} size="xl" truncate="end">{addon && tf.addon_name ? tf.addon_name : tf.name}</Text>
+                        {addon && <Text c="dimmed" size="xs" tt="uppercase">{t('tariffs.addon')}</Text>}
+                        <Text fw={700} size="xl" truncate="end">{tf.name}</Text>
                     </Stack>
-                    {best > 0 && (
+                    {best && (
                         <Badge className={classes.save} color="teal" radius="sm" size="lg" variant="light">
-                            {t('tariffs.save_up_to', { pct: best })}
+                            {t('tariffs.save_up_to', { pct: best.pct })}
                         </Badge>
                     )}
                 </Group>
 
-                <Group align="baseline" gap={6}>
-                    <Text className={classes.price}>{fmtMoney(tf.monthly_price)}</Text>
-                    <Text c="dimmed">{t('tariffs.per_month')}</Text>
-                </Group>
+                <Stack gap={4}>
+                    <Group align="stretch" gap={8} wrap="nowrap">
+                        <Text className={classes.price}>{fmtMoney(best ? best.perMonth : tf.monthly_price)}</Text>
+                        <Stack gap={0} justify={best ? 'space-between' : 'flex-end'}>
+                            {best && <OldPrice size="sm">{fmtMoney(tf.monthly_price)}</OldPrice>}
+                            <Text c="dimmed">{t('tariffs.per_month')}</Text>
+                        </Stack>
+                    </Group>
+                    {best && (
+                        <Text c="dimmed" size="xs">
+                            {t('tariffs.best_period', { term: term(best.period, t) })}
+                            {' · '}
+                            <Text c="teal" component="span" fw={700} size="xs">{t('tariffs.saving', { sum: fmtMoney(best.saved) })}</Text>
+                        </Text>
+                    )}
+                </Stack>
 
                 {tf.description && <Text size="sm">{tf.description}</Text>}
 
@@ -65,21 +71,27 @@ function TariffCard({ tf }: { tf: Tariff }) {
                     )}
                 </List>
 
-                {periods.length > 0 && (
-                    <Group gap={6}>
-                        {periods.map((p, i) => {
-                            const pct = saving(tf, p)
-                            return (
-                                <Badge className={classes.period} color="gray" key={i} radius="sm" size="lg" variant="light">
-                                    {t('tariffs.period', { term: term(p, t), price: fmtMoney(p.price) })}
-                                    {pct > 0 && <Text c="teal" component="span" fw={700} size="xs"> −{pct}%</Text>}
-                                </Badge>
-                            )
-                        })}
-                    </Group>
+                {(tf.includes ?? []).length > 0 && (
+                    <Stack className={classes.includes} gap={8}>
+                        <Group gap={6}>
+                            <IconGift color="var(--mantine-color-violet-filled)" size={16} />
+                            <Text c="violet" fw={700} size="xs" tt="uppercase">{t('tariffs.includes_title', { count: tf.includes.length })}</Text>
+                        </Group>
+                        {tf.includes.map((a) => (
+                            <Group gap="xs" key={a.name} wrap="nowrap">
+                                <ThemeIcon color="violet" radius="xl" size={22} variant="light"><IconPuzzle size={13} /></ThemeIcon>
+                                <Stack gap={0} style={{ minWidth: 0 }}>
+                                    <Text fw={600} size="sm" truncate="end">{a.name}</Text>
+                                    <Text c="dimmed" size="xs">
+                                        {a.traffic_limit_bytes > 0 ? t('tariffs.traffic', { size: fmtBytes(a.traffic_limit_bytes) }) : t('tariffs.traffic_unlimited')}
+                                    </Text>
+                                </Stack>
+                            </Group>
+                        ))}
+                    </Stack>
                 )}
 
-                <CtaButton fullWidth leftSection={<IconBolt size={20} />} onClick={() => navigate(`/checkout?kind=${addon ? 'addon' : 'subscribe'}&tariff_id=${tf.id}`)} size="lg">
+                <CtaButton fullWidth leftSection={<IconBolt size={20} />} onClick={() => navigate(`/checkout?kind=${addon ? 'addon' : 'subscribe'}&tariff_id=${tf.id}${best ? `&term=${termKey(best.period)}` : ''}`)} size="lg">
                     {t('tariffs.connect')}
                 </CtaButton>
             </Stack>

@@ -1,0 +1,19 @@
+.old {
+    position: relative;
+    display: inline-block;
+    color: var(--mantine-color-dimmed);
+    font-weight: 500;
+}
+/* a thin slanted stroke instead of the flat browser line-through */
+.old::after {
+    content: '';
+    position: absolute;
+    left: -3px;
+    right: -3px;
+    top: 52%;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--mantine-color-red-filled);
+    opacity: 0.75;
+    transform: rotate(-9deg);
+}

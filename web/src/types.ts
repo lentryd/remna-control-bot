@@ -63,6 +63,10 @@ export interface Period {
     days: number
     price: number
 }
+export interface IncludedAddon {
+    name: string
+    traffic_limit_bytes: number
+}
 export interface Tariff {
     id: number
     kind: 'base' | 'addon'
@@ -73,6 +77,7 @@ export interface Tariff {
     traffic_limit_bytes: number
     hwid_limit: number | null
     periods: Period[] | null
+    includes: IncludedAddon[]
 }
 export type OrderKind = 'renew' | 'subscribe' | 'addon' | 'change_tariff' | 'topup'
 export interface OrderRequest {

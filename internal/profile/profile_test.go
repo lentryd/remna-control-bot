@@ -126,6 +126,23 @@ func TestTariffsHideFree(t *testing.T) {
 	}
 }
 
+func TestTariffsIncludes(t *testing.T) {
+	got := Tariffs([]remnactl.Tariff{
+		{ID: 1, Kind: "base", Name: "Base", Active: true, MonthlyPrice: 100, IncludedAddonTariffIDs: []int{3, 99, 4}},
+		{ID: 3, Kind: "addon", Name: "Gaming", AddonName: "lte", Active: true, TrafficLimitBytes: 1 << 30},
+		{ID: 4, Kind: "addon", Name: "Streaming", Active: false, MonthlyPrice: 0},
+	})
+	if len(got) != 1 {
+		t.Fatalf("free add-ons must stay hidden: %+v", got)
+	}
+	if want := "[{Gaming 1073741824} {Streaming 0}]"; fmt.Sprint(got[0].Includes) != want {
+		t.Fatalf("includes = %v, want %s", got[0].Includes, want)
+	}
+	if raw, _ := json.Marshal(got[0]); !strings.Contains(string(raw), `"includes":[{"name":"Gaming","traffic_limit_bytes":1073741824},`) {
+		t.Fatalf("json = %s", raw)
+	}
+}
+
 func TestRenewalUsesPayMode(t *testing.T) {
 	c := &remnactl.Customer{BalanceOwn: 100, BalanceReferral: 250, Subscriptions: []remnactl.Subscription{{
 		ID: 1, Price: 200, RwUser: &remnactl.RwUser{},

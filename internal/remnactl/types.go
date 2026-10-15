@@ -99,6 +99,8 @@ type Tariff struct {
 	TrafficLimitBytes int64    `json:"traffic_limit_bytes"`
 	HwidLimit         *int     `json:"hwid_limit"`
 	Periods           []Period `json:"periods"`
+	// IncludedAddonTariffIDs are the add-on tariffs a base tariff gives for free.
+	IncludedAddonTariffIDs []int `json:"included_addon_tariff_ids"`
 }
 
 type Period struct {

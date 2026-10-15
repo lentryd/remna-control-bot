@@ -159,21 +159,40 @@ type Tariff struct {
 	TrafficLimitBytes int64             `json:"traffic_limit_bytes"`
 	HwidLimit         *int              `json:"hwid_limit"`
 	Periods           []remnactl.Period `json:"periods"`
+	// Includes are the add-ons this tariff gives for free.
+	Includes []Included `json:"includes"`
 
 	order int
 }
 
+// Included is a free add-on of a tariff, as the storefront shows it.
+type Included struct {
+	Name              string `json:"name"`
+	TrafficLimitBytes int64  `json:"traffic_limit_bytes"`
+}
+
 func Tariffs(in []remnactl.Tariff) []Tariff {
+	// included add-ons are free, so they are looked up here, before the filter
+	byID := make(map[int]Included, len(in))
+	for _, t := range in {
+		byID[t.ID] = Included{Name: t.Name, TrafficLimitBytes: t.TrafficLimitBytes}
+	}
 	out := []Tariff{}
 	for _, t := range in {
 		// free tariffs (VIP, add-ons included in a tariff) are internal, not offered
 		if !t.Active || t.MonthlyPrice <= 0 {
 			continue
 		}
+		includes := []Included{}
+		for _, id := range t.IncludedAddonTariffIDs {
+			if inc, ok := byID[id]; ok && inc.Name != "" {
+				includes = append(includes, inc)
+			}
+		}
 		out = append(out, Tariff{
 			ID: t.ID, Kind: t.Kind, Name: t.Name, Description: t.Description, AddonName: t.AddonName,
 			MonthlyPrice: t.MonthlyPrice, TrafficLimitBytes: t.TrafficLimitBytes, HwidLimit: t.HwidLimit, Periods: t.Periods,
-			order: t.SortOrder,
+			Includes: includes, order: t.SortOrder,
 		})
 	}
 	sort.SliceStable(out, func(i, j int) bool {

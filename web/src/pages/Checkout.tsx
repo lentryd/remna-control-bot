@@ -2,7 +2,7 @@
 // add-ons, tariff changes and top-ups. Prices come from the server (quote).
 import { Alert, Button, Card, CopyButton, Group, NumberInput, Select, SimpleGrid, Skeleton, Stack, Text, ThemeIcon, Title, UnstyledButton } from '@mantine/core'
 import { useDebouncedValue } from '@mantine/hooks'
-import { IconAlertTriangle, IconBuildingBank, IconCheck, IconClockHour4, IconCopy, IconCreditCard, IconInfoCircle, IconPaperclip, IconReceipt, IconWallet } from '@tabler/icons-react'
+import { IconAlertTriangle, IconBuildingBank, IconCheck, IconClockHour4, IconCopy, IconCreditCard, IconDiscount2, IconInfoCircle, IconPaperclip, IconReceipt, IconWallet } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -15,15 +15,12 @@ import { haptic, openExternal, tg } from '../telegram'
 import type { Order, OrderKind, OrderRequest, Period, Profile } from '../types'
 import { CtaButton } from '../ui/CtaButton'
 import { ErrorScreen } from '../ui/ErrorScreen'
+import { OldPrice } from '../ui/OldPrice'
+import { regularCost, savingPct, termCost, termKey } from '../pricing'
 import { term } from '../term'
 import classes from './checkout.module.css'
 
-// saving of a period against paying monthly, in whole percent
-const saving = (monthly: number, p: Period) => {
-    const full = monthly * (p.months + p.days / 30)
-    return full > 0 ? Math.round((1 - p.price / full) * 100) : 0
-}
-
+const key = termKey
 const BASE_MONTHS = [1, 3, 6, 12]
 const KINDS: OrderKind[] = ['renew', 'subscribe', 'addon', 'change_tariff', 'topup']
 const num = (v: string | null) => (v && Number(v) > 0 ? Number(v) : undefined)
@@ -90,7 +87,7 @@ export function Checkout({ p }: { p: Profile }) {
 
     const [subId, setSubId] = useState<number | undefined>(itemId ?? (kind === 'addon' && p.subscriptions.length === 1 ? p.subscriptions[0].id : undefined))
     const [tariffId, setTariffId] = useState<number | undefined>(num(params.get('tariff_id')))
-    const [termKey, setTermKey] = useState<string | null>(null)
+    const [chosen, setChosen] = useState<string | null>(null)
     const [amount, setAmount] = useState<number | string>(500)
     const [debouncedAmount] = useDebouncedValue(amount, 300) // the quote follows the amount once typing pauses
     const settling = kind === 'topup' && debouncedAmount !== amount
@@ -108,8 +105,9 @@ export function Checkout({ p }: { p: Profile }) {
         ...(tariff?.periods ?? []).filter((x) => x.months > 0 || x.days > 0),
     ]
     const terms = [...new Map(periods.map((x) => [`${x.months}:${x.days}`, x])).values()].sort((a, b) => a.months * 30 + a.days - (b.months * 30 + b.days))
-    const firstPeriod = tariff?.periods?.find((x) => x.months > 0 || x.days > 0)
-    const curTerm = termKey ?? (firstPeriod ? `${firstPeriod.months}:${firstPeriod.days}` : '1:0')
+    // the term picked on the tariff list (its best saving) is preselected
+    const wanted = params.get('term')
+    const curTerm = chosen ?? (wanted && terms.some((x) => key(x) === wanted) ? wanted : '1:0')
     const [months, days] = curTerm.split(':').map(Number)
 
     let request: OrderRequest | null = null
@@ -263,6 +261,10 @@ export function Checkout({ p }: { p: Profile }) {
         )
 
     const q = quote.data
+    // what the picked term saves against paying month by month
+    const saved = tariff && (kind === 'renew' || kind === 'subscribe' || kind === 'addon')
+        ? Math.max(0, regularCost(tariff.monthly_price, months, days) - termCost(tariff.monthly_price, tariff.periods ?? [], months, days))
+        : 0
     const locked = pendingId !== null
     const baseTariffs = (tariffs.data ?? []).filter((tf) => tf.kind === 'base')
     const label = (text: string) => <Text fw={600} size="sm">{text}</Text>
@@ -296,21 +298,25 @@ export function Checkout({ p }: { p: Profile }) {
                     {label(t('checkout.term'))}
                     <SimpleGrid cols={2} spacing="sm">
                         {terms.map((x) => {
-                            const key = `${x.months}:${x.days}`
-                            const off = tariff && x.price > 0 ? saving(tariff.monthly_price, x) : 0
+                            const price = tariff ? termCost(tariff.monthly_price, tariff.periods ?? [], x.months, x.days) : 0
+                            const regular = tariff ? regularCost(tariff.monthly_price, x.months, x.days) : 0
+                            const off = savingPct(regular, price)
                             return (
                                 <UnstyledButton
                                     className={classes.term}
-                                    data-active={key === curTerm || undefined}
+                                    data-active={key(x) === curTerm || undefined}
                                     disabled={locked}
-                                    key={key}
-                                    onClick={() => setTermKey(key)}
+                                    key={key(x)}
+                                    onClick={() => setChosen(key(x))}
                                 >
                                     <Text fw={600}>{term(x, t)}</Text>
-                                    <Group gap={6} wrap="nowrap">
-                                        {x.price > 0 && <Text c="dimmed" size="sm">{fmtMoney(x.price)}</Text>}
-                                        {off > 0 && <Text c="teal" fw={600} size="sm">−{off}%</Text>}
-                                    </Group>
+                                    {price > 0 && <Text fw={700} size="lg">{fmtMoney(price)}</Text>}
+                                    {off > 0 && (
+                                        <Group gap={6} wrap="nowrap">
+                                            <OldPrice size="sm">{fmtMoney(regular)}</OldPrice>
+                                            <Text c="teal" fw={600} size="sm">−{off}%</Text>
+                                        </Group>
+                                    )}
                                 </UnstyledButton>
                             )
                         })}
@@ -334,6 +340,11 @@ export function Checkout({ p }: { p: Profile }) {
                             {q.from_balance > 0 && <Row color="teal" label={t('checkout.from_balance')} value={-q.from_balance} />}
                         </Stack>
                     </Summary>
+                    {saved >= 0.01 && (
+                        <Note color="teal" icon={<IconDiscount2 size={20} />}>
+                            <Text fw={700}>{t('checkout.saving', { sum: fmtMoney(saved) })}</Text>
+                        </Note>
+                    )}
                     {locked && (
                         <Note color="yellow" icon={<IconClockHour4 size={18} />}>
                             {t('checkout.pending')}
