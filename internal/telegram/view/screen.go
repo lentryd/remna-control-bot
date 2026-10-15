@@ -4,8 +4,6 @@ package view
 
 import (
 	"github.com/go-telegram/bot/models"
-
-	"remna-control-bot/internal/i18n"
 )
 
 type Screen struct {
@@ -34,5 +32,3 @@ func kb(rows ...[]btn) *models.InlineKeyboardMarkup {
 }
 
 func cb(text, data string) btn { return btn{Text: text, CallbackData: data} }
-
-func back(loc i18n.Localizer, to string) []btn { return []btn{cb(loc.T("btn.back"), to)} }

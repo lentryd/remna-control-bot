@@ -157,7 +157,7 @@ func (c *HTTPClient) do(ctx context.Context, method, path string, body, out any)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 400 {
 		var e struct {
 			Message string `json:"message"`

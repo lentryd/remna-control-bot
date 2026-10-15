@@ -14,11 +14,11 @@ func TestPay(t *testing.T) {
 			t.Errorf("unexpected %s %s", r.Method, r.URL)
 		}
 		var in PaymentInput
-		json.NewDecoder(r.Body).Decode(&in)
+		_ = json.NewDecoder(r.Body).Decode(&in)
 		if in.Amount != 700 || in.Method != "manual" || len(in.Allocations) != 1 || in.Allocations[0].Amount != 900 {
 			t.Errorf("body %+v", in)
 		}
-		w.Write([]byte(`{"payment_id":42,"balance":0,"extensions":[{"kind":"subscription","id":3,"ok":true,"to":"2027-01-12T00:00:00Z"}]}`))
+		_, _ = w.Write([]byte(`{"payment_id":42,"balance":0,"extensions":[{"kind":"subscription","id":3,"ok":true,"to":"2027-01-12T00:00:00Z"}]}`))
 	})
 	res, err := c.Pay(context.Background(), 5, PaymentInput{Amount: 700, Method: "manual", Note: "bot order #1",
 		Allocations: []Allocation{{Kind: "subscription", ID: 3, Months: 3, Amount: 900}}})
@@ -34,19 +34,19 @@ func TestQuoteExtendAndProvision(t *testing.T) {
 			if r.URL.Query().Get("months") != "3" || r.URL.Query().Get("days") != "0" {
 				t.Errorf("query %s", r.URL.RawQuery)
 			}
-			w.Write([]byte(`{"customer_id":5,"amount":450.5,"from":"2026-10-07T00:00:00Z","to":"2027-01-07T00:00:00Z","monthly":150,"periods":[],"balance":10}`))
+			_, _ = w.Write([]byte(`{"customer_id":5,"amount":450.5,"from":"2026-10-07T00:00:00Z","to":"2027-01-07T00:00:00Z","monthly":150,"periods":[],"balance":10}`))
 		case "/api/v1/subscriptions/provision":
 			w.WriteHeader(201)
-			w.Write([]byte(`{"id":77}`))
+			_, _ = w.Write([]byte(`{"id":77}`))
 		case "/api/v1/subscriptions/3/addons":
 			w.WriteHeader(201)
-			w.Write([]byte(`{"id":78}`))
+			_, _ = w.Write([]byte(`{"id":78}`))
 		case "/api/v1/items/subscription/3/tariff-quote":
-			w.Write([]byte(`{"old_monthly":100,"new_monthly":200,"surcharge":66.67}`))
+			_, _ = w.Write([]byte(`{"old_monthly":100,"new_monthly":200,"surcharge":66.67}`))
 		case "/api/v1/items/subscription/3/tariff":
 			w.WriteHeader(204)
 		case "/api/v1/items/subscription/3/extend":
-			w.Write([]byte(`{"kind":"subscription","id":3,"ok":true}`))
+			_, _ = w.Write([]byte(`{"kind":"subscription","id":3,"ok":true}`))
 		default:
 			t.Errorf("unexpected %s", r.URL)
 		}
@@ -80,7 +80,7 @@ func TestBaseCurrency(t *testing.T) {
 		if r.Method != "GET" || r.URL.Path != "/api/v1/settings" {
 			t.Errorf("unexpected %s %s", r.Method, r.URL)
 		}
-		w.Write([]byte(`{"base_currency":"usd","_base_locked":"true"}`))
+		_, _ = w.Write([]byte(`{"base_currency":"usd","_base_locked":"true"}`))
 	})
 	got, err := c.BaseCurrency(context.Background())
 	if err != nil || got != "USD" || hits != 1 {
@@ -99,7 +99,7 @@ func TestBaseCurrencyMissingOrBad(t *testing.T) {
 		"blank only": `{"base_currency":"  "}`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			c := server(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(body)) })
+			c := server(t, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(body)) })
 			if got, err := c.BaseCurrency(context.Background()); err == nil {
 				t.Errorf("want error, got %q", got)
 			}
@@ -108,13 +108,13 @@ func TestBaseCurrencyMissingOrBad(t *testing.T) {
 }
 
 func TestBaseCurrencyTrimsAndForbidden(t *testing.T) {
-	c := server(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"base_currency":" eur "}`)) })
+	c := server(t, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"base_currency":" eur "}`)) })
 	if got, err := c.BaseCurrency(context.Background()); err != nil || got != "EUR" {
 		t.Fatalf("got %q, %v", got, err)
 	}
 	c = server(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(403)
-		w.Write([]byte(`{"message":"scope","code":"forbidden"}`))
+		_, _ = w.Write([]byte(`{"message":"scope","code":"forbidden"}`))
 	})
 	_, err := c.BaseCurrency(context.Background())
 	var ae *APIError

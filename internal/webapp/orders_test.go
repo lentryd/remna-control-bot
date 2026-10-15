@@ -32,7 +32,7 @@ func withOrders(t *testing.T, f *remnactl.Fake, d *Deps) *nopNotify {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { st.Close() })
+	t.Cleanup(func() { _ = st.Close() })
 	n := &nopNotify{}
 	d.Orders = &orders.Service{DB: st.DB(), Chats: st, API: f, Notify: n, Now: time.Now, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 	d.Orders.SetLive(orders.Live{PayMode: config.PayMixed, Manual: true, Details: "Карта", TTL: time.Hour})
@@ -151,7 +151,7 @@ func TestOrdersPayBalance(t *testing.T) {
 	var created struct {
 		Order struct{ ID string } `json:"order"`
 	}
-	json.Unmarshal([]byte(out), &created)
+	_ = json.Unmarshal([]byte(out), &created)
 	id := created.Order.ID
 	code, out = do(t, d, "POST", "/bot/api/orders/"+id+"/pay-balance", tma(77), "")
 	if code != 200 || !strings.Contains(out, `"status":"approved"`) {

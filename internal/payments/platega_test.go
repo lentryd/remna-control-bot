@@ -63,8 +63,8 @@ func TestPlategaInvoiceV1(t *testing.T) {
 		if err := json.Unmarshal([]byte(data.String()), &raw); err != nil {
 			t.Fatal(err)
 		}
-		json.Unmarshal([]byte(data.String()), &b)
-		w.Write([]byte(`{"transactionId":"tx-1","status":"PENDING","redirect":"https://pay.platega.io/tx-1"}`))
+		_ = json.Unmarshal([]byte(data.String()), &b)
+		_, _ = w.Write([]byte(`{"transactionId":"tx-1","status":"PENDING","redirect":"https://pay.platega.io/tx-1"}`))
 	})
 	title := strings.Repeat("я", 100)
 	inv, err := p.Invoice(t.Context(), InvoiceRequest{Currency: "USD", OrderID: "ord-1", Title: title, Amount: 12.5, CustomerID: 42})
@@ -98,10 +98,10 @@ func TestPlategaInvoiceV2(t *testing.T) {
 	p := pgServer(t, func(w http.ResponseWriter, r *http.Request) {
 		path = r.URL.Path
 		var all json.RawMessage
-		json.NewDecoder(r.Body).Decode(&all)
-		json.Unmarshal(all, &raw)
-		json.Unmarshal(all, &b)
-		w.Write([]byte(`{"id":"tx-2","status":"PENDING","url":"https://pay.platega.io/v2/tx-2"}`))
+		_ = json.NewDecoder(r.Body).Decode(&all)
+		_ = json.Unmarshal(all, &raw)
+		_ = json.Unmarshal(all, &b)
+		_, _ = w.Write([]byte(`{"id":"tx-2","status":"PENDING","url":"https://pay.platega.io/v2/tx-2"}`))
 	})
 	p.APIVersion = "v2"
 	p.PaymentMethod = 11
@@ -129,8 +129,8 @@ func TestPlategaInvoiceV2(t *testing.T) {
 func TestPlategaInvoiceZeroCustomerUsesOrderID(t *testing.T) {
 	var b pgBody
 	p := pgServer(t, func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&b)
-		w.Write([]byte(`{"transactionId":"tx","redirect":"https://x/y"}`))
+		_ = json.NewDecoder(r.Body).Decode(&b)
+		_, _ = w.Write([]byte(`{"transactionId":"tx","redirect":"https://x/y"}`))
 	})
 	if _, err := p.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "ord-9", Amount: 1}); err != nil {
 		t.Fatal(err)
@@ -155,7 +155,7 @@ func TestPlategaInvoiceErrors(t *testing.T) {
 	for _, c := range cases {
 		p := pgServer(t, func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(c.status)
-			w.Write([]byte(c.body))
+			_, _ = w.Write([]byte(c.body))
 		})
 		inv, err := p.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "o", Amount: 1})
 		if err == nil {
@@ -245,7 +245,7 @@ func TestPlategaWebhookConfirmed(t *testing.T) {
 		if r.Method != "GET" || r.Header.Get("X-MerchantId") != "m-1" || r.Header.Get("X-Secret") != "s3cret" {
 			t.Errorf("request %s headers %v", r.Method, r.Header)
 		}
-		w.Write([]byte(`{"id":"tx-1","status":"CONFIRMED","payload":"ord-api","paymentDetails":{"amount":800,"currency":"RUB"}}`))
+		_, _ = w.Write([]byte(`{"id":"tx-1","status":"CONFIRMED","payload":"ord-api","paymentDetails":{"amount":800,"currency":"RUB"}}`))
 	})
 	ev, relevant, err := p.Webhook(t.Context(), pgAuth(http.Header{}), pgHook("tx-1", "confirmed", "ord-callback"))
 	if err != nil || !relevant || !ev.Paid || ev.Fixed {
@@ -264,7 +264,7 @@ func TestPlategaWebhookTransactionIDVariantAndTopLevelAmount(t *testing.T) {
 		if r.URL.Path != "/transaction/tx-7" {
 			t.Errorf("path %q", r.URL.Path)
 		}
-		w.Write([]byte(`{"status":"CONFIRMED","amount":"12.50","currency":"USD"}`))
+		_, _ = w.Write([]byte(`{"status":"CONFIRMED","amount":"12.50","currency":"USD"}`))
 	})
 	body, _ := json.Marshal(map[string]any{"transactionId": "tx-7", "status": "CONFIRMED", "payload": "ord-cb"})
 	ev, relevant, err := p.Webhook(t.Context(), pgAuth(http.Header{}), body)
@@ -279,7 +279,7 @@ func TestPlategaWebhookTransactionIDVariantAndTopLevelAmount(t *testing.T) {
 
 func TestPlategaWebhookFixedWhenAPIReportsNoMoney(t *testing.T) {
 	p := pgServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"id":"tx-1","status":"CONFIRMED","payload":"ord-1"}`))
+		_, _ = w.Write([]byte(`{"id":"tx-1","status":"CONFIRMED","payload":"ord-1"}`))
 	})
 	ev, relevant, err := p.Webhook(t.Context(), pgAuth(http.Header{}), pgHook("tx-1", "CONFIRMED", "ord-1"))
 	if err != nil || !relevant || !ev.Paid || !ev.Fixed || ev.Amount != 0 || ev.Currency != "" || ev.OrderID != "ord-1" {
@@ -289,7 +289,7 @@ func TestPlategaWebhookFixedWhenAPIReportsNoMoney(t *testing.T) {
 
 func TestPlategaWebhookNotFixedWhenOnlyOnePartReported(t *testing.T) {
 	p := pgServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"id":"tx-1","status":"CONFIRMED","paymentDetails":{"amount":5}}`))
+		_, _ = w.Write([]byte(`{"id":"tx-1","status":"CONFIRMED","paymentDetails":{"amount":5}}`))
 	})
 	ev, relevant, err := p.Webhook(t.Context(), pgAuth(http.Header{}), pgHook("tx-1", "CONFIRMED", "ord-1"))
 	if err != nil || !relevant || ev.Fixed || ev.Amount != 5 {
@@ -299,7 +299,7 @@ func TestPlategaWebhookNotFixedWhenOnlyOnePartReported(t *testing.T) {
 
 func TestPlategaWebhookForged(t *testing.T) {
 	p := pgServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"id":"tx-1","status":"PENDING","payload":"ord-1","paymentDetails":{"amount":800,"currency":"RUB"}}`))
+		_, _ = w.Write([]byte(`{"id":"tx-1","status":"PENDING","payload":"ord-1","paymentDetails":{"amount":800,"currency":"RUB"}}`))
 	})
 	ev, relevant, err := p.Webhook(t.Context(), pgAuth(http.Header{}), pgHook("tx-1", "CONFIRMED", "ord-1"))
 	if err != nil || relevant || ev.Paid {
@@ -310,7 +310,7 @@ func TestPlategaWebhookForged(t *testing.T) {
 func TestPlategaWebhookAPIError(t *testing.T) {
 	p := pgServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
-		w.Write([]byte("boom"))
+		_, _ = w.Write([]byte("boom"))
 	})
 	ev, relevant, err := p.Webhook(t.Context(), pgAuth(http.Header{}), pgHook("tx-1", "CONFIRMED", "ord-1"))
 	if err == nil || relevant || ev.Paid {
@@ -346,7 +346,7 @@ func TestPlategaHostileID(t *testing.T) {
 	p := pgServer(t, func(w http.ResponseWriter, r *http.Request) {
 		hits.Add(1)
 		t.Errorf("request reached the server: %s %s", r.Method, r.URL.String())
-		w.Write([]byte(`{"id":"x","status":"CONFIRMED"}`))
+		_, _ = w.Write([]byte(`{"id":"x","status":"CONFIRMED"}`))
 	})
 	for _, id := range ids {
 		body, _ := json.Marshal(map[string]any{"id": id, "status": "CONFIRMED", "payload": "ord-1"})
@@ -374,7 +374,7 @@ func TestPlategaValidIDsStayOnePathSegment(t *testing.T) {
 		var path string
 		p := pgServer(t, func(w http.ResponseWriter, r *http.Request) {
 			path = r.URL.EscapedPath()
-			w.Write([]byte(`{"status":"PENDING"}`))
+			_, _ = w.Write([]byte(`{"status":"PENDING"}`))
 		})
 		if _, err := p.Status(t.Context(), id); err != nil {
 			t.Errorf("%q: %v", id, err)
@@ -390,7 +390,7 @@ func TestPlategaStatus(t *testing.T) {
 	body := `{"id":"tx-1","status":"CONFIRMED","payload":"ord-1","paymentDetails":{"amount":800,"currency":"RUB"}}`
 	p := pgServer(t, func(w http.ResponseWriter, r *http.Request) {
 		path = r.URL.Path
-		w.Write([]byte(body))
+		_, _ = w.Write([]byte(body))
 	})
 	p.APIVersion = "v2" // the status endpoint is not versioned
 	ev, err := p.Status(t.Context(), "tx-1")
@@ -418,7 +418,7 @@ func TestPlategaStatus(t *testing.T) {
 func TestPlategaStatusAPIError(t *testing.T) {
 	p := pgServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)
-		w.Write([]byte("no such transaction"))
+		_, _ = w.Write([]byte("no such transaction"))
 	})
 	ev, err := p.Status(t.Context(), "tx-1")
 	if err == nil || ev.Paid {
@@ -443,7 +443,7 @@ func TestPlategaUnparsableAmountIsAnError(t *testing.T) {
 		"object":             `{"id":"tx-1","status":"CONFIRMED","payload":"o","amount":{"v":1},"currency":"RUB"}`,
 		"unpaid too":         `{"id":"tx-1","status":"PENDING","payload":"o","amount":"abc","currency":"RUB"}`,
 	} {
-		p := pgServer(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(body)) })
+		p := pgServer(t, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(body)) })
 		ev, err := p.Status(t.Context(), "tx-1")
 		if err == nil || ev.Paid || ev.Fixed {
 			t.Errorf("%s: Status %+v %v", name, ev, err)
@@ -460,7 +460,7 @@ func TestPlategaUnparsableAmountIsAnError(t *testing.T) {
 		"absent": `{"id":"tx-1","status":"CONFIRMED"}`,
 		"null":   `{"id":"tx-1","status":"CONFIRMED","amount":null,"currency":null,"paymentDetails":null}`,
 	} {
-		p := pgServer(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(body)) })
+		p := pgServer(t, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(body)) })
 		if ev, err := p.Status(t.Context(), "tx-1"); err != nil || !ev.Paid || !ev.Fixed {
 			t.Errorf("%s: %+v %v", name, ev, err)
 		}
@@ -478,7 +478,7 @@ func TestPlategaPartialReportIsNotFixed(t *testing.T) {
 		"amount only":   {`{"id":"tx-1","status":"CONFIRMED","paymentDetails":{"amount":5}}`, 5, ""},
 		"currency only": {`{"id":"tx-1","status":"CONFIRMED","paymentDetails":{"currency":"RUB"}}`, 0, "RUB"},
 	} {
-		p := pgServer(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(tc.body)) })
+		p := pgServer(t, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(tc.body)) })
 		ev, err := p.Status(t.Context(), "tx-1")
 		if err != nil || !ev.Paid || ev.Fixed || ev.Amount != tc.amount || ev.Currency != tc.currency {
 			t.Errorf("%s: Status %+v %v", name, ev, err)
@@ -497,7 +497,7 @@ func TestPlategaWebhookIDMismatch(t *testing.T) {
 		"transactionId": `{"transactionId":"tx-OTHER","status":"CONFIRMED","payload":"ord-1","paymentDetails":{"amount":800,"currency":"RUB"}}`,
 		"one of two":    `{"id":"tx-1","transactionId":"tx-OTHER","status":"CONFIRMED","payload":"ord-1"}`,
 	} {
-		p := pgServer(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(body)) })
+		p := pgServer(t, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(body)) })
 		ev, relevant, err := p.Webhook(t.Context(), pgAuth(http.Header{}), pgHook("tx-1", "CONFIRMED", "ord-1"))
 		if err != nil || relevant || ev.Paid {
 			t.Errorf("%s: %+v %v %v", name, ev, relevant, err)
@@ -505,7 +505,7 @@ func TestPlategaWebhookIDMismatch(t *testing.T) {
 	}
 	// The same id under either field name is fine.
 	p := pgServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"id":"tx-1","transactionId":"tx-1","status":"CONFIRMED","payload":"ord-1"}`))
+		_, _ = w.Write([]byte(`{"id":"tx-1","transactionId":"tx-1","status":"CONFIRMED","payload":"ord-1"}`))
 	})
 	if ev, relevant, err := p.Webhook(t.Context(), pgAuth(http.Header{}), pgHook("tx-1", "CONFIRMED", "ord-1")); err != nil || !relevant || !ev.Paid {
 		t.Errorf("same id: %+v %v %v", ev, relevant, err)
@@ -518,7 +518,7 @@ func TestPlategaWebhookOrderIDSource(t *testing.T) {
 		"api wins":     {`{"id":"tx-1","status":"CONFIRMED","payload":"ord-api"}`, "ord-api"},
 		"api has none": {`{"id":"tx-1","status":"CONFIRMED"}`, "ord-callback"},
 	} {
-		p := pgServer(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(tc.api)) })
+		p := pgServer(t, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(tc.api)) })
 		ev, relevant, err := p.Webhook(t.Context(), pgAuth(http.Header{}), pgHook("tx-1", "CONFIRMED", "ord-callback"))
 		if err != nil || !relevant || ev.OrderID != tc.want || ev.ExternalID != "tx-1" {
 			t.Errorf("%s: %+v %v %v", name, ev, relevant, err)

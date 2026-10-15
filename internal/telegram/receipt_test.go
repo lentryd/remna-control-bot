@@ -54,7 +54,7 @@ func newReceiptBot(t *testing.T, h http.Handler) *Bot {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { st.Close() })
+	t.Cleanup(func() { _ = st.Close() })
 	b, err := New(context.Background(), "123:ABC", Deps{
 		API: remnactl.NewFake(), WebAppURL: "https://x/bot", Admins: []int64{1}, Notices: st, APIBase: srv.URL,
 		IsAdmin: func(int64) bool { return true }, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -72,14 +72,14 @@ func TestReceiptStalledBodyTimesOut(t *testing.T) {
 	b := newReceiptBot(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/getMe"):
-			io.WriteString(w, `{"ok":true,"result":{"id":1,"is_bot":true,"first_name":"b","username":"remnabot"}}`)
+			_, _ = io.WriteString(w, `{"ok":true,"result":{"id":1,"is_bot":true,"first_name":"b","username":"remnabot"}}`)
 		case strings.HasSuffix(r.URL.Path, "/getFile"):
-			io.WriteString(w, `{"ok":true,"result":{"file_id":"f","file_path":"photos/1.jpg"}}`)
+			_, _ = io.WriteString(w, `{"ok":true,"result":{"file_id":"f","file_path":"photos/1.jpg"}}`)
 		case !strings.Contains(r.URL.Path, "/file/"):
-			io.WriteString(w, `{"ok":true,"result":true}`)
+			_, _ = io.WriteString(w, `{"ok":true,"result":true}`)
 		default: // the file: headers, a few bytes, then silence
 			w.Header().Set("Content-Type", "image/jpeg")
-			io.WriteString(w, "abc")
+			_, _ = io.WriteString(w, "abc")
 			w.(http.Flusher).Flush()
 			<-r.Context().Done()
 		}
@@ -88,7 +88,7 @@ func TestReceiptStalledBodyTimesOut(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	if ct != "image/jpeg" {
 		t.Fatalf("content type %q", ct)
 	}

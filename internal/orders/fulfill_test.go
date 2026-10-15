@@ -80,7 +80,9 @@ func TestRetryKeepsCreditDecision(t *testing.T) {
 	s, f, _, c := setup(t)
 	ctx := context.Background()
 	o := submitted(t, s, c)
-	s.SetReceived(ctx, o.ID, 500, "@a")
+	if _, err := s.SetReceived(ctx, o.ID, 500, "@a"); err != nil {
+		t.Fatal(err)
+	}
 	f.Err = &remnactl.APIError{Status: 400, Message: "x"}
 	got, err := s.Approve(ctx, o.ID, "@a", DecideCredit)
 	if err != nil || got.Status != StatusFailed || got.Error != "x" {
@@ -125,8 +127,12 @@ func TestTopupApproval(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.RequestReceipt(ctx, c.ID, o.ID)
-	s.AttachReceipt(ctx, 77, ReceiptPhoto, "f", "")
+	if _, err := s.RequestReceipt(ctx, c.ID, o.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AttachReceipt(ctx, 77, ReceiptPhoto, "f", ""); err != nil {
+		t.Fatal(err)
+	}
 	got, err := s.Approve(ctx, o.ID, "@a", DecideFull)
 	if err != nil || got.Status != StatusApproved || len(f.Payments) != 1 || f.Payments[0].Amount != 250 || len(f.Payments[0].Allocations) != 0 {
 		t.Fatalf("%+v %v %+v", got, err, f.Payments)
@@ -164,8 +170,12 @@ func TestSubscribeAddonChangeTariff(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		s.RequestReceipt(ctx, c.ID, o.ID)
-		s.AttachReceipt(ctx, 77, ReceiptText, "", "оплатил")
+		if _, err := s.RequestReceipt(ctx, c.ID, o.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.AttachReceipt(ctx, 77, ReceiptText, "", "оплатил"); err != nil {
+			t.Fatal(err)
+		}
 		got, err := s.Approve(ctx, o.ID, "@a", DecideFull)
 		if err != nil || got.Status != StatusApproved {
 			t.Fatalf("%s: %+v %v", r.Kind, got, err)
@@ -196,8 +206,12 @@ func TestSecondStepFailsRetryDoesNotPayAgain(t *testing.T) {
 	s, f, _, c := setup(t)
 	ctx := context.Background()
 	o, _ := s.Create(ctx, c, 77, Request{Kind: KindSubscribe, TariffID: 2, Months: 1})
-	s.RequestReceipt(ctx, c.ID, o.ID)
-	s.AttachReceipt(ctx, 77, ReceiptPhoto, "f", "")
+	if _, err := s.RequestReceipt(ctx, c.ID, o.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AttachReceipt(ctx, 77, ReceiptPhoto, "f", ""); err != nil {
+		t.Fatal(err)
+	}
 	f.FailStep = &remnactl.APIError{Status: 400, Message: "no free squad"}
 	got, _ := s.Approve(ctx, o.ID, "@a", DecideFull)
 	if got.Status != StatusFailed || got.Error == "" {
@@ -228,7 +242,9 @@ func TestCorrectedAmount(t *testing.T) {
 	t.Run("debt", func(t *testing.T) {
 		s, f, _, c := setup(t)
 		o := submitted(t, s, c)
-		s.SetReceived(ctx, o.ID, 500, "@a")
+		if _, err := s.SetReceived(ctx, o.ID, 500, "@a"); err != nil {
+			t.Fatal(err)
+		}
 		got, err := s.Approve(ctx, o.ID, "@a", DecideDebt)
 		if err != nil || got.Status != StatusApproved || f.Payments[0].Amount != 500 || f.Payments[0].Allocations[0].Amount != 900 {
 			t.Fatalf("%+v %v %+v", got, err, f.Payments)
@@ -237,7 +253,9 @@ func TestCorrectedAmount(t *testing.T) {
 	t.Run("credit", func(t *testing.T) {
 		s, f, sp, c := setup(t)
 		o := submitted(t, s, c)
-		s.SetReceived(ctx, o.ID, 500, "@a")
+		if _, err := s.SetReceived(ctx, o.ID, 500, "@a"); err != nil {
+			t.Fatal(err)
+		}
 		got, err := s.Approve(ctx, o.ID, "@a", DecideCredit)
 		if err != nil || got.Status != StatusCredited || f.Payments[0].Amount != 500 || len(f.Payments[0].Allocations) != 0 {
 			t.Fatalf("%+v %v", got, err)
@@ -249,7 +267,9 @@ func TestCorrectedAmount(t *testing.T) {
 	t.Run("overpaid stays on balance", func(t *testing.T) {
 		s, f, _, c := setup(t)
 		o := submitted(t, s, c)
-		s.SetReceived(ctx, o.ID, 1000, "@a")
+		if _, err := s.SetReceived(ctx, o.ID, 1000, "@a"); err != nil {
+			t.Fatal(err)
+		}
 		if got, err := s.Approve(ctx, o.ID, "@a", DecideFull); err != nil || got.Status != StatusApproved || f.Payments[0].Amount != 1000 {
 			t.Fatalf("%+v %v", got, err)
 		}
@@ -257,8 +277,12 @@ func TestCorrectedAmount(t *testing.T) {
 	t.Run("debt only for renewals", func(t *testing.T) {
 		s, _, _, c := setup(t)
 		o, _ := s.Create(ctx, c, 77, Request{Kind: KindSubscribe, TariffID: 2, Months: 1})
-		s.RequestReceipt(ctx, c.ID, o.ID)
-		s.AttachReceipt(ctx, 77, ReceiptPhoto, "f", "")
+		if _, err := s.RequestReceipt(ctx, c.ID, o.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.AttachReceipt(ctx, 77, ReceiptPhoto, "f", ""); err != nil {
+			t.Fatal(err)
+		}
 		if _, err := s.Approve(ctx, o.ID, "@a", DecideDebt); !errors.Is(err, ErrBadRequest) {
 			t.Fatalf("want ErrBadRequest, got %v", err)
 		}
@@ -308,8 +332,12 @@ func TestApplyStepServerErrorAfterPaymentIsUnknown(t *testing.T) {
 	s, f, _, c := setup(t)
 	ctx := context.Background()
 	o, _ := s.Create(ctx, c, 77, Request{Kind: KindSubscribe, TariffID: 2, Months: 1})
-	s.RequestReceipt(ctx, c.ID, o.ID)
-	s.AttachReceipt(ctx, 77, ReceiptPhoto, "f", "")
+	if _, err := s.RequestReceipt(ctx, c.ID, o.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AttachReceipt(ctx, 77, ReceiptPhoto, "f", ""); err != nil {
+		t.Fatal(err)
+	}
 	f.FailStep = &remnactl.APIError{Status: 502, Message: "bad gateway"}
 	got, _ := s.Approve(ctx, o.ID, "@a", DecideFull)
 	en, ru := i18n.Default.For("en").Text(got.Error), i18n.Default.For("ru").Text(got.Error)
@@ -327,8 +355,12 @@ func TestApplyStepClientErrorKeepsPlainMessage(t *testing.T) {
 	s, f, _, c := setup(t)
 	ctx := context.Background()
 	o, _ := s.Create(ctx, c, 77, Request{Kind: KindSubscribe, TariffID: 2, Months: 1})
-	s.RequestReceipt(ctx, c.ID, o.ID)
-	s.AttachReceipt(ctx, 77, ReceiptPhoto, "f", "")
+	if _, err := s.RequestReceipt(ctx, c.ID, o.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AttachReceipt(ctx, 77, ReceiptPhoto, "f", ""); err != nil {
+		t.Fatal(err)
+	}
 	f.FailStep = &remnactl.APIError{Status: 400, Message: "no free squad"}
 	if got, _ := s.Approve(ctx, o.ID, "@a", DecideFull); got.Error != "no free squad" {
 		t.Fatalf("%q", got.Error)

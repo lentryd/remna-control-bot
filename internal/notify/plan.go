@@ -81,7 +81,7 @@ func Plan(customers []remnactl.Customer, subs []remnactl.Subscription, tariffs [
 				n.ChatID = chat
 				out = append(out, n)
 			}
-			if n, ok := reminder(it, r, now); ok && !(it.kind == "addon" && sameDay(it.u.ExpireAt, s.RwUser)) {
+			if n, ok := reminder(it, r, now); ok && (it.kind != "addon" || !sameDay(it.u.ExpireAt, s.RwUser)) {
 				n.ChatID = chat
 				out = append(out, n)
 			}

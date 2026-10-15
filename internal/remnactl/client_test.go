@@ -26,7 +26,7 @@ func TestLookupByTelegram(t *testing.T) {
 		if r.URL.Path != "/api/v1/customers/lookup" || r.URL.Query().Get("telegram_id") != "77" {
 			t.Errorf("unexpected %s", r.URL)
 		}
-		w.Write([]byte(`{"id":5,"name":"Ann","telegram_id":77,"balance":120.5,"subscriptions":[{"id":1,"title":"Main","rw_user":{"short_uuid":"abc","subscription_url":"https://s/abc"},"addons":[]}]}`))
+		_, _ = w.Write([]byte(`{"id":5,"name":"Ann","telegram_id":77,"balance":120.5,"subscriptions":[{"id":1,"title":"Main","rw_user":{"short_uuid":"abc","subscription_url":"https://s/abc"},"addons":[]}]}`))
 	})
 	cu, err := c.LookupByTelegram(context.Background(), 77)
 	if err != nil {
@@ -42,7 +42,7 @@ func TestErrors(t *testing.T) {
 		switch r.URL.Query().Get("short_uuid") {
 		case "missing":
 			w.WriteHeader(404)
-			w.Write([]byte(`{"message":"customer not found","code":"customer.not_found"}`))
+			_, _ = w.Write([]byte(`{"message":"customer not found","code":"customer.not_found"}`))
 		default:
 			w.WriteHeader(502)
 		}
@@ -63,13 +63,13 @@ func TestErrors(t *testing.T) {
 func TestCreateAndUpdate(t *testing.T) {
 	var got CustomerInput
 	c := server(t, func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&got)
+		_ = json.NewDecoder(r.Body).Decode(&got)
 		switch {
 		case r.Method == "POST" && r.URL.Path == "/api/v1/customers":
 			w.WriteHeader(201)
-			w.Write([]byte(`{"id":9}`))
+			_, _ = w.Write([]byte(`{"id":9}`))
 		case r.Method == "PUT" && r.URL.Path == "/api/v1/customers/9":
-			w.Write([]byte(`{}`))
+			_, _ = w.Write([]byte(`{}`))
 		default:
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
@@ -88,9 +88,9 @@ func TestListsForNotifications(t *testing.T) {
 	c := server(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/customers":
-			w.Write([]byte(`[{"id":5,"telegram_id":77,"archived":false},{"id":6}]`))
+			_, _ = w.Write([]byte(`[{"id":5,"telegram_id":77,"archived":false},{"id":6}]`))
 		case "/api/v1/subscriptions":
-			w.Write([]byte(`[{"id":1,"customer_id":5,"tariff_id":2,"title":"Main","rw_user":{"used_traffic_bytes":9,"traffic_limit_bytes":10,"traffic_limit_strategy":"MONTH","next_traffic_reset_at":"2026-11-01T00:00:00Z"},"addons":[{"id":3,"addon_id":4,"tariff_id":7,"addon_name":"lte"}]}]`))
+			_, _ = w.Write([]byte(`[{"id":1,"customer_id":5,"tariff_id":2,"title":"Main","rw_user":{"used_traffic_bytes":9,"traffic_limit_bytes":10,"traffic_limit_strategy":"MONTH","next_traffic_reset_at":"2026-11-01T00:00:00Z"},"addons":[{"id":3,"addon_id":4,"tariff_id":7,"addon_name":"lte"}]}]`))
 		default:
 			t.Errorf("unexpected %s", r.URL.Path)
 		}

@@ -99,7 +99,9 @@ func TestAttachReceiptRejectsUnknownKind(t *testing.T) {
 	s, _, _, c := setup(t)
 	ctx := context.Background()
 	o, _ := s.Create(ctx, c, 77, Request{Kind: KindTopup, Amount: 100})
-	s.RequestReceipt(ctx, c.ID, o.ID)
+	if _, err := s.RequestReceipt(ctx, c.ID, o.ID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.AttachReceipt(ctx, 77, "sticker", "x", ""); !errors.Is(err, ErrBadRequest) {
 		t.Fatalf("want ErrBadRequest, got %v", err)
 	}
@@ -127,7 +129,9 @@ func TestExpireStale(t *testing.T) {
 	s, _, _, c := setup(t)
 	ctx := context.Background()
 	o, _ := s.Create(ctx, c, 77, Request{Kind: KindTopup, Amount: 100})
-	s.RequestReceipt(ctx, c.ID, o.ID)
+	if _, err := s.RequestReceipt(ctx, c.ID, o.ID); err != nil {
+		t.Fatal(err)
+	}
 	fresh := submitted(t, s, c) // pending_review never expires
 	s.Now = func() time.Time { return now.Add(49 * time.Hour) }
 	if err := s.ExpireStale(ctx); err != nil {

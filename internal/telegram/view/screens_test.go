@@ -88,8 +88,12 @@ func golden(t *testing.T, lang, name string, s Screen) {
 	path := filepath.Join("testdata", lang, name+".golden")
 	got := render(s)
 	if *update {
-		os.MkdirAll(filepath.Dir(path), 0o755)
-		os.WriteFile(path, []byte(got), 0o644)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	want, err := os.ReadFile(path)
 	if err != nil {

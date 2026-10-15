@@ -228,12 +228,12 @@ func (s *Service) SweepProviders(ctx context.Context) error {
 	for rows.Next() { // collected first: the database has a single connection
 		var id string
 		if err := rows.Scan(&id); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return err
 		}
 		ids = append(ids, id)
 	}
-	rows.Close()
+	_ = rows.Close()
 	if err := rows.Err(); err != nil {
 		return err
 	}

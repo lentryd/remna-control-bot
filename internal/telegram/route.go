@@ -11,7 +11,6 @@ import (
 
 type route struct {
 	kind string // a view.Cb* constant
-	id   int    // item id or page number
 }
 
 func parseRoute(data string) (route, bool) {

@@ -93,7 +93,9 @@ func TestStart(t *testing.T) {
 
 func TestStartNameFallback(t *testing.T) {
 	s, f, _ := setup(config.ModeOpen)
-	s.Start(context.Background(), User{ID: 5}, "")
+	if _, err := s.Start(context.Background(), User{ID: 5}, ""); err != nil {
+		t.Fatal(err)
+	}
 	if f.Creates[0].Name != "Telegram 5" {
 		t.Fatalf("name = %q", f.Creates[0].Name)
 	}

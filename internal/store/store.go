@@ -77,11 +77,11 @@ func Open(path string) (*Store, error) {
 	CREATE TABLE IF NOT EXISTS user_lang (
 		tg_id INTEGER PRIMARY KEY,
 		lang TEXT NOT NULL)`); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	if err := addColumn(db, "orders", "decision", `TEXT NOT NULL DEFAULT ''`); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	return &Store{db: db}, nil
@@ -186,7 +186,7 @@ func (s *Store) Notices(ctx context.Context, orderID string) (map[int64]int, err
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := map[int64]int{}
 	for rows.Next() {
 		var admin int64

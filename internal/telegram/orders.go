@@ -75,7 +75,7 @@ func (b *Bot) onOrderCallback(ctx context.Context, _ *tgbot.Bot, u *models.Updat
 	loc := b.loc(ctx)
 	q := u.CallbackQuery
 	answer := &tgbot.AnswerCallbackQueryParams{CallbackQueryID: q.ID}
-	defer func() { b.tg.AnswerCallbackQuery(ctx, answer) }()
+	defer func() { _, _ = b.tg.AnswerCallbackQuery(ctx, answer) }()
 	if b.Orders == nil {
 		answer.Text, answer.ShowAlert = loc.T("msg.soon"), true
 		return

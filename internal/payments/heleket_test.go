@@ -36,12 +36,12 @@ func TestHeleketInvoice(t *testing.T) {
 			t.Errorf("sign %q does not match the body", r.Header.Get("sign"))
 		}
 		var b map[string]any
-		json.Unmarshal(raw, &b)
+		_ = json.Unmarshal(raw, &b)
 		if b["amount"] != "800.00" || b["currency"] != "RUB" || b["order_id"] != "ord-1" || b["lifetime"] != float64(43200) ||
 			b["url_callback"] != "https://bot.example.com/pay/heleket" || b["to_currency"] != "USDT" || b["network"] != "tron" {
 			t.Errorf("body %v", b)
 		}
-		w.Write([]byte(`{"state":0,"result":{"uuid":"hk-1","order_id":"ord-1","url":"https://pay.heleket.com/pay/hk-1","payment_status":"check"}}`))
+		_, _ = w.Write([]byte(`{"state":0,"result":{"uuid":"hk-1","order_id":"ord-1","url":"https://pay.heleket.com/pay/hk-1","payment_status":"check"}}`))
 	})
 	h.ToCurrency, h.Network = "USDT", "tron"
 	inv, err := h.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "ord-1", Title: "t", Amount: 800, ExpiresIn: 48 * time.Hour}) // lifetime is clamped to 12 h
@@ -51,7 +51,9 @@ func TestHeleketInvoice(t *testing.T) {
 }
 
 func TestHeleketInvoiceErrors(t *testing.T) {
-	h := hkServer(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"state":1,"message":"bad merchant"}`)) })
+	h := hkServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"state":1,"message":"bad merchant"}`))
+	})
 	if _, err := h.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "o", Title: "t", Amount: 1}); err == nil || !strings.Contains(err.Error(), "bad merchant") {
 		t.Fatalf("want the provider's message, got %v", err)
 	}
@@ -117,11 +119,11 @@ func TestHeleketWebhookIgnoresPayouts(t *testing.T) {
 func TestHeleketStatus(t *testing.T) {
 	h := hkServer(t, func(w http.ResponseWriter, r *http.Request) {
 		var b map[string]string
-		json.NewDecoder(r.Body).Decode(&b)
+		_ = json.NewDecoder(r.Body).Decode(&b)
 		if r.URL.Path != "/payment/info" || b["uuid"] != "hk-1" {
 			t.Errorf("request %s %v", r.URL.Path, b)
 		}
-		w.Write([]byte(`{"state":0,"result":{"uuid":"hk-1","order_id":"ord-1","amount":"800.00","currency":"RUB","payment_status":"paid"}}`))
+		_, _ = w.Write([]byte(`{"state":0,"result":{"uuid":"hk-1","order_id":"ord-1","amount":"800.00","currency":"RUB","payment_status":"paid"}}`))
 	})
 	ev, err := h.Status(t.Context(), "hk-1")
 	if err != nil || !ev.Paid || ev.OrderID != "ord-1" || ev.Amount != 800 {
@@ -132,8 +134,8 @@ func TestHeleketStatus(t *testing.T) {
 func TestHeleketInvoiceCurrency(t *testing.T) {
 	var got map[string]any
 	h := hkServer(t, func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&got)
-		w.Write([]byte(`{"state":0,"result":{"uuid":"hk-1","order_id":"o","url":"https://pay.heleket.com/pay/hk-1","payment_status":"check"}}`))
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = w.Write([]byte(`{"state":0,"result":{"uuid":"hk-1","order_id":"o","url":"https://pay.heleket.com/pay/hk-1","payment_status":"check"}}`))
 	})
 	inv, err := h.Invoice(t.Context(), InvoiceRequest{Currency: "USD", OrderID: "o", Title: "t", Amount: 9.5})
 	if err != nil || inv.Currency != "USD" || inv.Amount != 9.5 {

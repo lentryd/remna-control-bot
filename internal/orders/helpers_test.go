@@ -74,7 +74,7 @@ func setup(t *testing.T) (*Service, *remnactl.Fake, *spy, *remnactl.Customer) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { st.Close() })
+	t.Cleanup(func() { _ = st.Close() })
 	f := remnactl.NewFake()
 	exp := now.AddDate(0, 0, 2)
 	c := f.Add(remnactl.Customer{ID: 5, Name: "Ann", TelegramID: ptr(int64(77)), Balance: 100, BalanceOwn: 100,

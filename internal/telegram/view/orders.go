@@ -55,12 +55,12 @@ var providerTitles = map[string]string{
 
 // methodTitle says how an order was paid, for the admin card.
 func methodTitle(loc i18n.Localizer, m orders.Method) string {
-	switch {
-	case m == "":
+	switch m {
+	case "":
 		return ""
-	case m == orders.MethodManual:
+	case orders.MethodManual:
 		return loc.T("method.manual")
-	case m == orders.MethodBalance:
+	case orders.MethodBalance:
 		return loc.T("method.balance")
 	}
 	if m == "yookassa" {

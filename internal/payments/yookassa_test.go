@@ -50,7 +50,7 @@ func TestYooKassaInvoice(t *testing.T) {
 		if b.Receipt != nil {
 			t.Errorf("receipt without an e-mail: %+v", b.Receipt)
 		}
-		w.Write([]byte(`{"id":"p1","status":"pending","confirmation":{"type":"redirect","confirmation_url":"https://yoomoney.ru/pay/p1"}}`))
+		_, _ = w.Write([]byte(`{"id":"p1","status":"pending","confirmation":{"type":"redirect","confirmation_url":"https://yoomoney.ru/pay/p1"}}`))
 	})
 	inv, err := y.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "ord-1", Title: "Продление", Amount: 800})
 	if err != nil || inv.ExternalID != "p1" || inv.URL != "https://yoomoney.ru/pay/p1" || inv.Amount != 800 || inv.Currency != "RUB" {
@@ -71,12 +71,12 @@ func TestYooKassaInvoiceReceipt(t *testing.T) {
 				}
 			}
 		}
-		json.NewDecoder(r.Body).Decode(&b)
+		_ = json.NewDecoder(r.Body).Decode(&b)
 		if b.Receipt.Customer.Email != "a@b.c" || len(b.Receipt.Items) != 1 || b.Receipt.Items[0].VATCode != 4 ||
 			b.Receipt.Items[0].PaymentMode != "full_payment" || b.Receipt.Items[0].PaymentSubject != "service" || b.Receipt.Items[0].Quantity != "1.00" {
 			t.Errorf("receipt %+v", b.Receipt)
 		}
-		w.Write([]byte(`{"id":"p1","confirmation":{"confirmation_url":"https://x"}}`))
+		_, _ = w.Write([]byte(`{"id":"p1","confirmation":{"confirmation_url":"https://x"}}`))
 	})
 	y.ReceiptEmail, y.VAT = "a@b.c", 4
 	if _, err := y.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "o", Title: "t", Amount: 1}); err != nil {
@@ -87,12 +87,12 @@ func TestYooKassaInvoiceReceipt(t *testing.T) {
 func TestYooKassaInvoiceErrors(t *testing.T) {
 	y := ykServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(400)
-		w.Write([]byte(`{"type":"error","code":"invalid_request"}`))
+		_, _ = w.Write([]byte(`{"type":"error","code":"invalid_request"}`))
 	})
 	if _, err := y.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "o", Title: "t", Amount: 1}); err == nil {
 		t.Fatal("want an error for HTTP 400")
 	}
-	y2 := ykServer(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"id":"p1"}`)) })
+	y2 := ykServer(t, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"id":"p1"}`)) })
 	if _, err := y2.Invoice(t.Context(), InvoiceRequest{Currency: "RUB", OrderID: "o", Title: "t", Amount: 1}); err == nil {
 		t.Fatal("want an error for a response without a confirmation url")
 	}
@@ -107,10 +107,10 @@ func TestYooKassaWebhook(t *testing.T) {
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
 		if paid {
-			w.Write([]byte(ykPaid))
+			_, _ = w.Write([]byte(ykPaid))
 			return
 		}
-		w.Write([]byte(`{"id":"p1","status":"pending","paid":false,"amount":{"value":"800.00","currency":"RUB"},"metadata":{"order_id":"ord-1"}}`))
+		_, _ = w.Write([]byte(`{"id":"p1","status":"pending","paid":false,"amount":{"value":"800.00","currency":"RUB"},"metadata":{"order_id":"ord-1"}}`))
 	})
 	ctx := t.Context()
 	body := []byte(`{"type":"notification","event":"payment.succeeded","object":{"id":"p1","status":"succeeded"}}`)
@@ -146,7 +146,7 @@ func TestYooKassaWebhookAPIDown(t *testing.T) {
 }
 
 func TestYooKassaStatus(t *testing.T) {
-	y := ykServer(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(ykPaid)) })
+	y := ykServer(t, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(ykPaid)) })
 	ev, err := y.Status(t.Context(), "p1")
 	if err != nil || !ev.Paid || ev.OrderID != "ord-1" {
 		t.Fatalf("%+v %v", ev, err)
@@ -165,7 +165,7 @@ func TestYooKassaHostileID(t *testing.T) {
 		var gotPath, gotQuery string
 		y := ykServer(t, func(w http.ResponseWriter, r *http.Request) {
 			gotPath, gotQuery = r.URL.EscapedPath(), r.URL.RawQuery
-			w.Write([]byte(`{"id":"p1","status":"pending","paid":false}`))
+			_, _ = w.Write([]byte(`{"id":"p1","status":"pending","paid":false}`))
 		})
 		body, _ := json.Marshal(map[string]any{"event": "payment.succeeded", "object": map[string]string{"id": c.id}})
 		ev, relevant, err := y.Webhook(t.Context(), nil, body)
@@ -195,8 +195,8 @@ func TestYooKassaInvoiceCurrency(t *testing.T) {
 		}
 	}
 	y := ykServer(t, func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&got)
-		w.Write([]byte(`{"id":"p1","confirmation":{"confirmation_url":"https://x"}}`))
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = w.Write([]byte(`{"id":"p1","confirmation":{"confirmation_url":"https://x"}}`))
 	})
 	y.ReceiptEmail = "a@b.c"
 	inv, err := y.Invoice(t.Context(), InvoiceRequest{Currency: "USD", OrderID: "o", Title: "t", Amount: 9.5})

@@ -23,14 +23,16 @@ func TestAwaitingLink(t *testing.T) {
 	if err := s.SetAwaitingLink(ctx, 1, true); err != nil { // idempotent
 		t.Fatal(err)
 	}
-	s.Close()
+	_ = s.Close()
 
 	s, _ = Open(path) // survives restart
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 	if on, _ := s.AwaitingLink(ctx, 1); !on {
 		t.Fatal("want true after reopen")
 	}
-	s.SetAwaitingLink(ctx, 1, false)
+	if err := s.SetAwaitingLink(ctx, 1, false); err != nil {
+		t.Fatal(err)
+	}
 	if on, _ := s.AwaitingLink(ctx, 1); on {
 		t.Fatal("want false after clear")
 	}
@@ -42,7 +44,7 @@ func TestNoticesSentOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 	if sent, _ := s.NoticeSent(ctx, "k"); sent {
 		t.Fatal("fresh store: want not sent")
 	}
@@ -62,23 +64,35 @@ func TestChatStateAndNotices(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 	ctx := context.Background()
 	if _, ok, _ := s.GetChatState(ctx, 1); ok {
 		t.Fatal("state before set")
 	}
-	s.SetChatState(ctx, 1, ChatState{Kind: "receipt", OrderID: "9"})
-	s.SetChatState(ctx, 1, ChatState{Kind: "receipt", OrderID: "10"}) // replaces
+	if err := s.SetChatState(ctx, 1, ChatState{Kind: "receipt", OrderID: "9"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetChatState(ctx, 1, ChatState{Kind: "receipt", OrderID: "10"}); err != nil { // replaces
+		t.Fatal(err)
+	}
 	if st, ok, err := s.GetChatState(ctx, 1); !ok || err != nil || st.OrderID != "10" {
 		t.Fatalf("state %+v %v %v", st, ok, err)
 	}
-	s.ClearChatState(ctx, 1)
+	if err := s.ClearChatState(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
 	if _, ok, _ := s.GetChatState(ctx, 1); ok {
 		t.Fatal("state after clear")
 	}
-	s.SaveNotice(ctx, "o1", 7, 100)
-	s.SaveNotice(ctx, "o1", 8, 200)
-	s.SaveNotice(ctx, "o1", 7, 101) // replaces
+	if err := s.SaveNotice(ctx, "o1", 7, 100); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveNotice(ctx, "o1", 8, 200); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveNotice(ctx, "o1", 7, 101); err != nil { // replaces
+		t.Fatal(err)
+	}
 	got, err := s.Notices(ctx, "o1")
 	if err != nil || len(got) != 2 || got[7] != 101 || got[8] != 200 {
 		t.Fatalf("notices %v %v", got, err)
@@ -110,7 +124,7 @@ func TestMigratesDecisionColumn(t *testing.T) {
 		VALUES (5, 77, 'renew', 't', 1, 0, 1, 'manual', 'failed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`); err != nil {
 		t.Fatal(err)
 	}
-	db.Close()
+	_ = db.Close()
 	for range 2 { // idempotent
 		s, err := Open(path)
 		if err != nil {
@@ -120,7 +134,7 @@ func TestMigratesDecisionColumn(t *testing.T) {
 		if err := s.DB().QueryRow(`SELECT decision FROM orders WHERE id = 1`).Scan(&d); err != nil || d != "" {
 			t.Fatalf("%q %v", d, err)
 		}
-		s.Close()
+		_ = s.Close()
 	}
 }
 
@@ -129,7 +143,7 @@ func TestOrdersProviderColumns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 	if _, err := s.DB().Exec(`SELECT external_id, pay_url, pay_amount, pay_currency FROM orders`); err != nil {
 		t.Fatalf("provider columns: %v", err)
 	}
@@ -141,7 +155,7 @@ func TestLang(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 	if got, err := s.Lang(ctx, 7); err != nil || got != "" {
 		t.Fatalf("unknown user: got %q, %v", got, err)
 	}

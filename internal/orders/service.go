@@ -65,8 +65,8 @@ func (s *Service) quote(ctx context.Context, lv Live, c *remnactl.Customer, r Re
 		q.ToPay = q.Price
 	}
 	q.Methods = []Method{}
-	switch {
-	case q.ToPay == 0:
+	switch q.ToPay {
+	case 0:
 		q.Methods = []Method{MethodBalance}
 	default:
 		if lv.Manual {

@@ -80,7 +80,7 @@ func (y *YooKassa) do(ctx context.Context, method, path, idempotence string, in,
 	if err != nil {
 		return fmt.Errorf("yookassa: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := readBody(resp)
 	if err != nil {
 		return fmt.Errorf("yookassa: %w", err)

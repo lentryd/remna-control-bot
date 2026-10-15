@@ -88,7 +88,7 @@ func (h *Heleket) call(ctx context.Context, path string, in map[string]any) (hkP
 	if err != nil {
 		return hkPayment{}, fmt.Errorf("heleket: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := readBody(resp)
 	if err != nil {
 		return hkPayment{}, fmt.Errorf("heleket: %w", err)

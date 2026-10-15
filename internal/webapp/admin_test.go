@@ -27,7 +27,7 @@ func adminApp(t *testing.T) (*Deps, *remnactl.Fake) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { st.Close() })
+	t.Cleanup(func() { _ = st.Close() })
 	if d.Settings, err = settings.Open(context.Background(), st.DB(), "ref"); err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,9 @@ func TestAdminReceipt(t *testing.T) {
 	ctx := context.Background()
 	c, _ := f.GetCustomer(ctx, 5)
 	o, _ := d.Orders.Create(ctx, c, 77, orders.Request{Kind: orders.KindTopup, Amount: 10})
-	d.Orders.RequestReceipt(ctx, c.ID, o.ID)
+	if _, err := d.Orders.RequestReceipt(ctx, c.ID, o.ID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := d.Orders.AttachReceipt(ctx, 77, orders.ReceiptPhoto, "file-1", ""); err != nil {
 		t.Fatal(err)
 	}

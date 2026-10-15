@@ -60,12 +60,12 @@ func (b *Bot) Receipt(ctx context.Context, fileID string) (io.ReadCloser, string
 		return nil, "", fmt.Errorf("receipt: %w", scrubURL(err))
 	}
 	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		cancel()
 		return nil, "", fmt.Errorf("receipt: telegram answered HTTP %d", resp.StatusCode)
 	}
 	if resp.ContentLength > maxReceiptBytes {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		cancel()
 		return nil, "", fmt.Errorf("receipt: file is %d bytes, over the %d limit", resp.ContentLength, maxReceiptBytes)
 	}

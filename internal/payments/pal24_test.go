@@ -76,7 +76,7 @@ func TestPal24Invoice(t *testing.T) {
 		if d, _ := b["description"].(string); len([]rune(d)) != 255 {
 			t.Errorf("description has %d runes", len([]rune(d)))
 		}
-		w.Write([]byte(`{"success":true,"bill_id":"BILL1","link_url":"https://pal24.pro/pay/1","link_page_url":"https://pal24.pro/page/1"}`))
+		_, _ = w.Write([]byte(`{"success":true,"bill_id":"BILL1","link_url":"https://pal24.pro/pay/1","link_page_url":"https://pal24.pro/page/1"}`))
 	})
 	inv, err := p.Invoice(context.Background(), InvoiceRequest{OrderID: p24Order, Title: strings.Repeat("я", 400),
 		Amount: 800, Currency: "USD", ExpiresIn: time.Hour})
@@ -93,9 +93,9 @@ func TestPal24InvoiceTTLOmittedAndCapped(t *testing.T) {
 	var has bool
 	p := p24Server(t, func(w http.ResponseWriter, r *http.Request) {
 		var b map[string]any
-		json.NewDecoder(r.Body).Decode(&b)
+		_ = json.NewDecoder(r.Body).Decode(&b)
 		ttl, has = b["ttl"]
-		w.Write([]byte(`{"success":true,"bill_id":"B","link_url":"https://x/y"}`))
+		_, _ = w.Write([]byte(`{"success":true,"bill_id":"B","link_url":"https://x/y"}`))
 	})
 	if _, err := p.Invoice(context.Background(), InvoiceRequest{OrderID: p24Order, Amount: 1, Currency: "RUB"}); err != nil {
 		t.Fatal(err)
@@ -116,7 +116,7 @@ func TestPal24InvoiceURLAndSuccessForms(t *testing.T) {
 		"string true": {`{"success":"true","bill_id":"B","link_url":"https://pal24.pro/pay/1"}`, "https://pal24.pro/pay/1"},
 		"bool true":   {`{"success":true,"bill_id":"B","link_url":"https://a","link_page_url":"https://b"}`, "https://b"},
 	} {
-		p := p24Server(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(tc.body)) })
+		p := p24Server(t, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(tc.body)) })
 		inv, err := p.Invoice(context.Background(), InvoiceRequest{OrderID: p24Order, Amount: 5, Currency: "RUB"})
 		if err != nil || inv.URL != tc.url {
 			t.Errorf("%s: %+v %v", name, inv, err)
@@ -128,7 +128,7 @@ func TestPal24InvoiceBaseURLSlashes(t *testing.T) {
 	var path string
 	p := p24Server(t, func(w http.ResponseWriter, r *http.Request) {
 		path = r.URL.Path
-		w.Write([]byte(`{"success":true,"bill_id":"B","link_url":"https://x/y"}`))
+		_, _ = w.Write([]byte(`{"success":true,"bill_id":"B","link_url":"https://x/y"}`))
 	})
 	p.BaseURL += "/api/v1/"
 	if _, err := p.Invoice(context.Background(), InvoiceRequest{OrderID: p24Order, Amount: 1, Currency: "RUB"}); err != nil {
@@ -153,7 +153,7 @@ func TestPal24InvoiceErrors(t *testing.T) {
 	} {
 		p := p24Server(t, func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(tc.status)
-			w.Write([]byte(tc.body))
+			_, _ = w.Write([]byte(tc.body))
 		})
 		if _, err := p.Invoice(context.Background(), InvoiceRequest{OrderID: p24Order, Amount: 5, Currency: "RUB"}); err == nil {
 			t.Errorf("%s: expected an error", name)
@@ -196,7 +196,7 @@ func p24BillServer(t *testing.T, body string) (*Pal24, *p24BillAPI) {
 		if r.URL.Path != "/bill/status" {
 			t.Errorf("path %q", r.URL.Path)
 		}
-		w.Write([]byte(body))
+		_, _ = w.Write([]byte(body))
 	})
 	return p, api
 }
@@ -431,8 +431,10 @@ func TestPal24WebhookStatusesViaAPI(t *testing.T) {
 
 func TestPal24WebhookAPIError(t *testing.T) {
 	for name, h := range map[string]http.HandlerFunc{
-		"http 500":      func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(500) },
-		"success false": func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"success":false,"message":"x"}`)) },
+		"http 500": func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(500) },
+		"success false": func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(`{"success":false,"message":"x"}`))
+		},
 	} {
 		p := p24Server(t, h)
 		ev, rel, err := p24Post(t, p, p24Fields("SUCCESS", "api-token"))
@@ -483,7 +485,7 @@ func TestPal24Status(t *testing.T) {
 			if r.Method != "GET" || r.Header.Get("Authorization") != "Bearer api-token" {
 				t.Errorf("request %s auth=%q", r.Method, r.Header.Get("Authorization"))
 			}
-			w.Write([]byte(body))
+			_, _ = w.Write([]byte(body))
 		})
 	}
 	ctx := context.Background()
@@ -545,7 +547,7 @@ func TestPal24StatusErrors(t *testing.T) {
 	} {
 		p := p24Server(t, func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(tc.status)
-			w.Write([]byte(tc.body))
+			_, _ = w.Write([]byte(tc.body))
 		})
 		if _, err := p.Status(context.Background(), "B"); err == nil {
 			t.Errorf("%s: expected an error", name)

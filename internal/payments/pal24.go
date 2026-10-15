@@ -70,7 +70,7 @@ func (p *Pal24) call(ctx context.Context, method, path string, in, out any) erro
 		// url.Error carries only the URL, never the headers; the token is not in the URL.
 		return fmt.Errorf("pal24: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := readBody(resp)
 	if err != nil {
 		return fmt.Errorf("pal24: %w", err)

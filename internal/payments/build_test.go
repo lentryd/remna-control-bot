@@ -95,10 +95,10 @@ func TestRetireOnNilRegistry(t *testing.T) {
 func TestCheckers(t *testing.T) {
 	cb := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/getMe" || r.Header.Get("Crypto-Pay-API-Token") != "tok" {
-			http.Error(w, `{"ok":false}`, 401)
+			http.Error(w, `{"ok":false}`, http.StatusUnauthorized)
 			return
 		}
-		w.Write([]byte(`{"ok":true,"result":{"name":"Shop"}}`))
+		_, _ = w.Write([]byte(`{"ok":true,"result":{"name":"Shop"}}`))
 	}))
 	defer cb.Close()
 	msg, err := (&CryptoBot{Token: "tok", BaseURL: cb.URL}).Check(context.Background())
@@ -112,10 +112,10 @@ func TestCheckers(t *testing.T) {
 	yk := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u, p, _ := r.BasicAuth()
 		if r.URL.Path != "/me" || u != "42" || p != "sec" {
-			http.Error(w, `{}`, 401)
+			http.Error(w, `{}`, http.StatusUnauthorized)
 			return
 		}
-		w.Write([]byte(`{"account_id":"42","status":"enabled"}`))
+		_, _ = w.Write([]byte(`{"account_id":"42","status":"enabled"}`))
 	}))
 	defer yk.Close()
 	if msg, err := (&YooKassa{ShopID: "42", Secret: "sec", BaseURL: yk.URL}).Check(context.Background()); err != nil || msg == "" {

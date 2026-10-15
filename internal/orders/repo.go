@@ -76,7 +76,7 @@ func (s *Service) List(ctx context.Context, customerID, limit, offset int) ([]Or
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := []Order{}
 	for rows.Next() {
 		o, err := scan(rows)
@@ -108,7 +108,7 @@ func (s *Service) ListAll(ctx context.Context, statuses []Status, limit, offset 
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := []Order{}
 	for rows.Next() {
 		o, err := scan(rows)
@@ -142,13 +142,4 @@ func (s *Service) move(ctx context.Context, id string, from []Status, to Status,
 		return ErrStateChanged
 	}
 	return nil
-}
-
-// set writes columns without a status change (e.g. the admin card id).
-func (s *Service) set(ctx context.Context, id string, cols map[string]any) error {
-	o, err := s.Get(ctx, id)
-	if err != nil {
-		return err
-	}
-	return s.move(ctx, id, []Status{o.Status}, o.Status, cols)
 }

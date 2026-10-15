@@ -292,7 +292,7 @@ func (b *Bot) onCallback(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 	loc := b.loc(ctx)
 	q := u.CallbackQuery
 	answer := &tgbot.AnswerCallbackQueryParams{CallbackQueryID: q.ID}
-	defer func() { b.tg.AnswerCallbackQuery(ctx, answer) }()
+	defer func() { _, _ = b.tg.AnswerCallbackQuery(ctx, answer) }()
 
 	chatID, msgID := q.Message.Message.Chat.ID, q.Message.Message.ID
 	if _, ok := parseRoute(q.Data); !ok {

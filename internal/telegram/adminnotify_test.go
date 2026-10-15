@@ -55,7 +55,7 @@ func (f *fakeTelegram) sent(method string) []sentForm {
 
 func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	method := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
-	r.ParseMultipartForm(1 << 20)
+	_ = r.ParseMultipartForm(1 << 20)
 	chat, _ := strconv.ParseInt(r.FormValue("chat_id"), 10, 64)
 	f.mu.Lock()
 	f.calls = append(f.calls, method+" "+strconv.FormatInt(chat, 10))
@@ -76,7 +76,7 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var cmds []struct {
 			Description string `json:"description"`
 		}
-		json.Unmarshal([]byte(r.FormValue("commands")), &cmds)
+		_ = json.Unmarshal([]byte(r.FormValue("commands")), &cmds)
 		c := setCmd{LanguageCode: r.FormValue("language_code"), Scope: r.FormValue("scope")}
 		for _, x := range cmds {
 			c.Descriptions = append(c.Descriptions, x.Description)
@@ -92,20 +92,20 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		code, desc, _ := strings.Cut(fail, " ")
 		n, _ := strconv.Atoi(code)
 		w.WriteHeader(n)
-		io.WriteString(w, `{"ok":false,"error_code":`+code+`,"description":"`+desc+`"}`)
+		_, _ = io.WriteString(w, `{"ok":false,"error_code":`+code+`,"description":"`+desc+`"}`)
 	case method == "getMyDescription" && f.blank:
-		io.WriteString(w, `{"ok":true,"result":{"description":""}}`)
+		_, _ = io.WriteString(w, `{"ok":true,"result":{"description":""}}`)
 	case method == "getMyDescription":
-		io.WriteString(w, `{"ok":true,"result":{"description":"set"}}`)
+		_, _ = io.WriteString(w, `{"ok":true,"result":{"description":"set"}}`)
 	case method == "getMe":
-		io.WriteString(w, `{"ok":true,"result":{"id":1,"is_bot":true,"first_name":"b","username":"remnabot"}}`)
+		_, _ = io.WriteString(w, `{"ok":true,"result":{"id":1,"is_bot":true,"first_name":"b","username":"remnabot"}}`)
 	case (method == "sendMessage" || method == "editMessageText") && chat == 2:
 		w.WriteHeader(403)
-		io.WriteString(w, `{"ok":false,"error_code":403,"description":"Forbidden: bot can't initiate conversation with a user"}`)
+		_, _ = io.WriteString(w, `{"ok":false,"error_code":403,"description":"Forbidden: bot can't initiate conversation with a user"}`)
 	case method == "sendMessage" || method == "editMessageText":
-		io.WriteString(w, `{"ok":true,"result":{"message_id":77,"date":1,"chat":{"id":1,"type":"private"}}}`)
+		_, _ = io.WriteString(w, `{"ok":true,"result":{"message_id":77,"date":1,"chat":{"id":1,"type":"private"}}}`)
 	default:
-		io.WriteString(w, `{"ok":true,"result":true}`)
+		_, _ = io.WriteString(w, `{"ok":true,"result":true}`)
 	}
 }
 
@@ -146,7 +146,7 @@ func newBotWith(t *testing.T, ft *fakeTelegram) (*Bot, *fakeTelegram, *store.Sto
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { st.Close() })
+	t.Cleanup(func() { _ = st.Close() })
 	b, err := New(context.Background(), "123:ABC", Deps{
 		API: remnactl.NewFake(), WebAppURL: "https://x/bot", Admins: []int64{1, 2, 3}, Notices: st, APIBase: srv.URL,
 		IsAdmin: func(id int64) bool { return id >= 1 && id <= 3 },
@@ -180,7 +180,7 @@ func TestCardFanOut(t *testing.T) {
 
 	// A decision edits the cards that exist; it does not send new ones.
 	o.Status, o.Admin = orders.StatusApproved, "@boss"
-	b.Card(ctx, o)
+	_ = b.Card(ctx, o)
 	if sends, edits := ft.count("sendMessage"), ft.count("editMessageText"); sends != 3 || edits != 2 {
 		t.Fatalf("after the decision: %d sends, %d edits", sends, edits)
 	}
@@ -193,7 +193,7 @@ func TestCardSkipsOrdersNobodyHasToDecide(t *testing.T) {
 		t.Fatalf("approved order without cards must stay silent: %v, %d sends", err, ft.count("sendMessage"))
 	}
 	o.Status = orders.StatusFailed
-	b.Card(context.Background(), o)
+	_ = b.Card(context.Background(), o)
 	if ft.count("sendMessage") != 3 {
 		t.Fatalf("a failed order needs the admins: %d sends", ft.count("sendMessage"))
 	}
@@ -203,7 +203,9 @@ func TestCardEditGoneSendsFreshCard(t *testing.T) {
 	b, ft, st := newCardBot(t)
 	ctx := context.Background()
 	o := orders.Order{ID: "22222222-3333", CustomerID: 5, ChatID: 77, Title: "t", Price: 10, ToPay: 10, Status: orders.StatusFailed}
-	st.SaveNotice(ctx, o.ID, 1, 41)
+	if err := st.SaveNotice(ctx, o.ID, 1, 41); err != nil {
+		t.Fatal(err)
+	}
 	ft.editFail = map[int64]string{1: "400 Bad Request: message to edit not found"}
 
 	if err := b.Card(ctx, o); err != nil && !strings.Contains(err.Error(), "admin 2") {
@@ -218,7 +220,9 @@ func TestCardEditGoneSendsFreshCard(t *testing.T) {
 
 	// Resolved order: nothing to re-send, and no error either.
 	o2 := orders.Order{ID: "33333333-4444", Status: orders.StatusApproved}
-	st.SaveNotice(ctx, o2.ID, 1, 42)
+	if err := st.SaveNotice(ctx, o2.ID, 1, 42); err != nil {
+		t.Fatal(err)
+	}
 	before := ft.count("sendMessage")
 	if err := b.Card(ctx, o2); err != nil || ft.count("sendMessage") != before {
 		t.Fatalf("resolved order with a vanished card must be ignored: %v", err)
@@ -229,7 +233,9 @@ func TestCardNon403FailureKeepsAdminReachable(t *testing.T) {
 	b, ft, st := newCardBot(t)
 	ctx := context.Background()
 	o := orders.Order{ID: "44444444-5555", CustomerID: 5, ChatID: 77, Title: "t", Price: 10, ToPay: 10, Status: orders.StatusApproved}
-	st.SaveNotice(ctx, o.ID, 1, 41)
+	if err := st.SaveNotice(ctx, o.ID, 1, 41); err != nil {
+		t.Fatal(err)
+	}
 	ft.editFail = map[int64]string{1: "502 Bad Gateway"}
 	if err := b.Card(ctx, o); err == nil {
 		t.Fatal("the failure must still be reported")
@@ -243,7 +249,7 @@ func TestCardIsLocalizedPerAdmin(t *testing.T) {
 	b, ft, _ := newCardBot(t)
 	b.Langs = memLangs{1: "ru"} // admin 3 has no stored language
 	o := orders.Order{ID: "55555555-6666", CustomerID: 5, ChatID: 77, Title: "t", Price: 10, ToPay: 10, Status: orders.StatusPendingReview}
-	b.Card(context.Background(), o)
+	_ = b.Card(context.Background(), o)
 	ft.mu.Lock()
 	defer ft.mu.Unlock()
 	ru, en := ft.texts[1], ft.texts[3]
