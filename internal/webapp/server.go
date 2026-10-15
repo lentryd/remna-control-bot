@@ -77,6 +77,7 @@ func New(d Deps) *fiber.App {
 	adm.Post("/orders/:id/reject", s.adminOrder(s.adminReject))
 	adm.Post("/orders/:id/retry", s.adminOrder(s.adminRetry))
 	adm.Get("/orders/:id/receipt", s.adminReceipt)
+	adm.Post("/orders/:id/receipt/send", s.adminSendReceipt)
 	adm.Get("/settings", s.adminGetSettings)
 	adm.Put("/settings/:section", s.adminPutSettings)
 	adm.Post("/settings/:section/test", s.adminTestSettings)

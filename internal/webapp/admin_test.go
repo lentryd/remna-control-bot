@@ -183,7 +183,16 @@ func TestAdminSettingsTest(t *testing.T) {
 	}
 }
 
-type fakeReceipts struct{ gotID string }
+type fakeReceipts struct {
+	gotID string
+	sent  []int64
+}
+
+func (r *fakeReceipts) SendReceipt(_ context.Context, chatID int64, _ orders.ReceiptKind, id string) error {
+	r.gotID = id
+	r.sent = append(r.sent, chatID)
+	return nil
+}
 
 func (r *fakeReceipts) Receipt(_ context.Context, id string) (io.ReadCloser, string, error) {
 	r.gotID = id
@@ -207,6 +216,9 @@ func TestAdminReceipt(t *testing.T) {
 	if code != 200 || body != "JPEGDATA" || rc.gotID != "file-1" {
 		t.Fatalf("receipt %d %q %q", code, body, rc.gotID)
 	}
+	if code, _ := do(t, d, "POST", "/bot/api/admin/orders/"+o.ID+"/receipt/send", tma(adminID), ""); code != 204 || len(rc.sent) != 1 || rc.sent[0] != adminID {
+		t.Fatalf("send to the admin's chat: %d %v", code, rc.sent)
+	}
 	// A text receipt has no file.
 	id := pending(t, d, f)
 	if code, _ := do(t, d, "GET", "/bot/api/admin/orders/"+id+"/receipt", tma(adminID), ""); code != 404 {
@@ -216,21 +228,22 @@ func TestAdminReceipt(t *testing.T) {
 
 func TestReceiptHeaders(t *testing.T) {
 	for _, c := range []struct {
-		name     string
-		kind     orders.ReceiptKind
-		up, want string
-		attach   bool
+		name   string
+		kind   orders.ReceiptKind
+		head   string
+		want   string
+		attach bool
 	}{
-		{"pdf", orders.ReceiptDocument, "application/pdf", "application/pdf", false},
-		{"jpeg", orders.ReceiptDocument, "image/jpeg", "image/jpeg", false},
-		{"svg", orders.ReceiptDocument, "image/svg+xml", "application/octet-stream", true},
-		{"html", orders.ReceiptDocument, "text/html", "application/octet-stream", true},
+		{"pdf", orders.ReceiptDocument, "%PDF-1.7\n%\xe2\xe3", "application/pdf", false},
+		{"jpeg", orders.ReceiptDocument, "\xff\xd8\xff\xe0", "image/jpeg", false},
+		{"png", orders.ReceiptDocument, "\x89PNG\r\n\x1a\n", "image/png", false},
+		{"svg", orders.ReceiptDocument, "<?xml version=\"1.0\"?><svg xmlns=\"http://www.w3.org/2000/svg\"/>", "application/octet-stream", true},
+		{"html", orders.ReceiptDocument, "<!DOCTYPE html><html>", "application/octet-stream", true},
 		{"empty", orders.ReceiptDocument, "", "application/octet-stream", true},
-		{"octet", orders.ReceiptDocument, "application/octet-stream", "application/octet-stream", true},
-		{"params", orders.ReceiptDocument, "image/PNG; charset=x", "image/png", false},
-		{"photo", orders.ReceiptPhoto, "text/html", "image/jpeg", false},
+		{"binary", orders.ReceiptDocument, "\x00\x01\x02\x03", "application/octet-stream", true},
+		{"photo", orders.ReceiptPhoto, "<html>", "image/jpeg", false},
 	} {
-		if got, att := receiptHeaders(c.kind, c.up); got != c.want || att != c.attach {
+		if got, att := receiptHeaders(c.kind, []byte(c.head)); got != c.want || att != c.attach {
 			t.Errorf("%s: %q %v", c.name, got, att)
 		}
 	}

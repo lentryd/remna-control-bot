@@ -10,6 +10,9 @@ import (
 	"time"
 
 	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
+
+	"remna-control-bot/internal/orders"
 )
 
 const maxReceiptBytes = 20 << 20
@@ -70,6 +73,19 @@ func (b *Bot) Receipt(ctx context.Context, fileID string) (io.ReadCloser, string
 		return nil, "", fmt.Errorf("receipt: file is %d bytes, over the %d limit", resp.ContentLength, maxReceiptBytes)
 	}
 	return &receiptBody{Reader: io.LimitReader(resp.Body, maxReceiptBytes), body: resp.Body, cancel: cancel}, resp.Header.Get("Content-Type"), nil
+}
+
+// SendReceipt sends the receipt file to a chat by its file id, so an admin can
+// open it in Telegram (any file type, any device).
+func (b *Bot) SendReceipt(ctx context.Context, chatID int64, kind orders.ReceiptKind, fileID string) error {
+	file := &models.InputFileString{Data: fileID}
+	var err error
+	if kind == orders.ReceiptPhoto {
+		_, err = b.tg.SendPhoto(ctx, &tgbot.SendPhotoParams{ChatID: chatID, Photo: file})
+	} else {
+		_, err = b.tg.SendDocument(ctx, &tgbot.SendDocumentParams{ChatID: chatID, Document: file})
+	}
+	return err
 }
 
 // receiptBody reads the capped file and releases the deadline context when closed.

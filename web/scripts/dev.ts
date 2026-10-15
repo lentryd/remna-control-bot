@@ -16,7 +16,8 @@ const server = Bun.serve({
         }
     },
     async fetch(req) {
-        const file = Bun.file(new URL(`.${new URL(req.url).pathname}`, publicDir))
+        const path = new URL(req.url).pathname
+        const file = path === '/pdf.worker.min.mjs' ? Bun.file(new URL('../node_modules/pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url)) : Bun.file(new URL(`.${path}`, publicDir))
         return (await file.exists()) ? new Response(file) : new Response('Not Found', { status: 404 })
     }
 })

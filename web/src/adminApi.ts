@@ -37,6 +37,7 @@ export const saveProfile = (texts: Record<string, ProfileTexts>) => call<Profile
 export const checkSection = (key: string) => call<CheckResult>('POST', `admin/settings/${key}/test`)
 
 // The receipt needs the Authorization header, so it is fetched and shown from a blob URL.
+export const sendReceipt = (id: string) => call<void>('POST', `admin/orders/${id}/receipt/send`)
 export async function fetchReceipt(id: string): Promise<Blob> {
     const res = await fetch(`./api/admin/orders/${id}/receipt`, { headers: authHeaders() })
     if (!res.ok) throw new ApiError(res.status, 'error')

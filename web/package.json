@@ -21,6 +21,7 @@
     "dayjs": "^1.11.23",
     "i18next": "^26",
     "i18next-http-backend": "^4",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-i18next": "^17",

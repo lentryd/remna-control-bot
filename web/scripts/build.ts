@@ -65,6 +65,15 @@ const vendor = await bundleAsync({
 const vendorName = `assets/vendor-${Bun.hash(vendor.code).toString(36).slice(0, 8)}.css`
 await Bun.write(`${outdir}/${vendorName}`, vendor.code)
 
+// publicPath './' makes a lazy chunk's import() relative to the page, but import()
+// resolves against the importing file, which already sits in assets/.
+for (const out of result.outputs) {
+    if (!out.path.endsWith('.js')) continue
+    const code = await Bun.file(out.path).text()
+    const fixed = code.replaceAll('import("./assets/', 'import("./')
+    if (fixed !== code) await Bun.write(out.path, fixed)
+}
+
 // Before the app stylesheet, so our overrides still win the cascade.
 let html = await Bun.file(`${outdir}/index.html`).text()
 const link = `<link rel="stylesheet" crossorigin href="./${vendorName}">`
@@ -73,6 +82,8 @@ html = html.includes('<link rel="stylesheet"') ? html.replace('<link rel="styles
 await Bun.write(`${outdir}/index.html`, html)
 
 await cp(`${root}public`, outdir, { recursive: true })
+// the PDF viewer's worker is loaded by URL, not bundled
+await cp(`${root}node_modules/pdfjs-dist/build/pdf.worker.min.mjs`, `${outdir}/pdf.worker.min.mjs`)
 // tracked in git, so `go build` works (with an empty SPA) before a web build
 await Bun.write(`${outdir}/.gitkeep`, '')
 

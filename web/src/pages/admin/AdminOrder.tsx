@@ -137,7 +137,7 @@ export function AdminOrder() {
                         <Text className={classes.sectionTitle}>{t('order.receipt')}</Text>
                     </SectionCard.Section>
                     <SectionCard.Section>
-                        <Receipt id={o.id} kind={o.receipt_kind} />
+                        <Receipt id={o.id} />
                     </SectionCard.Section>
                 </SectionCard.Root>
             )}

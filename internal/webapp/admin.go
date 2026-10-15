@@ -1,12 +1,14 @@
 package webapp
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +26,8 @@ import (
 // ReceiptSource streams a receipt file kept at Telegram (*telegram.Bot).
 type ReceiptSource interface {
 	Receipt(ctx context.Context, fileID string) (io.ReadCloser, string, error)
+	// SendReceipt forwards the file to a chat, for viewing it in Telegram itself.
+	SendReceipt(ctx context.Context, chatID int64, kind orders.ReceiptKind, fileID string) error
 }
 
 const adminPage = 20
@@ -176,43 +180,75 @@ func (s *server) adminRetry(c *fiber.Ctx, id, admin string) (*orders.Order, erro
 // adminReceipt streams the customer's receipt file. The stream is closed by the
 // HTTP server after the response is written, so it must not be closed here.
 func (s *server) adminReceipt(c *fiber.Ctx) error {
-	id := c.Params("id")
-	if _, err := uuid.Parse(id); err != nil || len(id) != 36 {
-		return fail(c, fiber.StatusNotFound, "not_found")
+	o, ok, err := s.receiptOrder(c)
+	if !ok {
+		return err
 	}
-	o, err := s.Orders.Get(c.UserContext(), id)
+	rc, _, err := s.Receipts.Receipt(c.UserContext(), o.ReceiptFileID)
 	if err != nil {
-		return s.orderErr(c, err)
-	}
-	if o.ReceiptFileID == "" || (o.ReceiptKind != orders.ReceiptPhoto && o.ReceiptKind != orders.ReceiptDocument) {
-		return fail(c, fiber.StatusNotFound, "not_found")
-	}
-	if s.Receipts == nil {
-		return fail(c, fiber.StatusServiceUnavailable, "unavailable")
-	}
-	rc, ctype, err := s.Receipts.Receipt(c.UserContext(), o.ReceiptFileID)
-	if err != nil {
-		s.Log.Warn("webapp receipt", "order", id, "err", err)
+		s.Log.Warn("webapp receipt", "order", o.ID, "err", err)
 		return fail(c, fiber.StatusBadGateway, "unavailable")
 	}
-	ctype, attachment := receiptHeaders(o.ReceiptKind, ctype)
+	// Telegram's file server labels documents as it likes, so the type comes from the bytes.
+	br := bufio.NewReaderSize(rc, 512)
+	head, _ := br.Peek(512)
+	ctype, attachment := receiptHeaders(o.ReceiptKind, head)
+	body := struct {
+		io.Reader
+		io.Closer
+	}{br, rc}
 	c.Set(fiber.HeaderContentType, ctype)
 	c.Set("X-Content-Type-Options", "nosniff")
 	if attachment {
 		c.Set(fiber.HeaderContentDisposition, "attachment")
 	}
 	c.Set(fiber.HeaderCacheControl, "private, max-age=300")
-	return c.SendStream(rc)
+	return c.SendStream(body)
 }
 
-// receiptHeaders decides how a receipt is served. A document is customer-uploaded
-// content, so only a few inert types are shown inline; the rest is a download.
-func receiptHeaders(kind orders.ReceiptKind, upstream string) (ctype string, attachment bool) {
+// receiptOrder finds the order of the request and checks it has a receipt file
+// and that files can be fetched. ok=false: the answer has been written (err is its result).
+func (s *server) receiptOrder(c *fiber.Ctx) (o *orders.Order, ok bool, err error) {
+	id := c.Params("id")
+	if _, perr := uuid.Parse(id); perr != nil || len(id) != 36 {
+		return nil, false, fail(c, fiber.StatusNotFound, "not_found")
+	}
+	o, err = s.Orders.Get(c.UserContext(), id)
+	if err != nil {
+		return nil, false, s.orderErr(c, err)
+	}
+	if o.ReceiptFileID == "" || (o.ReceiptKind != orders.ReceiptPhoto && o.ReceiptKind != orders.ReceiptDocument) {
+		return nil, false, fail(c, fiber.StatusNotFound, "not_found")
+	}
+	if s.Receipts == nil {
+		return nil, false, fail(c, fiber.StatusServiceUnavailable, "unavailable")
+	}
+	return o, true, nil
+}
+
+// adminSendReceipt sends the receipt file to the admin's own chat with the bot,
+// where Telegram opens any file type.
+func (s *server) adminSendReceipt(c *fiber.Ctx) error {
+	o, ok, err := s.receiptOrder(c)
+	if !ok {
+		return err
+	}
+	u, _ := c.Locals("tguser").(initdata.User)
+	if err := s.Receipts.SendReceipt(c.UserContext(), u.ID, o.ReceiptKind, o.ReceiptFileID); err != nil {
+		s.Log.Warn("webapp send receipt", "order", o.ID, "err", err)
+		return fail(c, fiber.StatusBadGateway, "unavailable")
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// receiptHeaders decides how a receipt is served, by the first bytes of the file.
+// A document is customer-uploaded content, so only a few inert types are shown
+// inline; the rest is a download.
+func receiptHeaders(kind orders.ReceiptKind, head []byte) (ctype string, attachment bool) {
 	if kind == orders.ReceiptPhoto {
 		return "image/jpeg", false // Telegram photos are JPEG whatever its file server says
 	}
-	mt, _, _ := strings.Cut(upstream, ";")
-	mt = strings.ToLower(strings.TrimSpace(mt))
+	mt, _, _ := strings.Cut(http.DetectContentType(head), ";")
 	switch mt {
 	case "application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp":
 		return mt, false
