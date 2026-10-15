@@ -1,3 +1,5 @@
+//go:build !dev
+
 // Package web embeds the WebApp build (web/dist). Run `bun run build` in
 // web/ first; with only .gitkeep the Go binary still builds.
 package web

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun scripts/dev.ts",
+    "watch": "bun scripts/watch.ts",
     "check:locales": "bun scripts/check-locales.ts",
     "build": "bun run check:locales && tsc -b && bun scripts/build.ts",
     "typecheck": "tsc --noEmit -p tsconfig.app.json"

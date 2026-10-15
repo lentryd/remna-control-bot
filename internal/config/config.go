@@ -36,6 +36,7 @@ type Config struct {
 	DBPath      string
 	LogLevel    string
 	RefSecret   string // also the root of the key that encrypts stored secrets
+	WebDir      string // serve the WebApp from this directory instead of the embedded build (dev)
 
 	AdminIDs []int64 // who may open the admin part and receives order cards
 }
@@ -64,6 +65,7 @@ func load(get func(string) string) (Config, error) {
 		DBPath:      or("DB_PATH", "/data/bot.db"),
 		LogLevel:    or("LOG_LEVEL", "info"),
 		RefSecret:   or("REF_SECRET", ""),
+		WebDir:      or("WEB_DIR", ""),
 	}
 	for _, r := range []struct{ k, v string }{
 		{"BOT_TOKEN", c.BotToken}, {"VPNCTL_URL", c.VpnctlURL}, {"VPNCTL_TOKEN", c.VpnctlToken},

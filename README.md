@@ -122,8 +122,11 @@ Tasks run with [Task](https://taskfile.dev) (`task --list`), like in vpn-control
    machine trusts the mkcert CA and opens the WebApp from the menu button.
 
 `task logs` follows the bot, `task down` stops the stack, `task test` runs Go tests and the WebApp typecheck.
-`task dev` — panel and traefik in Docker, the bot on the host (`go run`, talks to the panel via `https://<LOCAL_DOMAIN>`)
-plus the WebApp dev server; it stops the bot container, and traefik then routes the WebApp path to the host bot.
+`task dev` — panel and traefik in Docker, the bot on the host (talks to the panel via `https://<LOCAL_DOMAIN>`); it stops the
+bot container, and traefik then routes the WebApp path to the host bot. Nothing needs restarting or deleting while you work:
+Go changes rebuild and restart the bot ([air](https://github.com/air-verse/air), `.air.toml`, built with `-tags dev` so it doesn't embed `web/dist`), frontend changes
+rebuild `web/dist` (`web/scripts/watch.ts`), which the bot serves from disk (`WEB_DIR`), so just reload the WebApp. `task dev:web:server` is the
+standalone browser dev server.
 
 ## Production
 

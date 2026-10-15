@@ -19,8 +19,8 @@ tasks:
       - task: panel:db
 
   dev:
-    desc: Panel in docker, bot on the host (+ WebApp dev server) — Telegram reaches it via traefik
-    deps: [dev:stack]
+    desc: Panel in docker, bot on the host, both rebuilt on every change (Go and frontend) — Telegram reaches it via traefik
+    deps: [dev:stack, web:install]
     cmds:
       - task: dev:run
 
@@ -39,16 +39,23 @@ tasks:
       - "{{.DEV}} stop bot"
 
   dev:bot:
-    desc: Run the bot on the host against the local panel
+    desc: Run the bot on the host against the local panel; rebuilt and restarted on Go changes, serves web/dist from disk
     env:
       # the panel's compose hostname isn't reachable from the host — go through traefik
       VPNCTL_URL: https://{{.LOCAL_DOMAIN}}
       PUBLIC_URL: https://{{.LOCAL_DOMAIN}}
+      # no rebuild or restart for frontend changes: the bot reads the build from here
+      WEB_DIR: "{{.ROOT_DIR}}/web/dist"
     cmds:
-      - go run ./cmd/bot
+      - go run github.com/air-verse/air@v1.67.4 -c .air.toml
 
   dev:web:
-    desc: Run the WebApp dev server (proxies ./api to the bot)
+    desc: Rebuild web/dist on every frontend change (the bot picks it up, reload the WebApp)
+    dir: web
+    cmds: [bun run watch]
+
+  dev:web:server:
+    desc: Standalone WebApp dev server in a browser (proxies ./api to the bot)
     dir: web
     cmds: [bun run dev]
 

@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -108,9 +109,14 @@ func run() error {
 	if live := svc.Live(); !live.Manual && len(live.Providers.IDs()) == 0 && len(cfg.AdminIDs) > 0 {
 		bot.NotifyAdmins(ctx, i18n.M("admin.no_methods"), "/admin/methods")
 	}
+	static := fs.FS(web.Dist)
+	if cfg.WebDir != "" {
+		static = os.DirFS(cfg.WebDir)
+		log.Info("serving the WebApp from disk", "dir", cfg.WebDir)
+	}
 	app := webapp.New(webapp.Deps{
 		API: api, Codec: codec, BotToken: cfg.BotToken, BotUsername: bot.Username(),
-		Path: cfg.WebAppPath, PayMode: payMode, Orders: svc, Currency: cur.Get, Static: web.Dist, Log: log,
+		Path: cfg.WebAppPath, PayMode: payMode, Orders: svc, Currency: cur.Get, Static: static, Log: log,
 		Settings: set, IsAdmin: cfg.IsAdmin, PublicURL: cfg.PublicURL, Receipts: bot, Unreachable: bot.Unreachable, Langs: st,
 	})
 

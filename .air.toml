@@ -1,0 +1,22 @@
+# Hot reload for `task dev:bot`. -tags dev keeps web/dist out of the Go build
+# (the bot serves it from disk via WEB_DIR), so frontend rebuilds never break it.
+root = "."
+tmp_dir = "bin"
+
+[build]
+  cmd = "go build -tags dev -o ./bin/dev-bot ./cmd/bot"
+  entrypoint = ["./bin/dev-bot"]
+  include_dir = ["cmd", "internal"]
+  include_ext = ["go", "json"]
+  exclude_regex = ["_test\\.go$"]
+  delay = 250
+  send_interrupt = true
+  kill_delay = "5s"
+  # a failed build keeps the previous bot running
+  stop_on_error = false
+
+[log]
+  time = false
+
+[misc]
+  clean_on_exit = false
