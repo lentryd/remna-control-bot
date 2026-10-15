@@ -194,7 +194,7 @@ func TestLinkConcurrentClaim(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			s.Link(context.Background(), User{ID: id}, "AbC123xyz")
+			_, _ = s.Link(context.Background(), User{ID: id}, "AbC123xyz")
 		}()
 	}
 	wg.Wait()
