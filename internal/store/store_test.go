@@ -175,3 +175,37 @@ func TestLang(t *testing.T) {
 		t.Fatalf("got %q, want en", got)
 	}
 }
+
+func TestUnreachable(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "bot.db")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if off, _ := s.Unreachable(ctx, 7); off {
+		t.Fatal("fresh store: want reachable")
+	}
+	if err := s.SetUnreachable(ctx, 7, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetUnreachable(ctx, 7, true); err != nil { // idempotent
+		t.Fatal(err)
+	}
+	_ = s.Close()
+
+	s, _ = Open(path) // survives restart
+	defer func() { _ = s.Close() }()
+	if off, _ := s.Unreachable(ctx, 7); !off {
+		t.Fatal("want unreachable after reopen")
+	}
+	if off, _ := s.Unreachable(ctx, 8); off {
+		t.Fatal("another chat: want reachable")
+	}
+	if err := s.SetUnreachable(ctx, 7, false); err != nil {
+		t.Fatal(err)
+	}
+	if off, _ := s.Unreachable(ctx, 7); off {
+		t.Fatal("want reachable after clear")
+	}
+}

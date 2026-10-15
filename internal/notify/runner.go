@@ -2,17 +2,25 @@ package notify
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
 	"remna-control-bot/internal/remnactl"
 )
 
-// Sent remembers which notices went out (implemented by store.Store).
-type Sent interface {
+// State remembers which notices went out and which chats can't get them (implemented by store.Store).
+type State interface {
 	NoticeSent(ctx context.Context, key string) (bool, error)
 	MarkNoticeSent(ctx context.Context, key string) error
+	Unreachable(ctx context.Context, chatID int64) (bool, error)
+	SetUnreachable(ctx context.Context, chatID int64, on bool) error
 }
+
+// ErrUnreachable is what Send wraps when the chat can't receive messages at all
+// (the person never started the bot or blocked it). The chat is skipped until
+// the person writes to the bot, which clears the mark.
+var ErrUnreachable = errors.New("notify: chat unreachable")
 
 // Conf is what the runner reads before every pass, so admins can change it without a restart.
 type Conf struct {
@@ -25,7 +33,7 @@ const tick = time.Minute
 
 type Runner struct {
 	API   remnactl.Client
-	Store Sent
+	Store State
 	Send  func(ctx context.Context, n Notice) error
 	Conf  func() Conf
 	Log   *slog.Logger
@@ -56,7 +64,8 @@ func (r *Runner) Run(ctx context.Context) {
 }
 
 // RunOnce sends every planned notice that wasn't sent before. A failed send
-// isn't recorded, so it is retried on the next run.
+// isn't recorded, so it is retried on the next run; unreachable chats are
+// skipped, their notices wait until the chat is reachable again.
 func (r *Runner) RunOnce(ctx context.Context, now time.Time) {
 	if r.Sweep != nil {
 		if err := r.Sweep(ctx); err != nil {
@@ -87,7 +96,22 @@ func (r *Runner) RunOnce(ctx context.Context, now time.Time) {
 		if sent {
 			continue
 		}
+		off, err := r.Store.Unreachable(ctx, n.ChatID)
+		if err != nil {
+			r.Log.Error("notify: state", "err", err)
+			return
+		}
+		if off {
+			continue
+		}
 		if err := r.Send(ctx, n); err != nil {
+			if errors.Is(err, ErrUnreachable) {
+				if err := r.Store.SetUnreachable(ctx, n.ChatID, true); err != nil {
+					r.Log.Error("notify: state", "err", err)
+				}
+				r.Log.Warn("notify: chat unreachable, paused until the customer writes to the bot", "key", n.Key, "chat", n.ChatID, "err", err)
+				continue
+			}
 			r.Log.Warn("notify: send", "key", n.Key, "chat", n.ChatID, "err", err)
 			continue
 		}

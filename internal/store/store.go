@@ -1,5 +1,6 @@
 // Package store keeps the bot's own state: who is expected to send a
-// subscription link, which notifications were already sent, payment orders,
+// subscription link, which notifications were already sent and which chats
+// can't receive them, payment orders,
 // what a chat is expected to send next and where each admin's order card is.
 // Customer data lives in remna-control.
 package store
@@ -76,7 +77,10 @@ func Open(path string) (*Store, error) {
 		PRIMARY KEY (order_id, admin_id));
 	CREATE TABLE IF NOT EXISTS user_lang (
 		tg_id INTEGER PRIMARY KEY,
-		lang TEXT NOT NULL)`); err != nil {
+		lang TEXT NOT NULL);
+	CREATE TABLE IF NOT EXISTS unreachable_chats (
+		chat_id INTEGER PRIMARY KEY,
+		since TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
@@ -147,6 +151,23 @@ func (s *Store) NoticeSent(ctx context.Context, key string) (bool, error) {
 func (s *Store) MarkNoticeSent(ctx context.Context, key string) error {
 	_, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO notices (key) VALUES (?)`, key)
 	return err
+}
+
+// SetUnreachable marks a chat the bot can't write to (never started the bot,
+// blocked it, doesn't exist) or, with on false, clears the mark.
+func (s *Store) SetUnreachable(ctx context.Context, chatID int64, on bool) error {
+	q := `DELETE FROM unreachable_chats WHERE chat_id = ?`
+	if on {
+		q = `INSERT OR IGNORE INTO unreachable_chats (chat_id) VALUES (?)`
+	}
+	_, err := s.db.ExecContext(ctx, q, chatID)
+	return err
+}
+
+func (s *Store) Unreachable(ctx context.Context, chatID int64) (bool, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM unreachable_chats WHERE chat_id = ?`, chatID).Scan(&n)
+	return n > 0, err
 }
 
 // ChatState is what the next message in a chat means (e.g. a receipt for an order).

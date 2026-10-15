@@ -105,7 +105,7 @@ func run() error {
 	}
 
 	bot, err = telegram.New(ctx, cfg.BotToken, telegram.Deps{
-		Access: acc, API: api, Codec: codec, Orders: svc, IsAdmin: cfg.IsAdmin, Admins: cfg.AdminIDs, Notices: st, Langs: st,
+		Access: acc, API: api, Codec: codec, Orders: svc, IsAdmin: cfg.IsAdmin, Admins: cfg.AdminIDs, Notices: st, Langs: st, Reach: st,
 		WebAppURL: cfg.WebAppURL(), PayMode: payMode, Log: log,
 	})
 	if err != nil {

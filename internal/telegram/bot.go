@@ -45,6 +45,7 @@ type Deps struct {
 	Admins  []int64     // receive order cards; ADMIN_IDS in order
 	Notices NoticeStore // where each admin's card for an order lives
 	Langs   LangStore   // nil: everything is English
+	Reach   ReachStore  // nil: nobody's notifications are paused
 	APIBase string      // Bot API base URL; "" is Telegram's own (tests point it at a fake)
 }
 
@@ -62,7 +63,7 @@ func New(ctx context.Context, token string, d Deps) (*Bot, error) {
 	b := &Bot{Deps: d, links: view.Links{WebApp: d.WebAppURL}}
 	opts := []tgbot.Option{
 		tgbot.WithDefaultHandler(b.onUpdate),
-		tgbot.WithMiddlewares(gate(), b.langMiddleware()),
+		tgbot.WithMiddlewares(gate(), b.langMiddleware(), b.reachMiddleware()),
 		tgbot.WithErrorsHandler(func(err error) { d.Log.Error("telegram", "err", err) }),
 	}
 	if d.APIBase != "" {
@@ -136,7 +137,17 @@ func (b *Bot) SendNotice(ctx context.Context, n notify.Notice) error {
 	_, err := b.tg.SendMessage(ctx, &tgbot.SendMessageParams{
 		ChatID: n.ChatID, Text: s.Text, ParseMode: models.ParseModeHTML, ReplyMarkup: s.Keyboard,
 	})
+	if isUnreachable(err) {
+		return fmt.Errorf("%w: %w", notify.ErrUnreachable, err)
+	}
 	return err
+}
+
+// isUnreachable: the chat can't get messages until the person writes to the bot (never started it, blocked it,
+// or the id is wrong), so retrying is pointless.
+func isUnreachable(err error) bool {
+	return errors.Is(err, tgbot.ErrorForbidden) ||
+		errors.Is(err, tgbot.ErrorBadRequest) && strings.Contains(err.Error(), "chat not found")
 }
 
 func (b *Bot) Username() string        { return b.username }

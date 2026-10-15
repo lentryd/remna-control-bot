@@ -20,7 +20,7 @@ import (
 )
 
 // fakeTelegram answers the Bot API (<base>/bot<token>/<method>, multipart form): chat 2 is an admin who never
-// started the bot.
+// started the bot, chat 4 doesn't exist.
 type fakeTelegram struct {
 	mu    sync.Mutex
 	calls []string // "method chat_id"
@@ -102,6 +102,9 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case (method == "sendMessage" || method == "editMessageText") && chat == 2:
 		w.WriteHeader(403)
 		_, _ = io.WriteString(w, `{"ok":false,"error_code":403,"description":"Forbidden: bot can't initiate conversation with a user"}`)
+	case method == "sendMessage" && chat == 4:
+		w.WriteHeader(400)
+		_, _ = io.WriteString(w, `{"ok":false,"error_code":400,"description":"Bad Request: chat not found"}`)
 	case method == "sendMessage" || method == "editMessageText":
 		_, _ = io.WriteString(w, `{"ok":true,"result":{"message_id":77,"date":1,"chat":{"id":1,"type":"private"}}}`)
 	default:
