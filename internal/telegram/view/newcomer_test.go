@@ -10,7 +10,7 @@ import (
 func TestNewcomerTextsAreNeutral(t *testing.T) {
 	for name, text := range map[string]string{
 		"need link": ru.T("msg.need_link"), "bad referral": ru.T("msg.bad_referral"), "bad link": ru.T("msg.bad_link"),
-		"not found": ru.T("msg.not_found"), "taken": ru.T("msg.taken"),
+		"not found": ru.T("msg.not_found"), "link limited": ru.T("msg.link_limited"),
 	} {
 		low := strings.ToLower(text)
 		if strings.Contains(low, "vpn") || strings.Contains(low, "впн") || strings.Contains(low, "реферальн") {

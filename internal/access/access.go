@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"remna-control-bot/internal/config"
 	"remna-control-bot/internal/refcode"
@@ -30,7 +32,7 @@ const (
 	Linked                     // subscription link accepted, telegram id set
 	BadLink                    // text is not a subscription link
 	NotFound                   // no subscription with this link
-	Taken                      // subscription belongs to another Telegram account
+	RateLimited                // too many failed link attempts, try later
 )
 
 type Result struct {
@@ -48,10 +50,15 @@ type Service struct {
 	codec *refcode.Codec
 	mode  func() config.Mode
 	state State
+
+	// linkMu serializes Link: the panel has no conditional update, so the
+	// "telegram id is empty" check and the write must not interleave.
+	linkMu sync.Mutex
+	fails  *failures
 }
 
 func New(api remnactl.Client, codec *refcode.Codec, mode func() config.Mode, state State) *Service {
-	return &Service{api: api, codec: codec, mode: mode, state: state}
+	return &Service{api: api, codec: codec, mode: mode, state: state, fails: newFailures(time.Now)}
 }
 
 func (s *Service) AwaitingLink(ctx context.Context, tgID int64) (bool, error) {
@@ -126,15 +133,23 @@ func (s *Service) Link(ctx context.Context, u User, text string) (Result, error)
 	if !ok {
 		return Result{Outcome: BadLink}, nil
 	}
+	if s.fails.blocked(u.ID) {
+		return Result{Outcome: RateLimited}, nil
+	}
+	s.linkMu.Lock()
+	defer s.linkMu.Unlock()
 	c, err := s.api.LookupByShortUUID(ctx, short)
 	if errors.Is(err, remnactl.ErrNotFound) {
+		s.fails.add(u.ID)
 		return Result{Outcome: NotFound}, nil
 	}
 	if err != nil {
 		return Result{}, err
 	}
 	if c.TelegramID != nil && *c.TelegramID != u.ID {
-		return Result{Outcome: Taken}, nil
+		// Same answer as an unknown link: don't reveal that it exists.
+		s.fails.add(u.ID)
+		return Result{Outcome: NotFound}, nil
 	}
 	if c.Archived {
 		return Result{Outcome: Archived, Customer: c}, nil
@@ -149,5 +164,6 @@ func (s *Service) Link(ctx context.Context, u User, text string) (Result, error)
 		}
 		c.TelegramID = &tg
 	}
+	s.fails.reset(u.ID)
 	return Result{Outcome: Linked, Customer: c}, s.state.SetAwaitingLink(ctx, u.ID, false)
 }

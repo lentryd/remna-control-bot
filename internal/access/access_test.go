@@ -3,7 +3,9 @@ package access
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	"remna-control-bot/internal/config"
 	"remna-control-bot/internal/refcode"
@@ -124,7 +126,7 @@ func TestLink(t *testing.T) {
 	}{
 		{"link free", withSub(remnactl.Customer{ID: 1, Name: "X"}, "AbC123xyz"), " https://sub.x/AbC123xyz/ ", Linked, 1},
 		{"already mine", withSub(remnactl.Customer{ID: 1, TelegramID: ptr(int64(100))}, "AbC123xyz"), "AbC123xyz", Linked, 0},
-		{"someone else's", withSub(remnactl.Customer{ID: 1, TelegramID: ptr(int64(555))}, "AbC123xyz"), "AbC123xyz", Taken, 0},
+		{"someone else's", withSub(remnactl.Customer{ID: 1, TelegramID: ptr(int64(555))}, "AbC123xyz"), "AbC123xyz", NotFound, 0},
 		{"archived", withSub(remnactl.Customer{ID: 1, Archived: true}, "AbC123xyz"), "AbC123xyz", Archived, 0},
 		{"unknown", withSub(remnactl.Customer{ID: 1}, "AbC123xyz"), "Zzz999zzz", NotFound, 0},
 		{"garbage", withSub(remnactl.Customer{ID: 1}, "AbC123xyz"), "hi!", BadLink, 0},
@@ -159,5 +161,44 @@ func TestLinkKeepsFields(t *testing.T) {
 	in := f.Updates[0].In
 	if in.Name != "X" || in.Contact != "@x" || in.Notes != "vip" || *in.ReferrerID != 7 || *in.ReferralPercent != 15 || *in.TelegramID != 100 {
 		t.Fatalf("PUT body lost fields: %+v", in)
+	}
+}
+
+func TestLinkRateLimit(t *testing.T) {
+	s, f, st := setup(config.ModeClosed)
+	st[100] = true
+	f.Add(withSub(remnactl.Customer{ID: 1, TelegramID: ptr(int64(555))}, "AbC123xyz"))
+	for i := 0; i < maxFails; i++ {
+		if r, _ := s.Link(context.Background(), ann, "Zzz999zzz"); r.Outcome != NotFound {
+			t.Fatalf("attempt %d: %v", i, r.Outcome)
+		}
+	}
+	if r, _ := s.Link(context.Background(), ann, "Zzz999zzz"); r.Outcome != RateLimited {
+		t.Fatalf("outcome = %v", r.Outcome)
+	}
+	if r, _ := s.Link(context.Background(), User{ID: 101}, "Zzz999zzz"); r.Outcome != NotFound {
+		t.Fatalf("other user must not be limited: %v", r.Outcome)
+	}
+	now := time.Now().Add(failWindow)
+	s.fails.now = func() time.Time { return now }
+	if r, _ := s.Link(context.Background(), ann, "Zzz999zzz"); r.Outcome != NotFound {
+		t.Fatalf("after window: %v", r.Outcome)
+	}
+}
+
+func TestLinkConcurrentClaim(t *testing.T) {
+	s, f, _ := setup(config.ModeClosed)
+	f.Add(withSub(remnactl.Customer{ID: 1}, "AbC123xyz"))
+	var wg sync.WaitGroup
+	for _, id := range []int64{100, 101, 102, 103} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s.Link(context.Background(), User{ID: id}, "AbC123xyz")
+		}()
+	}
+	wg.Wait()
+	if len(f.Updates) != 1 {
+		t.Fatalf("updates = %d, want exactly one claim", len(f.Updates))
 	}
 }

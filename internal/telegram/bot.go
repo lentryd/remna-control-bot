@@ -203,8 +203,8 @@ func (b *Bot) outcome(loc i18n.Localizer, r access.Result, err error) (view.Scre
 		return view.Plain(loc, "msg.bad_link"), true
 	case access.NotFound:
 		return view.Plain(loc, "msg.not_found"), true
-	case access.Taken:
-		return view.Plain(loc, "msg.taken"), true
+	case access.RateLimited:
+		return view.Plain(loc, "msg.link_limited"), true
 	}
 	return view.Screen{}, false
 }
