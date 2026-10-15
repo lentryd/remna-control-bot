@@ -37,6 +37,26 @@ upx:
     compress: best
     goos: [linux]
 
+# The image runs as root so the named volume at /data is writable; the
+# default DB_PATH (/data/bot.db) lives in it.
+kos:
+  - base_image: alpine
+    repositories: [ghcr.io/lentryd/remna-control-bot]
+    bare: true
+    preserve_import_paths: false
+    sbom: none
+    creation_time: "{{ .CommitTimestamp }}"
+    labels:
+      org.opencontainers.image.source: https://github.com/lentryd/remna-control-bot
+      org.opencontainers.image.description: Telegram bot and WebApp for the customers of Remna Control
+      org.opencontainers.image.licenses: AGPL-3.0-only
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+
 signs:
   - cmd: cosign
     artifacts: checksum

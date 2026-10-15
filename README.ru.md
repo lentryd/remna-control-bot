@@ -38,7 +38,7 @@
 
 ## Развёртывание
 
-Положите `compose.yml` и `.env` рядом с панелью и выполните `docker compose up -d --build`. Контейнер подключается
+Положите `compose.yml` и `.env` рядом с панелью и выполните `docker compose up -d`. Контейнер подключается
 к docker-сети панели; его Traefik-метки направляют `Host(APP_DOMAIN)` c `PathPrefix(WEBAPP_PATH)` или `PathPrefix(/pay/)` (вебхуки провайдеров) в бот
 с более высоким приоритетом, чем у роутера панели. С другим балансировщиком направьте оба пути на порт 8090.
 
@@ -183,7 +183,7 @@ task snapshot   # локальная сборка goreleaser
 
 ### Релизы
 
-CI запускается на каждый push и pull request ([`test.yaml`](.github/workflows/test.yaml)): проверка типов и сборка фронтенда, `gofmt`, `go vet`, тесты, golangci-lint и проверка конфига релиза. Тег запускает релиз ([`release.yaml`](.github/workflows/release.yaml)): goreleaser собирает бинарники `linux/amd64` и `linux/arm64`, подписывает контрольные суммы через cosign, прикладывает SBOM и публикует GitHub-релиз, а Docker-образ уходит в `ghcr.io/lentryd/remna-control-bot`.
+CI запускается на каждый push и pull request ([`test.yaml`](.github/workflows/test.yaml)): проверка типов и сборка фронтенда, `gofmt`, `go vet`, тесты, golangci-lint и проверка конфига релиза. Тег запускает релиз ([`release.yaml`](.github/workflows/release.yaml)): goreleaser собирает бинарники `linux/amd64` и `linux/arm64`, подписывает контрольные суммы через cosign, прикладывает SBOM и публикует GitHub-релиз, а Docker-образ собирается через ko (кросс-компиляция, без эмуляции) и уходит в `ghcr.io/lentryd/remna-control-bot`.
 
 ```bash
 git tag v1.0.0 && git push origin v1.0.0

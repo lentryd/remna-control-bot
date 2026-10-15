@@ -2,7 +2,7 @@
 # routed by path ($WEBAPP_PATH) on the panel's domain by your balancer/Traefik.
 services:
     remna-control-bot:
-        build: .
+        image: ghcr.io/lentryd/remna-control-bot:latest
         container_name: remna-control-bot
         restart: unless-stopped
         env_file: .env

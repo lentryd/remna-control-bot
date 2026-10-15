@@ -38,7 +38,7 @@ One Go process: the bot (long polling) plus an HTTP server for the WebApp under 
 
 ## Deployment
 
-Put `compose.yml` and `.env` next to the panel and run `docker compose up -d --build`. The container joins
+Put `compose.yml` and `.env` next to the panel and run `docker compose up -d`. The container joins
 the panel's docker network; its Traefik labels route `Host(APP_DOMAIN)` with `PathPrefix(WEBAPP_PATH)` or `PathPrefix(/pay/)` (provider webhooks) to the bot
 with a higher priority than the panel's router. With another balancer, route both paths to port 8090.
 
@@ -184,7 +184,7 @@ Stack: Go, [go-telegram/bot](https://github.com/go-telegram/bot), Fiber, SQLite 
 
 ### Releases
 
-CI runs on every push and pull request ([`test.yaml`](.github/workflows/test.yaml)): frontend typecheck and build, `gofmt`, `go vet`, tests, golangci-lint and a check of the release config. A tag starts the release ([`release.yaml`](.github/workflows/release.yaml)): goreleaser builds `linux/amd64` and `linux/arm64` binaries, signs the checksums with cosign, attaches SBOMs and publishes the GitHub release, and the Docker image goes to `ghcr.io/lentryd/remna-control-bot`.
+CI runs on every push and pull request ([`test.yaml`](.github/workflows/test.yaml)): frontend typecheck and build, `gofmt`, `go vet`, tests, golangci-lint and a check of the release config. A tag starts the release ([`release.yaml`](.github/workflows/release.yaml)): goreleaser builds `linux/amd64` and `linux/arm64` binaries, signs the checksums with cosign, attaches SBOMs and publishes the GitHub release, and builds the Docker image with ko (cross-compiled, no emulation) into `ghcr.io/lentryd/remna-control-bot`.
 
 ```bash
 git tag v1.0.0 && git push origin v1.0.0

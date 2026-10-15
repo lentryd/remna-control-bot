@@ -57,7 +57,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer st.Close()
+	defer func() { _ = st.Close() }()
 	set, err := settings.Open(ctx, st.DB(), cfg.RefSecret)
 	if err != nil {
 		return err
