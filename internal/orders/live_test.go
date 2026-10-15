@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"vpn-control-bot/internal/payments"
+	"remna-control-bot/internal/payments"
 )
 
 type stubProvider struct{ id string }

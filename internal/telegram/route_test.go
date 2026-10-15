@@ -3,7 +3,7 @@ package telegram
 import (
 	"testing"
 
-	"vpn-control-bot/internal/refcode"
+	"remna-control-bot/internal/refcode"
 )
 
 func TestParseRoute(t *testing.T) {
@@ -33,7 +33,7 @@ func TestParseOrderID(t *testing.T) {
 
 func TestRefLink(t *testing.T) {
 	c := refcode.New("s")
-	if got := RefLink("vpnbot", c, 5); got != "https://t.me/vpnbot?start=ref_"+c.Encode(5) {
+	if got := RefLink("remnabot", c, 5); got != "https://t.me/remnabot?start=ref_"+c.Encode(5) {
 		t.Fatal(got)
 	}
 }

@@ -27,16 +27,16 @@ const (
 )
 
 type Config struct {
-	BotToken    string
-	VpnctlURL   string
-	VpnctlToken string
-	PublicURL   string
-	WebAppPath  string // "" or "/x[/y]", no trailing slash
-	HTTPAddr    string
-	DBPath      string
-	LogLevel    string
-	RefSecret   string // also the root of the key that encrypts stored secrets
-	WebDir      string // serve the WebApp from this directory instead of the embedded build (dev)
+	BotToken      string
+	RemnactlURL   string
+	RemnactlToken string
+	PublicURL     string
+	WebAppPath    string // "" or "/x[/y]", no trailing slash
+	HTTPAddr      string
+	DBPath        string
+	LogLevel      string
+	RefSecret     string // also the root of the key that encrypts stored secrets
+	WebDir        string // serve the WebApp from this directory instead of the embedded build (dev)
 
 	AdminIDs []int64 // who may open the admin part and receives order cards
 }
@@ -56,19 +56,19 @@ func load(get func(string) string) (Config, error) {
 		return def
 	}
 	c := Config{
-		BotToken:    or("BOT_TOKEN", ""),
-		VpnctlURL:   strings.TrimRight(or("VPNCTL_URL", ""), "/"),
-		VpnctlToken: or("VPNCTL_TOKEN", ""),
-		PublicURL:   strings.TrimRight(or("PUBLIC_URL", ""), "/"),
-		WebAppPath:  normPath(or("WEBAPP_PATH", "/bot")),
-		HTTPAddr:    or("HTTP_ADDR", ":8090"),
-		DBPath:      or("DB_PATH", "/data/bot.db"),
-		LogLevel:    or("LOG_LEVEL", "info"),
-		RefSecret:   or("REF_SECRET", ""),
-		WebDir:      or("WEB_DIR", ""),
+		BotToken:      or("BOT_TOKEN", ""),
+		RemnactlURL:   strings.TrimRight(or("REMNACTL_URL", ""), "/"),
+		RemnactlToken: or("REMNACTL_TOKEN", ""),
+		PublicURL:     strings.TrimRight(or("PUBLIC_URL", ""), "/"),
+		WebAppPath:    normPath(or("WEBAPP_PATH", "/bot")),
+		HTTPAddr:      or("HTTP_ADDR", ":8090"),
+		DBPath:        or("DB_PATH", "/data/bot.db"),
+		LogLevel:      or("LOG_LEVEL", "info"),
+		RefSecret:     or("REF_SECRET", ""),
+		WebDir:        or("WEB_DIR", ""),
 	}
 	for _, r := range []struct{ k, v string }{
-		{"BOT_TOKEN", c.BotToken}, {"VPNCTL_URL", c.VpnctlURL}, {"VPNCTL_TOKEN", c.VpnctlToken},
+		{"BOT_TOKEN", c.BotToken}, {"REMNACTL_URL", c.RemnactlURL}, {"REMNACTL_TOKEN", c.RemnactlToken},
 		{"PUBLIC_URL", c.PublicURL}, {"REF_SECRET", c.RefSecret},
 	} {
 		if r.v == "" {

@@ -1,4 +1,4 @@
-// Copied from vpn-control/web/src/shared/ui/section-card/section-card.section.tsx
+// Copied from remna-control/web/src/shared/ui/section-card/section-card.section.tsx
 import { Box, BoxProps } from '@mantine/core'
 import { ReactNode, Ref } from 'react'
 

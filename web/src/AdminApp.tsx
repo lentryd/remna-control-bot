@@ -51,12 +51,12 @@ export function AdminApp() {
     return (
         <Box maw={560} mx="auto" pb="calc(24px + env(safe-area-inset-bottom))" pt="md" px="md">
             {detail ? (
-                <div className="vpnc-enter">{routes}</div>
+                <div className="remnac-enter">{routes}</div>
             ) : (
                 <>
                     <PageHeaderShared description={me.data.name} title={t('title')} />
                     <SectionNav items={TABS} onChange={(v) => navigate(v)} value={tab}>
-                        <div className="vpnc-enter" key={tab}>
+                        <div className="remnac-enter" key={tab}>
                             {routes}
                         </div>
                     </SectionNav>

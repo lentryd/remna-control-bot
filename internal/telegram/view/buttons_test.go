@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"vpn-control-bot/internal/notify"
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/profile"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/notify"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/profile"
+	"remna-control-bot/internal/remnactl"
 )
 
 // pages maps a button's text to the WebApp URL it opens; any button that is not a web_app fails the test.
@@ -44,7 +44,7 @@ func fixtureNotice() notify.Notice {
 	return notify.Notice{
 		Kind: notify.Traffic, SubID: 3, Title: "Родители", Used: 41 << 30, Limit: 50 << 30, ResetAt: ptr(now.Add(5 * 24 * time.Hour)),
 		ExpireAt: now.Add(50 * time.Hour),
-		Upgrade:  &vpnctl.Tariff{Name: "Plus", MonthlyPrice: 200, TrafficLimitBytes: 200 << 30},
+		Upgrade:  &remnactl.Tariff{Name: "Plus", MonthlyPrice: 200, TrafficLimitBytes: 200 << 30},
 	}
 }
 

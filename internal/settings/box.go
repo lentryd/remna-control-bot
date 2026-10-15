@@ -20,7 +20,7 @@ var errCannotOpen = errors.New("settings: cannot decrypt a stored secret")
 type box struct{ aead cipher.AEAD }
 
 func newBox(secret string) (*box, error) {
-	key, err := hkdf.Key(sha256.New, []byte(secret), []byte("vpn-control-bot/settings"), "secrets-v1", 32)
+	key, err := hkdf.Key(sha256.New, []byte(secret), []byte("remna-control-bot/settings"), "secrets-v1", 32)
 	if err != nil {
 		return nil, err
 	}

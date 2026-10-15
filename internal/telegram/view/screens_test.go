@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"vpn-control-bot/internal/i18n"
-	"vpn-control-bot/internal/profile"
+	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/profile"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")
@@ -35,7 +35,7 @@ func fixture() profile.Profile {
 		},
 		Referrals:       []profile.Referral{{Name: "Bob", Active: true, Earned: 75}},
 		ReferralsEarned: 75,
-		RefLink:         "https://t.me/vpnbot?start=ref_Ab12cd",
+		RefLink:         "https://t.me/remnabot?start=ref_Ab12cd",
 	}
 }
 
@@ -111,7 +111,7 @@ func TestScreens(t *testing.T) {
 func TestEmptyStates(t *testing.T) {
 	for _, lang := range langs {
 		loc := i18n.Default.For(lang)
-		p := profile.Profile{Name: "New", RefLink: "https://t.me/vpnbot?start=ref_x"}
+		p := profile.Profile{Name: "New", RefLink: "https://t.me/remnabot?start=ref_x"}
 		golden(t, lang, "home_empty", Home(loc, p, links, now))
 	}
 }

@@ -1,4 +1,4 @@
-// Copied from vpn-control/web/src/shared/ui/section-nav/index.tsx
+// Copied from remna-control/web/src/shared/ui/section-nav/index.tsx
 import { Box, ScrollArea, Text, UnstyledButton } from '@mantine/core'
 import type { ReactNode } from 'react'
 

@@ -1,4 +1,4 @@
-package vpnctl
+package remnactl
 
 import (
 	"context"

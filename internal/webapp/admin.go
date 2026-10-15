@@ -12,11 +12,11 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
-	"vpn-control-bot/internal/i18n"
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/payments"
-	"vpn-control-bot/internal/settings"
-	"vpn-control-bot/internal/webapp/initdata"
+	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/payments"
+	"remna-control-bot/internal/settings"
+	"remna-control-bot/internal/webapp/initdata"
 )
 
 // ReceiptSource streams a receipt file kept at Telegram (*telegram.Bot).

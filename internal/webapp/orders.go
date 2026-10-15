@@ -7,9 +7,9 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
-	"vpn-control-bot/internal/i18n"
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/remnactl"
 )
 
 type orderView struct {
@@ -68,7 +68,7 @@ func (s *server) quoteOrder(c *fiber.Ctx) error {
 	if err := c.BodyParser(&r); err != nil {
 		return fail(c, fiber.StatusBadRequest, "bad_request")
 	}
-	q, err := s.Orders.Quote(c.UserContext(), c.Locals("customer").(*vpnctl.Customer), r)
+	q, err := s.Orders.Quote(c.UserContext(), c.Locals("customer").(*remnactl.Customer), r)
 	if err != nil {
 		return s.orderErr(c, err)
 	}
@@ -98,7 +98,7 @@ func (s *server) createOrder(c *fiber.Ctx) error {
 	if err := c.BodyParser(&r); err != nil {
 		return fail(c, fiber.StatusBadRequest, "bad_request")
 	}
-	o, err := s.Orders.CreateWith(c.UserContext(), c.Locals("customer").(*vpnctl.Customer), c.Locals("tg").(int64), r.Request, orders.Method(r.Method))
+	o, err := s.Orders.CreateWith(c.UserContext(), c.Locals("customer").(*remnactl.Customer), c.Locals("tg").(int64), r.Request, orders.Method(r.Method))
 	if err != nil {
 		return s.orderErr(c, err)
 	}
@@ -107,7 +107,7 @@ func (s *server) createOrder(c *fiber.Ctx) error {
 
 func (s *server) listOrders(c *fiber.Ctx) error {
 	page := min(max(c.QueryInt("page", 0), 0), 10000)
-	list, total, err := s.Orders.List(c.UserContext(), c.Locals("customer").(*vpnctl.Customer).ID, 20, page*20)
+	list, total, err := s.Orders.List(c.UserContext(), c.Locals("customer").(*remnactl.Customer).ID, 20, page*20)
 	if err != nil {
 		return s.orderErr(c, err)
 	}
@@ -126,7 +126,7 @@ func (s *server) orderAction(fn func(c *fiber.Ctx, customerID int, id string) er
 		if _, err := uuid.Parse(id); err != nil || len(id) != 36 {
 			return fail(c, fiber.StatusNotFound, "not_found")
 		}
-		return fn(c, c.Locals("customer").(*vpnctl.Customer).ID, id)
+		return fn(c, c.Locals("customer").(*remnactl.Customer).ID, id)
 	}
 }
 

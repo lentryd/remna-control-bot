@@ -1,7 +1,7 @@
 package payments
 
 import (
-	"vpn-control-bot/internal/settings"
+	"remna-control-bot/internal/settings"
 )
 
 // BuildInput is everything Build needs besides the settings themselves.

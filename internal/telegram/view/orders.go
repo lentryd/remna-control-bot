@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-telegram/bot/models"
 
-	"vpn-control-bot/internal/i18n"
-	"vpn-control-bot/internal/orders"
+	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/orders"
 )
 
 var statusIcon = map[orders.Status]string{

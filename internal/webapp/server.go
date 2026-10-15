@@ -14,15 +14,15 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/filesystem"
 
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/i18n"
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/profile"
-	"vpn-control-bot/internal/refcode"
-	"vpn-control-bot/internal/settings"
-	"vpn-control-bot/internal/telegram"
-	"vpn-control-bot/internal/vpnctl"
-	"vpn-control-bot/internal/webapp/initdata"
+	"remna-control-bot/internal/config"
+	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/profile"
+	"remna-control-bot/internal/refcode"
+	"remna-control-bot/internal/remnactl"
+	"remna-control-bot/internal/settings"
+	"remna-control-bot/internal/telegram"
+	"remna-control-bot/internal/webapp/initdata"
 )
 
 const maxInitDataAge = 24 * time.Hour
@@ -35,7 +35,7 @@ func (d Deps) payMode() config.PayMode {
 }
 
 type Deps struct {
-	API         vpnctl.Client
+	API         remnactl.Client
 	Codec       *refcode.Codec
 	BotToken    string
 	BotUsername string
@@ -141,11 +141,11 @@ func (s *server) initAuth(c *fiber.Ctx) error {
 	return c.Next()
 }
 
-// customerAuth resolves the caller to their vpn-control customer.
+// customerAuth resolves the caller to their remna-control customer.
 func (s *server) customerAuth(c *fiber.Ctx) error {
 	cu, err := s.API.LookupByTelegram(c.UserContext(), c.Locals("tg").(int64))
 	switch {
-	case errors.Is(err, vpnctl.ErrNotFound):
+	case errors.Is(err, remnactl.ErrNotFound):
 		return fail(c, fiber.StatusForbidden, "no_access")
 	case err != nil:
 		s.Log.Error("webapp lookup", "err", err)
@@ -158,7 +158,7 @@ func (s *server) customerAuth(c *fiber.Ctx) error {
 }
 
 func (s *server) me(c *fiber.Ctx) error {
-	cu := c.Locals("customer").(*vpnctl.Customer)
+	cu := c.Locals("customer").(*remnactl.Customer)
 	p := profile.Build(cu, telegram.RefLink(s.BotUsername, s.Codec, cu.ID), s.payMode())
 	p.Currency = "RUB"
 	if s.Currency != nil {

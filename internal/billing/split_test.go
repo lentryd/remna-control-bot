@@ -3,7 +3,7 @@ package billing
 import (
 	"testing"
 
-	"vpn-control-bot/internal/config"
+	"remna-control-bot/internal/config"
 )
 
 func TestSplit(t *testing.T) {

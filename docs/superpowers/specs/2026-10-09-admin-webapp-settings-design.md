@@ -26,7 +26,7 @@ the process and to identify admins.
 
 ## Environment after the change
 
-Kept: `ADMIN_IDS`, `BOT_TOKEN`, `VPNCTL_URL`, `VPNCTL_TOKEN`, `PUBLIC_URL`, `WEBAPP_PATH`, `HTTP_ADDR`,
+Kept: `ADMIN_IDS`, `BOT_TOKEN`, `REMNACTL_URL`, `REMNACTL_TOKEN`, `PUBLIC_URL`, `WEBAPP_PATH`, `HTTP_ADDR`,
 `DB_PATH`, `REF_SECRET`, `LOG_LEVEL` (plus dev-only `LOCAL_DOMAIN`).
 
 Removed from env, moved to settings: `ADMIN_CHAT_ID`, `BOT_MODE`, `BASE_CURRENCY`, `BALANCE_PAY_MODE`,

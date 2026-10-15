@@ -11,16 +11,16 @@
 **Spec:** `docs/superpowers/specs/2026-10-07-payment-providers-design.md`. Where this plan differs from the spec (simplifications found while reading the code), **the plan wins**:
 - the order's `Method` *is* the provider id — there is no separate `provider` column;
 - the invoiced amount is stored as `pay_amount REAL` + `pay_currency TEXT` (not one string);
-- `Pay` takes `customerID int` (ownership check), not a `*vpnctl.Customer`;
+- `Pay` takes `customerID int` (ownership check), not a `*remnactl.Customer`;
 - the provider sweep runs in its own 1-minute loop in `cmd/bot/main.go`, not inside `notify.Runner` (whose interval is 1 h), and `SweepProviders` itself expires stale `awaiting_payment` orders (`ExpireStale` is unchanged);
-- `Quote` gets `Titles map[string]string`; the panel stores `method` as a free string, so provider ids (`yookassa`, …) are valid payment methods there (checked in vpn-control: no allow-list).
+- `Quote` gets `Titles map[string]string`; the panel stores `method` as a free string, so provider ids (`yookassa`, …) are valid payment methods there (checked in remna-control: no allow-list).
 
 ## Global Constraints
 
 - Money is `float64` in major units (rubles), rounded with `math.Round(v*100)/100`; invoices are issued in RUB, Stars in `XTR` (whole stars, `ceil(ToPay / STARS_RUB_RATE)`).
 - Price is fixed at order creation and never recomputed; what is invoiced is `ToPay`.
 - Every status change goes through `UPDATE … WHERE id=? AND status IN (…)` (`Service.move`); a lost race returns `orders.ErrStateChanged`.
-- Only `orders.Service` moves money in the panel; adapters never import `vpnctl` or `orders` (`payments` must not import `orders` — no cycle).
+- Only `orders.Service` moves money in the panel; adapters never import `remnactl` or `orders` (`payments` must not import `orders` — no cycle).
 - A provider is offered only when its env keys are set; a half-set pair (shop id without secret) is a config error.
 - Webhook authenticity: CryptoBot and Heleket by constant-time signature over the raw body; YooKassa by a fresh authenticated API read (the body only supplies the payment id); Stars by Telegram updates plus `pre_checkout_query` checks.
 - Webhook answers: 200 handled/duplicate/unknown/irrelevant; 400 unparsable; 401 bad signature; 404 provider unconfigured; 413 body > 64 KiB; 500 only when applying failed in a way worth retrying.
@@ -1693,7 +1693,7 @@ Add to the `var (…)` errors: `ErrProvider = errors.New("orders: payment provid
 
 `internal/orders/repo.go`: in `cols` add `external_id, pay_url, pay_amount, pay_currency,` after `error,`; in `scan` add `&o.ExternalID, &o.PayURL, &o.PayAmount, &o.PayCurrency,` after `&o.Error,`.
 
-`internal/orders/service.go`: add `Providers *payments.Registry` to `Service` (import `"vpn-control-bot/internal/payments"`), and replace the `switch` in `Quote` that fills `Methods`:
+`internal/orders/service.go`: add `Providers *payments.Registry` to `Service` (import `"remna-control-bot/internal/payments"`), and replace the `switch` in `Quote` that fills `Methods`:
 
 ```go
 	q.Methods = []Method{}
@@ -1727,7 +1727,7 @@ Add to the `var (…)` errors: `ErrProvider = errors.New("orders: payment provid
 **Interfaces — Consumes:** Tasks 2, 7. **Produces:**
 
 ```go
-func (s *Service) CreateWith(ctx context.Context, c *vpnctl.Customer, chatID int64, r Request, method Method) (*Order, error)
+func (s *Service) CreateWith(ctx context.Context, c *remnactl.Customer, chatID int64, r Request, method Method) (*Order, error)
 func (s *Service) Pay(ctx context.Context, customerID int, id, provider string) (*Order, error)
 func (s *Service) Paid(ctx context.Context, ev payments.Event) (*Order, error)
 func (s *Service) CheckInvoice(ctx context.Context, provider, id string, chatID int64, amount float64, currency string) error
@@ -1748,12 +1748,12 @@ import (
 	"testing"
 	"time"
 
-	"vpn-control-bot/internal/payments"
-	"vpn-control-bot/internal/store"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/payments"
+	"remna-control-bot/internal/store"
+	"remna-control-bot/internal/remnactl"
 )
 
-func setupP(t *testing.T) (*Service, *vpnctl.Fake, *spy, *vpnctl.Customer, *payments.Fake) {
+func setupP(t *testing.T) (*Service, *remnactl.Fake, *spy, *remnactl.Customer, *payments.Fake) {
 	t.Helper()
 	s, f, sp, c := setup(t)
 	fp := &payments.Fake{Name: "fake"}
@@ -1763,7 +1763,7 @@ func setupP(t *testing.T) (*Service, *vpnctl.Fake, *spy, *vpnctl.Customer, *paym
 
 var renew3 = Request{Kind: KindRenew, ItemKind: "subscription", ItemID: 3, Months: 3} // 900, 100 from balance → 800 to pay
 
-func providerOrder(t *testing.T, s *Service, c *vpnctl.Customer) *Order {
+func providerOrder(t *testing.T, s *Service, c *remnactl.Customer) *Order {
 	t.Helper()
 	o, err := s.CreateWith(context.Background(), c, 77, renew3, "fake")
 	if err != nil {
@@ -1902,9 +1902,9 @@ func TestPaidTopupCreditsBalance(t *testing.T) {
 }
 
 func TestPaidAfterExpiredOrCancelled(t *testing.T) {
-	for name, prep := range map[string]func(*Service, *vpnctl.Customer, *Order) error{
-		"expired":   func(s *Service, _ *vpnctl.Customer, o *Order) error { return s.move(context.Background(), o.ID, []Status{StatusAwaitingPayment}, StatusExpired, nil) },
-		"cancelled": func(s *Service, c *vpnctl.Customer, o *Order) error { return s.Cancel(context.Background(), c.ID, o.ID) },
+	for name, prep := range map[string]func(*Service, *remnactl.Customer, *Order) error{
+		"expired":   func(s *Service, _ *remnactl.Customer, o *Order) error { return s.move(context.Background(), o.ID, []Status{StatusAwaitingPayment}, StatusExpired, nil) },
+		"cancelled": func(s *Service, c *remnactl.Customer, o *Order) error { return s.Cancel(context.Background(), c.ID, o.ID) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			s, f, _, c, _ := setupP(t)
@@ -2101,7 +2101,7 @@ var _ = store.ChatState{} // keep the import used by helpers in this file
 // Create is CreateWith the default method: the balance when it covers the
 // whole price, manual payment when it is on, otherwise an undecided order the
 // customer pays with Pay.
-func (s *Service) Create(ctx context.Context, c *vpnctl.Customer, chatID int64, r Request) (*Order, error) {
+func (s *Service) Create(ctx context.Context, c *remnactl.Customer, chatID int64, r Request) (*Order, error) {
 	return s.CreateWith(ctx, c, chatID, r, "")
 }
 ```
@@ -2122,14 +2122,14 @@ import (
 	"strings"
 	"time"
 
-	"vpn-control-bot/internal/payments"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/payments"
+	"remna-control-bot/internal/remnactl"
 )
 
 // CreateWith stores an order paid with method; empty means the default (see
 // Create). A provider method issues its invoice at once; if the provider
 // fails, the order is cancelled so no dangling order is left.
-func (s *Service) CreateWith(ctx context.Context, c *vpnctl.Customer, chatID int64, r Request, method Method) (*Order, error) {
+func (s *Service) CreateWith(ctx context.Context, c *remnactl.Customer, chatID int64, r Request, method Method) (*Order, error) {
 	q, err := s.Quote(ctx, c, r)
 	if err != nil {
 		return nil, err
@@ -2364,7 +2364,7 @@ func (s *Service) SweepProviders(ctx context.Context) error {
 
 **Interfaces — Consumes:** Task 8. **Produces:** `POST /pay/:provider` (outside the WebApp path and its auth); `POST /api/orders` accepts `"method"`; `orderView` gains `pay_url`; `orders.ErrProvider` → HTTP 424 `provider_failed`.
 
-- [ ] **Step 1: Failing tests** — append to `internal/webapp/orders_test.go` (add imports `net/http`, `errors`, `vpn-control-bot/internal/payments`):
+- [ ] **Step 1: Failing tests** — append to `internal/webapp/orders_test.go` (add imports `net/http`, `errors`, `remna-control-bot/internal/payments`):
 
 ```go
 // withProvider attaches a fake provider to the service.
@@ -2500,7 +2500,7 @@ func (s *server) createOrder(c *fiber.Ctx) error {
 	if err := c.BodyParser(&r); err != nil {
 		return fail(c, fiber.StatusBadRequest, "bad_request")
 	}
-	o, err := s.Orders.CreateWith(c.UserContext(), c.Locals("customer").(*vpnctl.Customer), c.Locals("tg").(int64), r.Request, orders.Method(r.Method))
+	o, err := s.Orders.CreateWith(c.UserContext(), c.Locals("customer").(*remnactl.Customer), c.Locals("tg").(int64), r.Request, orders.Method(r.Method))
 	if err != nil {
 		return s.orderErr(c, err)
 	}
@@ -2519,8 +2519,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/payments"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/payments"
 )
 
 const maxHookBody = 64 << 10
@@ -2827,7 +2827,7 @@ In `onOrderCallback`: replace `b.show(ctx, chatID, msgID, view.Confirm(*o))` wit
 	}
 ```
 
-Add `TxtProviderDown = "Не удалось создать счёт у платёжной системы. Попробуйте другой способ."` to `view/texts.go`. Add the import `"vpn-control-bot/internal/payments"` to `telegram/orders.go`.
+Add `TxtProviderDown = "Не удалось создать счёт у платёжной системы. Попробуйте другой способ."` to `view/texts.go`. Add the import `"remna-control-bot/internal/payments"` to `telegram/orders.go`.
 
 - [ ] **Step 4: Run** `gofmt -l internal; go vet ./... && go test ./internal/telegram/...` → PASS.
 - [ ] **Step 5: Commit** `git add -A internal && git commit -m "feat(bot): Telegram Stars payments and provider buttons"`
@@ -2924,7 +2924,7 @@ Add `TxtProviderDown = "Не удалось создать счёт у плат�
 
 **Files:** Modify `cmd/bot/main.go`, `.env.example`, `README.md`
 
-- [ ] **Step 1: `main.go`.** Imports: `strings`, `vpn-control-bot/internal/payments`. After `svc := &orders.Service{…}` construction and before `telegram.New`, build the providers:
+- [ ] **Step 1: `main.go`.** Imports: `strings`, `remna-control-bot/internal/payments`. After `svc := &orders.Service{…}` construction and before `telegram.New`, build the providers:
 
 ```go
 	var stars *payments.Stars

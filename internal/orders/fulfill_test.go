@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"vpn-control-bot/internal/i18n"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/remnactl"
 )
 
 func TestApproveRenew(t *testing.T) {
@@ -21,7 +21,7 @@ func TestApproveRenew(t *testing.T) {
 	}
 	p := f.Payments[0]
 	if p.Amount != 800 || p.Method != "manual" || p.Note != "bot order #1" || len(p.Allocations) != 1 ||
-		p.Allocations[0] != (vpnctl.Allocation{Kind: "subscription", ID: 3, Months: 3, Amount: 900}) {
+		p.Allocations[0] != (remnactl.Allocation{Kind: "subscription", ID: 3, Months: 3, Amount: 900}) {
 		t.Fatalf("payment %+v", p)
 	}
 	if len(sp.cards) == 0 || sp.cards[len(sp.cards)-1].Status != StatusApproved || len(sp.sent) != 1 || sp.sent[0].Status != StatusApproved {
@@ -61,7 +61,7 @@ func TestRenewExtensionFailsThenRetry(t *testing.T) {
 	f.FailExtend = ""
 	got, err = s.Retry(context.Background(), o.ID, "@a")
 	if err != nil || got.Status != StatusApproved || len(f.Payments) != 1 || len(f.Extends) != 1 ||
-		f.Extends[0].In != (vpnctl.ExtendInput{Months: 3, Amount: 900, AllowDebt: true}) {
+		f.Extends[0].In != (remnactl.ExtendInput{Months: 3, Amount: 900, AllowDebt: true}) {
 		t.Fatalf("retry %+v %v; payments %d extends %+v", got, err, len(f.Payments), f.Extends)
 	}
 }
@@ -69,7 +69,7 @@ func TestRenewExtensionFailsThenRetry(t *testing.T) {
 func TestPanelDownFailsWithUnknownOutcome(t *testing.T) {
 	s, f, _, c := setup(t)
 	o := submitted(t, s, c)
-	f.Err = vpnctl.ErrUnavailable
+	f.Err = remnactl.ErrUnavailable
 	got, err := s.Approve(context.Background(), o.ID, "@a", DecideFull)
 	if err != nil || got.Status != StatusFailed || !strings.Contains(got.Error, "bot order #1") {
 		t.Fatalf("%+v %v", got, err)
@@ -81,7 +81,7 @@ func TestRetryKeepsCreditDecision(t *testing.T) {
 	ctx := context.Background()
 	o := submitted(t, s, c)
 	s.SetReceived(ctx, o.ID, 500, "@a")
-	f.Err = &vpnctl.APIError{Status: 400, Message: "x"}
+	f.Err = &remnactl.APIError{Status: 400, Message: "x"}
 	got, err := s.Approve(ctx, o.ID, "@a", DecideCredit)
 	if err != nil || got.Status != StatusFailed || got.Error != "x" {
 		t.Fatalf("%+v %v", got, err)
@@ -97,7 +97,7 @@ func TestUnknownPayOutcomeKeepsDecision(t *testing.T) {
 	s, f, _, c := setup(t)
 	ctx := context.Background()
 	o := submitted(t, s, c)
-	f.Err = vpnctl.ErrUnavailable
+	f.Err = remnactl.ErrUnavailable
 	got, _ := s.Approve(ctx, o.ID, "@a", DecideFull)
 	if got.PanelPaymentID != 0 || got.Decision != DecideFull {
 		t.Fatalf("%+v", got)
@@ -198,7 +198,7 @@ func TestSecondStepFailsRetryDoesNotPayAgain(t *testing.T) {
 	o, _ := s.Create(ctx, c, 77, Request{Kind: KindSubscribe, TariffID: 2, Months: 1})
 	s.RequestReceipt(ctx, c.ID, o.ID)
 	s.AttachReceipt(ctx, 77, ReceiptPhoto, "f", "")
-	f.FailStep = &vpnctl.APIError{Status: 400, Message: "no free squad"}
+	f.FailStep = &remnactl.APIError{Status: 400, Message: "no free squad"}
 	got, _ := s.Approve(ctx, o.ID, "@a", DecideFull)
 	if got.Status != StatusFailed || got.Error == "" {
 		t.Fatalf("%+v", got)
@@ -296,7 +296,7 @@ func TestPayFromBalance(t *testing.T) {
 	}
 	got, err := s.PayFromBalance(ctx, c.ID, o.ID)
 	if err != nil || got.Status != StatusApproved || len(f.Payments) != 0 ||
-		f.Extends[0] != (vpnctl.ExtendCall{Kind: "addon", ID: 8, In: vpnctl.ExtendInput{Months: 1, Amount: 50}}) {
+		f.Extends[0] != (remnactl.ExtendCall{Kind: "addon", ID: 8, In: remnactl.ExtendInput{Months: 1, Amount: 50}}) {
 		t.Fatalf("%+v %v %+v", got, err, f.Extends)
 	}
 	if _, err := s.PayFromBalance(ctx, 6, o.ID); !errors.Is(err, ErrNotFound) {
@@ -310,7 +310,7 @@ func TestApplyStepServerErrorAfterPaymentIsUnknown(t *testing.T) {
 	o, _ := s.Create(ctx, c, 77, Request{Kind: KindSubscribe, TariffID: 2, Months: 1})
 	s.RequestReceipt(ctx, c.ID, o.ID)
 	s.AttachReceipt(ctx, 77, ReceiptPhoto, "f", "")
-	f.FailStep = &vpnctl.APIError{Status: 502, Message: "bad gateway"}
+	f.FailStep = &remnactl.APIError{Status: 502, Message: "bad gateway"}
 	got, _ := s.Approve(ctx, o.ID, "@a", DecideFull)
 	en, ru := i18n.Default.For("en").Text(got.Error), i18n.Default.For("ru").Text(got.Error)
 	if got.Status != StatusFailed || got.PanelPaymentID == 0 ||
@@ -329,7 +329,7 @@ func TestApplyStepClientErrorKeepsPlainMessage(t *testing.T) {
 	o, _ := s.Create(ctx, c, 77, Request{Kind: KindSubscribe, TariffID: 2, Months: 1})
 	s.RequestReceipt(ctx, c.ID, o.ID)
 	s.AttachReceipt(ctx, 77, ReceiptPhoto, "f", "")
-	f.FailStep = &vpnctl.APIError{Status: 400, Message: "no free squad"}
+	f.FailStep = &remnactl.APIError{Status: 400, Message: "no free squad"}
 	if got, _ := s.Approve(ctx, o.ID, "@a", DecideFull); got.Error != "no free squad" {
 		t.Fatalf("%q", got.Error)
 	}

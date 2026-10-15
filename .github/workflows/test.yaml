@@ -1,0 +1,56 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+    paths: ["**/*.go", "go.mod", "go.sum", "web/**", "Dockerfile", ".golangci.yml", ".goreleaser.yaml", ".github/workflows/**"]
+  pull_request:
+    branches: [main]
+    paths: ["**/*.go", "go.mod", "go.sum", "web/**", "Dockerfile", ".golangci.yml", ".goreleaser.yaml", ".github/workflows/**"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      # The WebApp is embedded in the binary, so it is built before the Go checks.
+      - name: Build frontend
+        working-directory: web
+        run: |
+          bun install --frozen-lockfile
+          bun run typecheck
+          bun run build
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Lint and test
+        run: |
+          go mod tidy
+          go mod verify
+          unformatted=$(gofmt -l $(git ls-files '*.go'))
+          test -z "$unformatted" || { echo "$unformatted"; exit 1; }
+          go vet ./...
+          go test ./...
+
+      - name: Run GolangCI-Lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          args: --timeout=10m
+
+      - name: Build
+        run: CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/ ./cmd/bot
+
+      - name: Check the release config
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: latest
+          args: check

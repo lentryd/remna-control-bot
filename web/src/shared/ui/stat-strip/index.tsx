@@ -1,4 +1,4 @@
-// Copied from vpn-control/web/src/shared/ui/stat-strip/index.tsx
+// Copied from remna-control/web/src/shared/ui/stat-strip/index.tsx
 import { Card, Group, Text, UnstyledButton } from '@mantine/core'
 import type { ReactNode } from 'react'
 

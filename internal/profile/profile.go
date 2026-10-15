@@ -6,9 +6,9 @@ import (
 	"sort"
 	"time"
 
-	"vpn-control-bot/internal/billing"
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/billing"
+	"remna-control-bot/internal/config"
+	"remna-control-bot/internal/remnactl"
 )
 
 type Profile struct {
@@ -74,7 +74,7 @@ type Referral struct {
 	Earned float64 `json:"earned"`
 }
 
-func Build(c *vpnctl.Customer, refLink string, mode config.PayMode) Profile {
+func Build(c *remnactl.Customer, refLink string, mode config.PayMode) Profile {
 	p := Profile{
 		ID: c.ID, Name: c.Name, Balance: c.Balance, BalanceOwn: c.BalanceOwn, BalanceReferral: c.BalanceReferral,
 		Monthly: c.Monthly, NearestExpireAt: c.NearestExpireAt, RefLink: refLink,
@@ -150,20 +150,20 @@ func urgency(s Subscription) int {
 }
 
 type Tariff struct {
-	ID                int             `json:"id"`
-	Kind              string          `json:"kind"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	AddonName         string          `json:"addon_name"`
-	MonthlyPrice      float64         `json:"monthly_price"`
-	TrafficLimitBytes int64           `json:"traffic_limit_bytes"`
-	HwidLimit         *int            `json:"hwid_limit"`
-	Periods           []vpnctl.Period `json:"periods"`
+	ID                int               `json:"id"`
+	Kind              string            `json:"kind"`
+	Name              string            `json:"name"`
+	Description       string            `json:"description"`
+	AddonName         string            `json:"addon_name"`
+	MonthlyPrice      float64           `json:"monthly_price"`
+	TrafficLimitBytes int64             `json:"traffic_limit_bytes"`
+	HwidLimit         *int              `json:"hwid_limit"`
+	Periods           []remnactl.Period `json:"periods"`
 
 	order int
 }
 
-func Tariffs(in []vpnctl.Tariff) []Tariff {
+func Tariffs(in []remnactl.Tariff) []Tariff {
 	out := []Tariff{}
 	for _, t := range in {
 		// free tariffs (VIP, add-ons included in a tariff) are internal, not offered

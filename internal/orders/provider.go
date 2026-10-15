@@ -11,15 +11,15 @@ import (
 	"strings"
 	"time"
 
-	"vpn-control-bot/internal/i18n"
-	"vpn-control-bot/internal/payments"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/payments"
+	"remna-control-bot/internal/remnactl"
 )
 
 // CreateWith stores an order paid with method; empty means the default (see
 // Create). A provider method issues its invoice at once; if the provider
 // fails, the order is cancelled so no dangling order is left.
-func (s *Service) CreateWith(ctx context.Context, c *vpnctl.Customer, chatID int64, r Request, method Method) (*Order, error) {
+func (s *Service) CreateWith(ctx context.Context, c *remnactl.Customer, chatID int64, r Request, method Method) (*Order, error) {
 	lv := s.Live() // one snapshot for the whole operation
 	q, err := s.quote(ctx, lv, c, r)
 	if err != nil {

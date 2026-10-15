@@ -1,5 +1,5 @@
-// Package vpnctl is a client for vpn-control's public API (/api/v1).
-package vpnctl
+// Package remnactl is a client for remna-control's public API (/api/v1).
+package remnactl
 
 import (
 	"bytes"
@@ -17,8 +17,8 @@ import (
 )
 
 var (
-	ErrNotFound    = errors.New("vpnctl: not found")
-	ErrUnavailable = errors.New("vpnctl: panel unavailable")
+	ErrNotFound    = errors.New("remnactl: not found")
+	ErrUnavailable = errors.New("remnactl: panel unavailable")
 )
 
 type Client interface {
@@ -42,7 +42,7 @@ type Client interface {
 	BaseCurrency(ctx context.Context) (string, error)
 }
 
-// APIError is a non-2xx answer; vpn-control sends {"message","code"}.
+// APIError is a non-2xx answer; remna-control sends {"message","code"}.
 type APIError struct {
 	Status  int
 	Code    string
@@ -50,7 +50,7 @@ type APIError struct {
 }
 
 func (e *APIError) Error() string {
-	return fmt.Sprintf("vpnctl: %d %s %s", e.Status, e.Code, e.Message)
+	return fmt.Sprintf("remnactl: %d %s %s", e.Status, e.Code, e.Message)
 }
 
 func (e *APIError) Is(target error) bool {
@@ -113,7 +113,7 @@ func (c *HTTPClient) BaseCurrency(ctx context.Context) (string, error) {
 	}
 	code := strings.ToUpper(strings.TrimSpace(out["base_currency"]))
 	if !currencyCode.MatchString(code) {
-		return "", fmt.Errorf("vpnctl: panel base_currency %q is not an ISO 4217 code", out["base_currency"])
+		return "", fmt.Errorf("remnactl: panel base_currency %q is not an ISO 4217 code", out["base_currency"])
 	}
 	return code, nil
 }

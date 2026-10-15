@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"vpn-control-bot/internal/settings"
+	"remna-control-bot/internal/settings"
 )
 
 func snapshot(secs ...settings.Section) settings.Snapshot {

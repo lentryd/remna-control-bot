@@ -1,9 +1,13 @@
 /.env
 /data/
 /bin/
+/dist/
 /dev/certs/
 /dev/panel-data/
 /.superpowers/
 /web/node_modules/
 /web/dist/*
 !/web/dist/.gitkeep
+*.db
+*.db-*
+.DS_Store

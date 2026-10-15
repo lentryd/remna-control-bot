@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"vpn-control-bot/internal/i18n"
+	"remna-control-bot/internal/i18n"
 )
 
 func TestFormat(t *testing.T) {

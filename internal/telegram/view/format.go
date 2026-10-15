@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"vpn-control-bot/internal/i18n"
+	"remna-control-bot/internal/i18n"
 )
 
 func Esc(s string) string { return html.EscapeString(s) }
@@ -86,7 +86,7 @@ func Money(loc i18n.Localizer, v float64) string {
 	return sign + b.String() + " " + cur
 }
 
-const unlimitedYear = 2090 // vpn-control's "never expires" dates
+const unlimitedYear = 2090 // remna-control's "never expires" dates
 
 func Date(loc i18n.Localizer, t *time.Time) string {
 	switch {

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/remnactl"
 )
 
 type Kind int
@@ -28,8 +28,8 @@ type Notice struct {
 
 	// Traffic
 	Used, Limit int64
-	ResetAt     *time.Time     // nil: the limit isn't reset until renewal
-	Upgrade     *vpnctl.Tariff // cheapest paid tariff with more traffic, if any
+	ResetAt     *time.Time       // nil: the limit isn't reset until renewal
+	Upgrade     *remnactl.Tariff // cheapest paid tariff with more traffic, if any
 
 	// Reminder
 	ExpireAt time.Time
@@ -53,10 +53,10 @@ type item struct {
 	title   string
 	tariff  *int
 	addonID int
-	u       *vpnctl.RwUser
+	u       *remnactl.RwUser
 }
 
-func Plan(customers []vpnctl.Customer, subs []vpnctl.Subscription, tariffs []vpnctl.Tariff, r Rules, now time.Time) []Notice {
+func Plan(customers []remnactl.Customer, subs []remnactl.Subscription, tariffs []remnactl.Tariff, r Rules, now time.Time) []Notice {
 	chats := map[int]int64{}
 	for _, c := range customers {
 		if c.TelegramID != nil && !c.Archived {
@@ -90,7 +90,7 @@ func Plan(customers []vpnctl.Customer, subs []vpnctl.Subscription, tariffs []vpn
 	return out
 }
 
-func traffic(it item, tariffs []vpnctl.Tariff, r Rules, now time.Time) (Notice, bool) {
+func traffic(it item, tariffs []remnactl.Tariff, r Rules, now time.Time) (Notice, bool) {
 	u := it.u
 	if u.TrafficLimitBytes <= 0 || u.UsedTrafficBytes*100 < u.TrafficLimitBytes*int64(r.TrafficPct) {
 		return Notice{}, false
@@ -111,8 +111,8 @@ func traffic(it item, tariffs []vpnctl.Tariff, r Rules, now time.Time) (Notice, 
 
 // upgrade is the cheapest active paid tariff of the same kind (the same
 // add-on for add-ons) that gives more traffic than the current limit.
-func upgrade(it item, tariffs []vpnctl.Tariff) *vpnctl.Tariff {
-	var best *vpnctl.Tariff
+func upgrade(it item, tariffs []remnactl.Tariff) *remnactl.Tariff {
+	var best *remnactl.Tariff
 	for i := range tariffs {
 		t := &tariffs[i]
 		if !t.Active || t.MonthlyPrice <= 0 || (it.tariff != nil && t.ID == *it.tariff) {
@@ -162,7 +162,7 @@ func reminder(it item, r Rules, now time.Time) (Notice, bool) {
 
 // sameDay: an add-on ending the same day as its subscription is renewed
 // with it, so it gets no reminder of its own.
-func sameDay(addonEnd *time.Time, sub *vpnctl.RwUser) bool {
+func sameDay(addonEnd *time.Time, sub *remnactl.RwUser) bool {
 	if addonEnd == nil || sub == nil || sub.ExpireAt == nil {
 		return false
 	}

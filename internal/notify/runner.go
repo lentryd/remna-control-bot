@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/remnactl"
 )
 
 // Sent remembers which notices went out (implemented by store.Store).
@@ -24,7 +24,7 @@ type Conf struct {
 const tick = time.Minute
 
 type Runner struct {
-	API   vpnctl.Client
+	API   remnactl.Client
 	Store Sent
 	Send  func(ctx context.Context, n Notice) error
 	Conf  func() Conf

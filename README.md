@@ -1,23 +1,52 @@
-# vpn-control-bot
+<div align="center">
 
-Telegram bot and Telegram WebApp for customers of [vpn-control](../vpn-control). Customers see their
-subscriptions and add-ons, balance and history, invitees and what each one brings in, and the
-available tariffs. They can pay for tariffs and top up the balance in the WebApp.
+<img src="web/public/favicon.svg" width="72" alt="">
 
-The bot itself is a launcher: every button of its menu (Subscriptions, Balance, Friends, Tariffs,
-Payments, Renew) opens the WebApp on the matching page. What stays in the bot is onboarding (`/start`,
-entering a subscription link), receipts for manual payments, Telegram Stars, notifications and the
-order cards of the admins.
+# Remna Control Bot
 
-One Go process: the bot (long polling) plus an HTTP server for the WebApp under `WEBAPP_PATH`.
-All customer data comes from the vpn-control public API; the bot's own SQLite only remembers
-who is expected to send a subscription link.
+**A Telegram bot and WebApp for the customers of [Remna Control](https://github.com/lentryd/remna-control)**
+
+Subscriptions and add-ons, balance and history, referrals and tariffs, and payments (Telegram Stars, YooKassa, CryptoBot, Heleket, PayPalych, Platega or manual transfer) in one Mini App.
+
+[![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](go.mod)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](web/package.json)
+[![Mantine](https://img.shields.io/badge/Mantine-9-339AF0?logo=mantine&logoColor=white)](web/package.json)
+[![SQLite](https://img.shields.io/badge/SQLite-no%20CGO-003B57?logo=sqlite&logoColor=white)](internal/store)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/lentryd/remna-control-bot)](https://github.com/lentryd/remna-control-bot/releases)
+[![Test](https://github.com/lentryd/remna-control-bot/actions/workflows/test.yaml/badge.svg)](https://github.com/lentryd/remna-control-bot/actions/workflows/test.yaml)
+
+**English** · [Русский](README.ru.md)
+
+</div>
+
+## Why
+
+Customers of a VPN service should not have to write to support to learn when their subscription ends or to pay for it. The bot is a launcher: every button of its menu (Subscriptions, Balance, Friends, Tariffs, Payments, Renew) opens the WebApp on the matching page. What stays in the bot is onboarding (`/start`, entering a subscription link), receipts for manual payments, Telegram Stars, notifications and the order cards of the admins.
+
+One Go process: the bot (long polling) plus an HTTP server for the WebApp under `WEBAPP_PATH`. All customer data comes from the remna-control public API; the bot's own SQLite only remembers who is expected to send a subscription link, orders and settings.
+
+## Features
+
+- **Subscriptions and add-ons.** Status, term and traffic from the panel, with the tariffs available for renewal.
+- **Balance and history.** Top-ups and payments, applied exactly once.
+- **Referrals.** Invite links and what each invitee brings in.
+- **Payments.** Telegram Stars, YooKassa, CryptoBot, Heleket, PayPalych, Platega, manual transfer with a receipt, and the balance. See [Payment providers](#payment-providers).
+- **Admin app.** Orders, payment methods and general settings, configured from the WebApp without restarts. See [Admin](#admin).
+- **Notifications.** Traffic alerts and payment reminders.
+- **English and Russian UI,** following Telegram's language. See [docs/i18n.md](docs/i18n.md).
+
+## Deployment
+
+Put `compose.yml` and `.env` next to the panel and run `docker compose up -d --build`. The container joins
+the panel's docker network; its Traefik labels route `Host(APP_DOMAIN)` with `PathPrefix(WEBAPP_PATH)` or `PathPrefix(/pay/)` (provider webhooks) to the bot
+with a higher priority than the panel's router. With another balancer, route both paths to port 8090.
 
 ## Access modes
 
 The mode is a setting in the admin web app (see [Admin](#admin)); the default is `closed`.
 
-- `open` — anyone can start the bot; a new user becomes a vpn-control customer.
+- `open` — anyone can start the bot; a new user becomes a remna-control customer.
 - `closed` — only customers whose `telegram_id` is set in the panel, users who send the link
   to their subscription (the bot links their Telegram id), and users who come via a referral link.
 
@@ -32,8 +61,8 @@ methods and their credentials, notifications) lives in the admin web app and is 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
 | `BOT_TOKEN` | yes | | Telegram bot token |
-| `VPNCTL_URL` | yes | | vpn-control base URL, e.g. `http://vpn-control:8080` |
-| `VPNCTL_TOKEN` | yes | | vpn-control API token (see below) |
+| `REMNACTL_URL` | yes | | remna-control base URL, e.g. `http://vpn-control:8080` |
+| `REMNACTL_TOKEN` | yes | | remna-control API token (see below) |
 | `PUBLIC_URL` | yes | | public origin, e.g. `https://control.example.com`; provider webhooks go to `PUBLIC_URL/pay/<provider>`, so it must be https and reachable |
 | `WEBAPP_PATH` | no | `/bot` | WebApp path; WebApp URL = `PUBLIC_URL + WEBAPP_PATH` |
 | `REF_SECRET` | yes | | referral code secret; also the source of the key that encrypts stored payment credentials. Changing it invalidates every issued link and the credentials must be entered again |
@@ -42,11 +71,11 @@ methods and their credentials, notifications) lives in the admin web app and is 
 | `DB_PATH` | no | `/data/bot.db` | bot's SQLite (customers' link expectations, orders, settings) |
 | `LOG_LEVEL` | no | `info` | `debug` / `info` / `warn` / `error` |
 
-**Panel token:** vpn-control → Settings → API tokens → preset **Telegram bot**
+**Panel token:** remna-control → Settings → API tokens → preset **Telegram bot**
 (`customers:lookup`, `customers:get`, `customers:create`, `customers:update`, `customers:list`,
 `subscriptions:list`, `tariffs:list`; the two lists are for notifications, plus the payment scopes and
 `stats:settings`, read only, which gives the base currency).
-Create the vpn-control token with the *bot* preset (it includes the payment scopes) — re-issue an older token.
+Create the remna-control token with the *bot* preset (it includes the payment scopes) — re-issue an older token.
 A token issued before `stats:settings` was added to the preset must be re-issued too; until then the bot uses the
 base currency set in the admin app (if any).
 
@@ -58,6 +87,10 @@ Admins are the Telegram ids in `ADMIN_IDS`. Admin rights are checked on every re
   payments `mixed`, notification check every 60 minutes, traffic alert at 80%, payment reminders 3 and 1 days
   before the end, unpaid orders expire after 48 hours, base currency taken from the panel. If no method is
   enabled at startup, admins get a one-time direct message saying that no payment method is configured.
+- **Bot profile:** on the first start, if the bot has no description yet, it fills in its own name, descriptions
+  (with a link to this repository), commands, menu button and photo. `/init` does the same again on demand, overwriting
+  what was set in @BotFather, and replies with what failed, if anything. `/admin` and `/init` are shown only in admins'
+  command menus.
 - **Opening the admin app:** send `/admin` to the bot (or press the button on an order card). The app has screens for
   orders, payment methods and general settings.
 - **Payment methods:** enable a method (transfer with a receipt, YooKassa, CryptoBot, Heleket, PayPalych, Platega,
@@ -104,9 +137,13 @@ name as its method, and a second delivery of the webhook changes nothing.
 
 PayPalych and Platega are written from Bedolaga's reference and have not been run against the live services.
 
-## Local development
+## Languages
 
-Tasks run with [Task](https://taskfile.dev) (`task --list`), like in vpn-control.
+The bot and the web app speak English and Russian, following Telegram's language. See [docs/i18n.md](docs/i18n.md) for how to add one.
+
+## Development
+
+Tasks run with [Task](https://taskfile.dev) (`task --list`), like in remna-control.
 
 1. `task init` — creates `.env`, installs WebApp deps and copies `../vpn-control/data/vpn-control.db`
    into `dev/panel-data/` (git-ignored; `task panel:db` refreshes it, `PANEL_DB` overrides the source).
@@ -114,10 +151,10 @@ Tasks run with [Task](https://taskfile.dev) (`task --list`), like in vpn-control
    `local.example.com`. The panel container reads `../vpn-control/.env` (override with `PANEL_ENV`).
 2. `task up` — creates an mkcert certificate for `LOCAL_DOMAIN` (installs the mkcert CA), checks
    `/etc/hosts` (add `127.0.0.1 <LOCAL_DOMAIN>` if it asks) and starts traefik, the panel and the bot.
-   - `https://<LOCAL_DOMAIN>/` — vpn-control, `https://<LOCAL_DOMAIN>/bot/` — the WebApp,
+   - `https://<LOCAL_DOMAIN>/` — remna-control, `https://<LOCAL_DOMAIN>/bot/` — the WebApp,
      http://localhost:8088 — traefik dashboard.
 3. In the panel create an API token (preset **Telegram bot**, or tick the scopes listed above if the
-   panel image is older than the preset), put it into `VPNCTL_TOKEN` and run `task up` again.
+   panel image is older than the preset), put it into `REMNACTL_TOKEN` and run `task up` again.
 4. In @BotFather set the bot's Mini App / domain to `LOCAL_DOMAIN`. Telegram Desktop on the same
    machine trusts the mkcert CA and opens the WebApp from the menu button.
 
@@ -128,12 +165,33 @@ Go changes rebuild and restart the bot ([air](https://github.com/air-verse/air),
 rebuild `web/dist` (`web/scripts/watch.ts`), which the bot serves from disk (`WEB_DIR`), so just reload the WebApp. `task dev:web:server` is the
 standalone browser dev server.
 
-## Production
+### Commands
 
-Put `compose.yml` and `.env` next to the panel and run `docker compose up -d --build`. The container joins
-the panel's docker network; its Traefik labels route `Host(APP_DOMAIN)` with `PathPrefix(WEBAPP_PATH)` or `PathPrefix(/pay/)` (provider webhooks) to the bot
-with a higher priority than the panel's router. With another balancer, route both paths to port 8090.
+Requirements: Go 1.26, [Bun](https://bun.sh), [Task](https://taskfile.dev), Docker; [golangci-lint](https://golangci-lint.run) for `task lint`.
 
-## Languages
+```bash
+task init       # .env, frontend deps, local panel DB
+task up         # local stack: traefik + panel + bot on https://LOCAL_DOMAIN
+task dev        # panel in Docker, bot on the host with hot reload
+task build      # binary with the WebApp embedded -> bin/bot
+task test       # Go tests, frontend typecheck, locale check
+task lint       # tidy, fmt, vet, golangci-lint
+task docker     # Docker image remna-control-bot:local
+task snapshot   # local goreleaser snapshot build
+```
 
-The bot and the web app speak English and Russian, following Telegram's language. See [docs/i18n.md](docs/i18n.md) for how to add one.
+Stack: Go, [go-telegram/bot](https://github.com/go-telegram/bot), Fiber, SQLite without CGO ([modernc.org/sqlite](https://modernc.org/sqlite)); the WebApp is React 19, Mantine 9, react-router, TanStack Query and i18next, built with Bun and embedded into the binary.
+
+### Releases
+
+CI runs on every push and pull request ([`test.yaml`](.github/workflows/test.yaml)): frontend typecheck and build, `gofmt`, `go vet`, tests, golangci-lint and a check of the release config. A tag starts the release ([`release.yaml`](.github/workflows/release.yaml)): goreleaser builds `linux/amd64` and `linux/arm64` binaries, signs the checksums with cosign, attaches SBOMs and publishes the GitHub release, and the Docker image goes to `ghcr.io/lentryd/remna-control-bot`.
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+## License
+
+[AGPL-3.0](LICENSE).
+
+Remna Control Bot is an independent project and is not affiliated with the Remnawave team.

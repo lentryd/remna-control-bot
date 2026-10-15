@@ -61,7 +61,7 @@ tabs are unchanged.
 
 ## Docs
 
-Update `README.md` (what the bot shows) and the "Bot UX" section of `2026-10-06-vpn-control-bot-design.md`.
+Update `README.md` (what the bot shows) and the "Bot UX" section of `2026-10-06-remna-control-bot-design.md`.
 
 ## Out of scope
 

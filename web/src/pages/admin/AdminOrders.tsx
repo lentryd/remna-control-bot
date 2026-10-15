@@ -85,7 +85,7 @@ export function AdminOrders() {
                 </SectionCard.Root>
             ) : (
                 <SectionCard.Root>
-                    <div className="vpnc-empty">
+                    <div className="remnac-empty">
                         <IconInbox size={28} stroke={1.75} />
                         <Text c="dimmed" mt={6} size="sm">
                             {t('orders.empty')}

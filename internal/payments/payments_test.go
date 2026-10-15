@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"vpn-control-bot/internal/i18n"
+	"remna-control-bot/internal/i18n"
 )
 
 func TestRegistry(t *testing.T) {

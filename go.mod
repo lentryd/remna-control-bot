@@ -1,4 +1,4 @@
-module vpn-control-bot
+module remna-control-bot
 
 go 1.26.4
 

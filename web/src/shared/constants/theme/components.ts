@@ -1,4 +1,4 @@
-// Copied from vpn-control/web/src/shared/constants/theme/components.ts
+// Copied from remna-control/web/src/shared/constants/theme/components.ts
 import {
     Accordion,
     ActionIcon,

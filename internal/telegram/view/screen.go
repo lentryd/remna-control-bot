@@ -5,7 +5,7 @@ package view
 import (
 	"github.com/go-telegram/bot/models"
 
-	"vpn-control-bot/internal/i18n"
+	"remna-control-bot/internal/i18n"
 )
 
 type Screen struct {

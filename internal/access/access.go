@@ -1,5 +1,5 @@
 // Package access decides who may use the bot and turns a Telegram user
-// into a vpn-control customer (spec: "Access and onboarding").
+// into a remna-control customer (spec: "Access and onboarding").
 package access
 
 import (
@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"strings"
 
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/refcode"
-	"vpn-control-bot/internal/sublink"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/config"
+	"remna-control-bot/internal/refcode"
+	"remna-control-bot/internal/remnactl"
+	"remna-control-bot/internal/sublink"
 )
 
 type User struct {
@@ -23,7 +23,7 @@ type Outcome int
 
 const (
 	Member      Outcome = iota // known, active customer
-	Created                    // new customer created in vpn-control
+	Created                    // new customer created in remna-control
 	NeedLink                   // closed mode: send your subscription link
 	BadReferral                // closed mode: the referral link is invalid
 	Archived                   // customer exists but is archived
@@ -35,7 +35,7 @@ const (
 
 type Result struct {
 	Outcome  Outcome
-	Customer *vpnctl.Customer
+	Customer *remnactl.Customer
 }
 
 type State interface {
@@ -44,13 +44,13 @@ type State interface {
 }
 
 type Service struct {
-	api   vpnctl.Client
+	api   remnactl.Client
 	codec *refcode.Codec
 	mode  func() config.Mode
 	state State
 }
 
-func New(api vpnctl.Client, codec *refcode.Codec, mode func() config.Mode, state State) *Service {
+func New(api remnactl.Client, codec *refcode.Codec, mode func() config.Mode, state State) *Service {
 	return &Service{api: api, codec: codec, mode: mode, state: state}
 }
 
@@ -66,7 +66,7 @@ func (s *Service) Start(ctx context.Context, u User, payload string) (Result, er
 		}
 		return Result{Outcome: Member, Customer: c}, nil
 	}
-	if !errors.Is(err, vpnctl.ErrNotFound) {
+	if !errors.Is(err, remnactl.ErrNotFound) {
 		return Result{}, err
 	}
 
@@ -95,7 +95,7 @@ func (s *Service) referrer(ctx context.Context, code string) (int, bool, error) 
 		return 0, false, nil
 	}
 	c, err := s.api.GetCustomer(ctx, id)
-	if errors.Is(err, vpnctl.ErrNotFound) {
+	if errors.Is(err, remnactl.ErrNotFound) {
 		return 0, false, nil
 	}
 	if err != nil {
@@ -110,7 +110,7 @@ func (s *Service) create(ctx context.Context, u User, referrer *int) (Result, er
 		name = fmt.Sprintf("Telegram %d", u.ID)
 	}
 	tg := u.ID
-	id, err := s.api.CreateCustomer(ctx, vpnctl.CustomerInput{Name: name, TelegramID: &tg, ReferrerID: referrer})
+	id, err := s.api.CreateCustomer(ctx, remnactl.CustomerInput{Name: name, TelegramID: &tg, ReferrerID: referrer})
 	if err != nil {
 		return Result{}, err
 	}
@@ -127,7 +127,7 @@ func (s *Service) Link(ctx context.Context, u User, text string) (Result, error)
 		return Result{Outcome: BadLink}, nil
 	}
 	c, err := s.api.LookupByShortUUID(ctx, short)
-	if errors.Is(err, vpnctl.ErrNotFound) {
+	if errors.Is(err, remnactl.ErrNotFound) {
 		return Result{Outcome: NotFound}, nil
 	}
 	if err != nil {

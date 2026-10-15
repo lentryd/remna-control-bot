@@ -19,7 +19,7 @@ shapes, status names). It is read-only guidance; nothing is copied or run.
 ## Decisions
 
 - **Providers only confirm that money arrived.** `internal/orders` stays the only code that moves money in the
-  panel; adapters never touch `vpnctl`.
+  panel; adapters never touch `remnactl`.
 - **Order method = provider id** (`yookassa`, `cryptobot`, `heleket`, `stars`), next to `manual` and `balance`.
   The panel payment carries `method = <provider id>` and `note = "bot order #<uuid>"` (unchanged).
 - **What is paid is `ToPay`** (price minus what the balance covers, as for manual); a top-up pays its amount.

@@ -13,10 +13,10 @@ import (
 	"sync"
 	"testing"
 
-	"vpn-control-bot/internal/i18n"
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/store"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/remnactl"
+	"remna-control-bot/internal/store"
 )
 
 // fakeTelegram answers the Bot API (<base>/bot<token>/<method>, multipart form): chat 2 is an admin who never
@@ -29,6 +29,28 @@ type fakeTelegram struct {
 	commands []setCmd           // every setMyCommands call
 
 	editFail map[int64]string // chat -> "code description" for editMessageText
+
+	blank bool       // getMyDescription answers "": the bot's profile was never filled
+	forms []sentForm // every request's form, for the methods tests look into
+}
+
+type sentForm struct {
+	Method string
+	Values map[string][]string
+	Files  []string // names of the uploaded files
+}
+
+// sent returns the forms of every call to method.
+func (f *fakeTelegram) sent(method string) []sentForm {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []sentForm
+	for _, s := range f.forms {
+		if s.Method == method {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -37,6 +59,13 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	chat, _ := strconv.ParseInt(r.FormValue("chat_id"), 10, 64)
 	f.mu.Lock()
 	f.calls = append(f.calls, method+" "+strconv.FormatInt(chat, 10))
+	if r.MultipartForm != nil {
+		sf := sentForm{Method: method, Values: r.MultipartForm.Value}
+		for name := range r.MultipartForm.File {
+			sf.Files = append(sf.Files, name)
+		}
+		f.forms = append(f.forms, sf)
+	}
 	if method == "sendMessage" {
 		if f.texts == nil {
 			f.texts = map[int64][]string{}
@@ -48,7 +77,7 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Description string `json:"description"`
 		}
 		json.Unmarshal([]byte(r.FormValue("commands")), &cmds)
-		c := setCmd{LanguageCode: r.FormValue("language_code")}
+		c := setCmd{LanguageCode: r.FormValue("language_code"), Scope: r.FormValue("scope")}
 		for _, x := range cmds {
 			c.Descriptions = append(c.Descriptions, x.Description)
 		}
@@ -64,8 +93,12 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		n, _ := strconv.Atoi(code)
 		w.WriteHeader(n)
 		io.WriteString(w, `{"ok":false,"error_code":`+code+`,"description":"`+desc+`"}`)
+	case method == "getMyDescription" && f.blank:
+		io.WriteString(w, `{"ok":true,"result":{"description":""}}`)
+	case method == "getMyDescription":
+		io.WriteString(w, `{"ok":true,"result":{"description":"set"}}`)
 	case method == "getMe":
-		io.WriteString(w, `{"ok":true,"result":{"id":1,"is_bot":true,"first_name":"b","username":"vpnbot"}}`)
+		io.WriteString(w, `{"ok":true,"result":{"id":1,"is_bot":true,"first_name":"b","username":"remnabot"}}`)
 	case (method == "sendMessage" || method == "editMessageText") && chat == 2:
 		w.WriteHeader(403)
 		io.WriteString(w, `{"ok":false,"error_code":403,"description":"Forbidden: bot can't initiate conversation with a user"}`)
@@ -78,6 +111,7 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type setCmd struct {
 	LanguageCode string
+	Scope        string // JSON; "" is the default scope
 	Descriptions []string
 }
 
@@ -100,7 +134,12 @@ func (f *fakeTelegram) count(prefix string) int {
 
 func newCardBot(t *testing.T) (*Bot, *fakeTelegram, *store.Store) {
 	t.Helper()
-	ft := &fakeTelegram{}
+	return newBotWith(t, &fakeTelegram{})
+}
+
+// newBotWith starts a bot against ft; admins are 1, 2 and 3.
+func newBotWith(t *testing.T, ft *fakeTelegram) (*Bot, *fakeTelegram, *store.Store) {
+	t.Helper()
 	srv := httptest.NewServer(ft)
 	t.Cleanup(srv.Close)
 	st, err := store.Open(filepath.Join(t.TempDir(), "b.db"))
@@ -109,7 +148,7 @@ func newCardBot(t *testing.T) (*Bot, *fakeTelegram, *store.Store) {
 	}
 	t.Cleanup(func() { st.Close() })
 	b, err := New(context.Background(), "123:ABC", Deps{
-		API: vpnctl.NewFake(), WebAppURL: "https://x/bot", Admins: []int64{1, 2, 3}, Notices: st, APIBase: srv.URL,
+		API: remnactl.NewFake(), WebAppURL: "https://x/bot", Admins: []int64{1, 2, 3}, Notices: st, APIBase: srv.URL,
 		IsAdmin: func(id int64) bool { return id >= 1 && id <= 3 },
 		Log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})

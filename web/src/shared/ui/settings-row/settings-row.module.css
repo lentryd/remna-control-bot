@@ -1,4 +1,4 @@
-/* Adapted from vpn-control/web/src/shared/ui/settings-row/settings-row.module.css:
+/* Adapted from remna-control/web/src/shared/ui/settings-row/settings-row.module.css:
    the Mini App is a phone, so a row is stacked — the text above a full-width control. */
 .group {
     overflow: hidden;

@@ -11,16 +11,16 @@ import (
 	"sync"
 	"time"
 
-	"vpn-control-bot/internal/billing"
-	"vpn-control-bot/internal/i18n"
-	"vpn-control-bot/internal/store"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/billing"
+	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/remnactl"
+	"remna-control-bot/internal/store"
 )
 
 type Service struct {
 	DB     *sql.DB
 	Chats  ChatStates
-	API    vpnctl.Client
+	API    remnactl.Client
 	Notify Notifier
 	Now    func() time.Time
 	Log    *slog.Logger
@@ -48,12 +48,12 @@ func (s *Service) base(ctx context.Context) string {
 
 // Quote prices r for c on the server; nothing the client sends but the
 // choice itself is trusted.
-func (s *Service) Quote(ctx context.Context, c *vpnctl.Customer, r Request) (Quote, error) {
+func (s *Service) Quote(ctx context.Context, c *remnactl.Customer, r Request) (Quote, error) {
 	return s.quote(ctx, s.Live(), c, r)
 }
 
 // quote prices r against one Live snapshot, so a caller can use the same values for the rest of its operation.
-func (s *Service) quote(ctx context.Context, lv Live, c *vpnctl.Customer, r Request) (Quote, error) {
+func (s *Service) quote(ctx context.Context, lv Live, c *remnactl.Customer, r Request) (Quote, error) {
 	q, err := s.price(ctx, c, r)
 	if err != nil {
 		return Quote{}, err
@@ -97,7 +97,7 @@ func term(months, days int) i18n.Msg {
 	return i18n.M("term.days", days)
 }
 
-func (s *Service) price(ctx context.Context, c *vpnctl.Customer, r Request) (Quote, error) {
+func (s *Service) price(ctx context.Context, c *remnactl.Customer, r Request) (Quote, error) {
 	if r.Kind != KindTopup && r.Kind != KindChangeTariff && (r.Months < 0 || r.Days < 0 || r.Months+r.Days == 0 || r.Months > 36) {
 		return Quote{}, bad("term")
 	}
@@ -159,14 +159,14 @@ func (s *Service) price(ctx context.Context, c *vpnctl.Customer, r Request) (Quo
 // apiErr: a 4xx from the panel means the choice is impossible (unlimited
 // subscription, inactive tariff…); anything else is passed on.
 func apiErr(err error) error {
-	var ae *vpnctl.APIError
+	var ae *remnactl.APIError
 	if errors.As(err, &ae) && ae.Status < 500 {
 		return bad("%s", ae.Message)
 	}
 	return err
 }
 
-func (s *Service) tariff(ctx context.Context, id int) (*vpnctl.Tariff, error) {
+func (s *Service) tariff(ctx context.Context, id int) (*remnactl.Tariff, error) {
 	ts, err := s.API.ListTariffs(ctx)
 	if err != nil {
 		return nil, err
@@ -180,7 +180,7 @@ func (s *Service) tariff(ctx context.Context, id int) (*vpnctl.Tariff, error) {
 }
 
 // itemTitle finds the customer's own subscription or add-on.
-func itemTitle(c *vpnctl.Customer, kind string, id int) (string, bool) {
+func itemTitle(c *remnactl.Customer, kind string, id int) (string, bool) {
 	for _, s := range c.Subscriptions {
 		if kind == "subscription" && s.ID == id {
 			return s.Title, true
@@ -197,7 +197,7 @@ func itemTitle(c *vpnctl.Customer, kind string, id int) (string, bool) {
 // Create is CreateWith the default method: the balance when it covers the
 // whole price, manual payment when it is on, otherwise an undecided order the
 // customer pays with Pay.
-func (s *Service) Create(ctx context.Context, c *vpnctl.Customer, chatID int64, r Request) (*Order, error) {
+func (s *Service) Create(ctx context.Context, c *remnactl.Customer, chatID int64, r Request) (*Order, error) {
 	return s.CreateWith(ctx, c, chatID, r, "")
 }
 

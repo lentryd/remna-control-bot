@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/store"
+	"remna-control-bot/internal/config"
+	"remna-control-bot/internal/store"
 )
 
 func openDB(t *testing.T) *sql.DB {

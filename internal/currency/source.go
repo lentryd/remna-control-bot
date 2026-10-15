@@ -1,5 +1,5 @@
 // Package currency knows the base currency every amount is in: the one set in the
-// vpn-control panel, with a configured fallback while the panel can't say.
+// remna-control panel, with a configured fallback while the panel can't say.
 package currency
 
 import (
@@ -21,7 +21,7 @@ const (
 
 var codeRe = regexp.MustCompile(`^[A-Z]{3}$`)
 
-// Reader is where the panel's base currency comes from (vpnctl.Client).
+// Reader is where the panel's base currency comes from (remnactl.Client).
 type Reader interface {
 	BaseCurrency(ctx context.Context) (string, error)
 }

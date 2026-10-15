@@ -1,4 +1,4 @@
-// Copied from vpn-control/web/src/shared/ui/info-field/info-field.tsx
+// Copied from remna-control/web/src/shared/ui/info-field/info-field.tsx
 // Adapted from remnawave/frontend (AGPL-3.0)
 import { Group, Text } from '@mantine/core'
 

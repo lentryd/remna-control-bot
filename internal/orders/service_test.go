@@ -9,14 +9,14 @@ import (
 
 	"github.com/google/uuid"
 
-	"vpn-control-bot/internal/i18n"
-	"vpn-control-bot/internal/payments"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/payments"
+	"remna-control-bot/internal/remnactl"
 )
 
 func TestQuote(t *testing.T) {
 	s, f, _, c := setup(t)
-	f.Tariffs[0].Periods = append(f.Tariffs[0].Periods, vpnctl.Period{Days: 7, Price: 0}) // a free trial is not for sale
+	f.Tariffs[0].Periods = append(f.Tariffs[0].Periods, remnactl.Period{Days: 7, Price: 0}) // a free trial is not for sale
 	ctx := context.Background()
 	cases := []struct {
 		name   string

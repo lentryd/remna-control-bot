@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"vpn-control-bot/internal/i18n"
-	"vpn-control-bot/internal/profile"
+	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/profile"
 )
 
 func Home(loc i18n.Localizer, p profile.Profile, l Links, now time.Time) Screen {

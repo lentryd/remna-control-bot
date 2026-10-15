@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"vpn-control-bot/internal/i18n"
+	"remna-control-bot/internal/i18n"
 )
 
 func TestStarsCount(t *testing.T) {

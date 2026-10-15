@@ -1,7 +1,7 @@
-# Local stack: https://$LOCAL_DOMAIN → vpn-control, https://$LOCAL_DOMAIN$WEBAPP_PATH → bot
+# Local stack: https://$LOCAL_DOMAIN → remna-control, https://$LOCAL_DOMAIN$WEBAPP_PATH → bot
 # (the bot container, or the bot on the host under `task dev`).
 # Needs: `task certs` (mkcert) and `127.0.0.1 $LOCAL_DOMAIN` in /etc/hosts (`task hosts`).
-name: vpn-control-dev
+name: remna-control-dev
 services:
     traefik:
         image: traefik:v3
@@ -17,7 +17,7 @@ services:
             - ./dev/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
             - ./dev/certs:/certs:ro
 
-    vpn-control:
+    remna-control:
         image: ghcr.io/lentryd/vpn-control:latest
         # Test copy of the DB: never sync from or write to the real Remnawave.
         command: ['--no-sync']
@@ -25,7 +25,7 @@ services:
         environment:
             REMNAWAVE_URL: http://127.0.0.1:9
             PORT: 8080
-            DB_PATH: /data/vpn-control.db
+            DB_PATH: /data/remna-control.db
             APP_DOMAIN: ${LOCAL_DOMAIN:?set LOCAL_DOMAIN in .env}
         volumes:
             # snapshot of ../vpn-control's local DB (`task panel:db`), git-ignored
@@ -41,13 +41,13 @@ services:
         build: .
         env_file: .env
         environment:
-            VPNCTL_URL: http://vpn-control:8080
+            REMNACTL_URL: http://remna-control:8080
             PUBLIC_URL: https://${LOCAL_DOMAIN}
             DB_PATH: /data/bot.db
             HTTP_ADDR: ':8090'
         volumes:
             - bot-data:/data
-        depends_on: [vpn-control]
+        depends_on: [remna-control]
         labels:
             - 'traefik.enable=true'
             - 'traefik.http.routers.bot.rule=Host(`${LOCAL_DOMAIN}`) && (PathPrefix(`${WEBAPP_PATH:-/bot}`) || PathPrefix(`/pay/`))'

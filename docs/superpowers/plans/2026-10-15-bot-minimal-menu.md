@@ -139,8 +139,8 @@ package view
 import (
 	"testing"
 
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/profile"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/profile"
 )
 
 // pages maps a button's text to the WebApp URL it opens; any button that is not a web_app fails the test.
@@ -387,7 +387,7 @@ const (
 `internal/telegram/orders.go`:
 - Delete `renewPeriods`, `ordersPage`, `showOrders`, `providerButtons`.
 - `onOrderCallback`: delete the `parseIDs` (rp:) block and the `parseProviderCallback` (pp:) block; in the `map[string]func(string) error` keep only the `view.CbOrderCancel` entry. Update the comment to `// onOrderCallback: pc: (cancel) from the customer.`
-- Remove imports that become unused (`payments` stays — `onStarsPaid` uses it; `vpnctl` goes if unused).
+- Remove imports that become unused (`payments` stays — `onStarsPaid` uses it; `remnactl` goes if unused).
 
 `internal/telegram/view/screens.go` — delete `Subscriptions`, `Subscription`, `Balance`, `Referrals`, `Tariffs`, `stateIcon`, `until` (and imports `net/url`, `models` if unused). Keep `Home`, `left`, `Notice`, `Plain`.
 
@@ -467,7 +467,7 @@ git commit -m "chore(i18n): drop bot texts of screens that moved to the WebApp"
 ### Task 5: Documentation
 
 **Files:**
-- Modify: `README.md`, `docs/superpowers/specs/2026-10-06-vpn-control-bot-design.md` (section "Bot UX", around lines 90-103), `docs/i18n.md` if it names removed screens
+- Modify: `README.md`, `docs/superpowers/specs/2026-10-06-remna-control-bot-design.md` (section "Bot UX", around lines 90-103), `docs/i18n.md` if it names removed screens
 
 **Interfaces:** none.
 

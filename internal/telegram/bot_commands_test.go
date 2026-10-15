@@ -10,12 +10,17 @@ func TestSetCommandsPerLanguage(t *testing.T) {
 	ft.mu.Lock()
 	ft.commands = nil
 	ft.mu.Unlock()
-	b.setCommands(context.Background())
+	if err := b.setCommands(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 
 	ft.mu.Lock()
 	defer ft.mu.Unlock()
 	byLang := map[string][]string{}
 	for _, c := range ft.commands {
+		if c.Scope != "" {
+			continue
+		}
 		byLang[c.LanguageCode] = c.Descriptions
 	}
 	if d := byLang[""]; len(d) != 3 || d[0] != "Main menu" {

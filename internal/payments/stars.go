@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 
-	"vpn-control-bot/internal/i18n"
+	"remna-control-bot/internal/i18n"
 )
 
 // LinkFunc creates a Telegram invoice link in stars (the bot's createInvoiceLink).

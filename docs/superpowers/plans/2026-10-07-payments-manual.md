@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Customers pay for renewals, new subscriptions, add-ons, tariff changes and top-ups by sending a receipt; an admin approves (or corrects the amount / rejects) with buttons in a Telegram chat; the bot applies it in vpn-control and notifies the customer, who sees the history in the bot and WebApp.
+**Goal:** Customers pay for renewals, new subscriptions, add-ons, tariff changes and top-ups by sending a receipt; an admin approves (or corrects the amount / rejects) with buttons in a Telegram chat; the bot applies it in remna-control and notifies the customer, who sees the history in the bot and WebApp.
 
-**Architecture:** A new `internal/orders` package owns the order lifecycle (SQLite tables created by `internal/store`) and is the only code that moves money in the panel, through new `vpnctl.Client` methods over existing vpn-control endpoints. Telegram and WebApp are thin adapters: the bot implements `orders.Notifier` (admin card, customer messages), the WebApp exposes `/api/orders*`.
+**Architecture:** A new `internal/orders` package owns the order lifecycle (SQLite tables created by `internal/store`) and is the only code that moves money in the panel, through new `remnactl.Client` methods over existing remna-control endpoints. Telegram and WebApp are thin adapters: the bot implements `orders.Notifier` (admin card, customer messages), the WebApp exposes `/api/orders*`.
 
 **Tech Stack:** Go 1.26, go-telegram/bot v1.23, Fiber v2, modernc SQLite; React 19 + Mantine 9 + TanStack Query (Bun build).
 
@@ -33,12 +33,12 @@
 
 ## File Structure
 
-**vpn-control (panel)**
+**remna-control (panel)**
 - Modify `web/src/components/api-tokens/modals/create-api-token-modal.tsx` — bot preset scopes.
 
-**vpn-control-bot**
+**remna-control-bot**
 - Modify `internal/config/config.go` (+test) — admin/manual settings.
-- Create `internal/vpnctl/billing.go` (+`billing_test.go`) — payment/extend/provision API methods and types; modify `client.go` (interface), `fake.go` (fake behaviour).
+- Create `internal/remnactl/billing.go` (+`billing_test.go`) — payment/extend/provision API methods and types; modify `client.go` (interface), `fake.go` (fake behaviour).
 - Modify `internal/store/store.go` (+test) — `orders`, `chat_state`, `admin_prompts` tables; `DB()` accessor; chat state / prompt helpers.
 - Create `internal/orders/` — `order.go` (types), `repo.go` (SQL), `pricing.go` (term cost port), `service.go` (quote/create/receipt/cancel/expire), `fulfill.go` (admin actions + panel calls), tests alongside.
 - Delete `internal/billing/billing.go` stub (keep `split.go`).
@@ -60,7 +60,7 @@
 - [ ] **Step 1: Replace the preset**
 
 ```ts
-// What vpn-control-bot needs: find/create customers, link a Telegram id,
+// What remna-control-bot needs: find/create customers, link a Telegram id,
 // read their card (subscriptions, balance, referrals) and the tariffs;
 // the two lists are for notifications (traffic, payment reminders); the
 // rest takes payments: quote and extend items, record payments, provision
@@ -85,7 +85,7 @@ const BOT_PRESET_KEYS = [
 ```
 
 - [ ] **Step 2: Typecheck** — Run (in `/Users/victor/Projects/Go/vpn-control/web`): `bun run typecheck` (or the script in its package.json). Expected: no errors.
-- [ ] **Step 3: Commit (in vpn-control repo)**
+- [ ] **Step 3: Commit (in remna-control repo)**
 
 ```bash
 git -C /Users/victor/Projects/Go/vpn-control add web/src/components/api-tokens/modals/create-api-token-modal.tsx
@@ -104,7 +104,7 @@ git -C /Users/victor/Projects/Go/vpn-control commit -m "feat(tokens): bot preset
 
 ```go
 func TestManualPayment(t *testing.T) {
-	base := map[string]string{"BOT_TOKEN": "t", "VPNCTL_URL": "u", "VPNCTL_TOKEN": "k", "PUBLIC_URL": "p", "REF_SECRET": "s"}
+	base := map[string]string{"BOT_TOKEN": "t", "REMNACTL_URL": "u", "REMNACTL_TOKEN": "k", "PUBLIC_URL": "p", "REF_SECRET": "s"}
 	env := func(extra map[string]string) func(string) string {
 		m := map[string]string{}
 		for k, v := range base {
@@ -183,11 +183,11 @@ Add `"slices"` to imports.
 
 ---
 
-### Task 3: vpnctl — payment, extension, provisioning methods
+### Task 3: remnactl — payment, extension, provisioning methods
 
-**Files:** Create `internal/vpnctl/billing.go`, `internal/vpnctl/billing_test.go`; modify `internal/vpnctl/client.go` (interface), `internal/vpnctl/fake.go`.
+**Files:** Create `internal/remnactl/billing.go`, `internal/remnactl/billing_test.go`; modify `internal/remnactl/client.go` (interface), `internal/remnactl/fake.go`.
 
-**Interfaces — Produces** (package `vpnctl`):
+**Interfaces — Produces** (package `remnactl`):
 
 ```go
 type ExtendQuote struct {
@@ -295,10 +295,10 @@ type TariffCall struct {
 }
 ```
 
-- [ ] **Step 1: Failing HTTP test** `internal/vpnctl/billing_test.go`
+- [ ] **Step 1: Failing HTTP test** `internal/remnactl/billing_test.go`
 
 ```go
-package vpnctl
+package remnactl
 
 import (
 	"context"
@@ -373,7 +373,7 @@ func TestQuoteExtendAndProvision(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run** `go test ./internal/vpnctl/ -run 'TestPay|TestQuoteExtend'` → FAIL (undefined).
+- [ ] **Step 2: Run** `go test ./internal/remnactl/ -run 'TestPay|TestQuoteExtend'` → FAIL (undefined).
 - [ ] **Step 3: Implement `billing.go`** (types above, then):
 
 ```go
@@ -538,8 +538,8 @@ func (f *Fake) ConnectAddon(_ context.Context, subscriptionID int, in ConnectAdd
 ```
 
 Add fields to the `Fake` struct and imports `math`, `strconv`, `time`.
-- [ ] **Step 5: Run** `go test ./internal/vpnctl/ && go vet ./...` → PASS (the other packages still compile since `*HTTPClient`/`*Fake` satisfy the wider interface).
-- [ ] **Step 6: Commit** `git add internal/vpnctl && git commit -m "feat(vpnctl): payments, extensions, provisioning and tariff change"`
+- [ ] **Step 5: Run** `go test ./internal/remnactl/ && go vet ./...` → PASS (the other packages still compile since `*HTTPClient`/`*Fake` satisfy the wider interface).
+- [ ] **Step 6: Commit** `git add internal/remnactl && git commit -m "feat(remnactl): payments, extensions, provisioning and tariff change"`
 
 ---
 
@@ -697,7 +697,7 @@ Update the package doc comment: "…which notifications were already sent, payme
 
 **Files:** Create `internal/orders/order.go`, `repo.go`, `pricing.go`, `service.go`, `pricing_test.go`, `service_test.go`, `helpers_test.go`.
 
-**Interfaces — Consumes:** Task 3 `vpnctl` methods; Task 4 `store.Store` (`DB()`, chat state); `billing.Split`.
+**Interfaces — Consumes:** Task 3 `remnactl` methods; Task 4 `store.Store` (`DB()`, chat state); `billing.Split`.
 
 **Produces:**
 
@@ -752,7 +752,7 @@ type ChatStates interface { // implemented by *store.Store
 type Service struct {
 	DB      *sql.DB
 	Chats   ChatStates
-	API     vpnctl.Client
+	API     remnactl.Client
 	PayMode config.PayMode
 	Manual  bool
 	Details string
@@ -770,8 +770,8 @@ var (
 	ErrUnderpaid    = errors.New("orders: received less than to pay")
 )
 
-func (s *Service) Quote(ctx context.Context, c *vpnctl.Customer, r Request) (Quote, error)
-func (s *Service) Create(ctx context.Context, c *vpnctl.Customer, chatID int64, r Request) (*Order, error)
+func (s *Service) Quote(ctx context.Context, c *remnactl.Customer, r Request) (Quote, error)
+func (s *Service) Create(ctx context.Context, c *remnactl.Customer, chatID int64, r Request) (*Order, error)
 func (s *Service) RequestReceipt(ctx context.Context, customerID, id int) (*Order, error)
 func (s *Service) AttachReceipt(ctx context.Context, chatID int64, kind ReceiptKind, fileID, comment string) (*Order, error)
 func (s *Service) Cancel(ctx context.Context, customerID, id int) error
@@ -781,7 +781,7 @@ func (s *Service) List(ctx context.Context, customerID, limit, offset int) ([]Or
 func (s *Service) ExpireStale(ctx context.Context) error
 ```
 
-- [ ] **Step 1: Pricing test** `pricing_test.go` (mirrors vpn-control `TestTermCost`, in rubles):
+- [ ] **Step 1: Pricing test** `pricing_test.go` (mirrors remna-control `TestTermCost`, in rubles):
 
 ```go
 package orders
@@ -789,11 +789,11 @@ package orders
 import (
 	"testing"
 
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/remnactl"
 )
 
 func TestTermCost(t *testing.T) {
-	periods := []vpnctl.Period{{Months: 3, Price: 250}, {Days: 7, Price: 0}, {Months: 1, Days: 15, Price: 120}}
+	periods := []remnactl.Period{{Months: 3, Price: 250}, {Days: 7, Price: 0}, {Months: 1, Days: 15, Price: 120}}
 	cases := []struct {
 		months, days int
 		want         float64
@@ -807,7 +807,7 @@ func TestTermCost(t *testing.T) {
 ```
 
 - [ ] **Step 2: Run** `go test ./internal/orders/` → FAIL (no package).
-- [ ] **Step 3: `pricing.go`** — port of vpn-control `billing.Cost/DaysCost/TermCost` in kopecks:
+- [ ] **Step 3: `pricing.go`** — port of remna-control `billing.Cost/DaysCost/TermCost` in kopecks:
 
 ```go
 package orders
@@ -815,13 +815,13 @@ package orders
 import (
 	"math"
 
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/remnactl"
 )
 
-// TermCost prices months+days of a tariff like vpn-control does (keep in
+// TermCost prices months+days of a tariff like remna-control does (keep in
 // sync with its internal/billing/pricing.go): an exact package wins,
 // otherwise the cheapest mix of whole-month periods plus monthly/30 a day.
-func TermCost(monthly float64, periods []vpnctl.Period, months, days int) float64 {
+func TermCost(monthly float64, periods []remnactl.Period, months, days int) float64 {
 	if days > 0 {
 		for _, p := range periods {
 			if p.Months == months && p.Days == days {
@@ -999,9 +999,9 @@ import (
 	"testing"
 	"time"
 
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/store"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/config"
+	"remna-control-bot/internal/store"
+	"remna-control-bot/internal/remnactl"
 )
 
 var now = time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
@@ -1021,26 +1021,26 @@ func ptr[T any](v T) *T { return &v }
 // setup: customer 5 (tg 77) with subscription 3 (tariff 1, 300/month) and
 // add-on 8 on it; balance own 100, referral 0; tariffs: base 1 (300/mo,
 // 3 months for 800), base 2 (500/mo), addon 9 (50/mo).
-func setup(t *testing.T) (*Service, *vpnctl.Fake, *spy, *vpnctl.Customer) {
+func setup(t *testing.T) (*Service, *remnactl.Fake, *spy, *remnactl.Customer) {
 	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "b.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
-	f := vpnctl.NewFake()
+	f := remnactl.NewFake()
 	exp := now.AddDate(0, 0, 2)
-	c := f.Add(vpnctl.Customer{ID: 5, Name: "Ann", TelegramID: ptr(int64(77)), Balance: 100, BalanceOwn: 100,
-		Subscriptions: []vpnctl.Subscription{{ID: 3, Title: "Дом", TariffID: ptr(1), Price: 300,
-			RwUser: &vpnctl.RwUser{ExpireAt: &exp},
-			Addons: []vpnctl.Addon{{ID: 8, AddonName: "Доп. устройства", Price: 50, RwUser: &vpnctl.RwUser{ExpireAt: &exp}}}}}})
-	f.Tariffs = []vpnctl.Tariff{
-		{ID: 1, Kind: "base", Name: "Базовый", MonthlyPrice: 300, Active: true, Periods: []vpnctl.Period{{Months: 3, Price: 800}}},
+	c := f.Add(remnactl.Customer{ID: 5, Name: "Ann", TelegramID: ptr(int64(77)), Balance: 100, BalanceOwn: 100,
+		Subscriptions: []remnactl.Subscription{{ID: 3, Title: "Дом", TariffID: ptr(1), Price: 300,
+			RwUser: &remnactl.RwUser{ExpireAt: &exp},
+			Addons: []remnactl.Addon{{ID: 8, AddonName: "Доп. устройства", Price: 50, RwUser: &remnactl.RwUser{ExpireAt: &exp}}}}}})
+	f.Tariffs = []remnactl.Tariff{
+		{ID: 1, Kind: "base", Name: "Базовый", MonthlyPrice: 300, Active: true, Periods: []remnactl.Period{{Months: 3, Price: 800}}},
 		{ID: 2, Kind: "base", Name: "Про", MonthlyPrice: 500, Active: true},
 		{ID: 9, Kind: "addon", AddonID: ptr(4), AddonName: "Устройства", Name: "+2", MonthlyPrice: 50, Active: true},
 	}
-	f.Quotes = map[string]vpnctl.ExtendQuote{"subscription:3": {CustomerID: 5, Amount: 300}, "addon:8": {CustomerID: 5, Amount: 50}}
-	f.TariffQuotes = map[string]vpnctl.TariffQuote{"subscription:3:2": {Surcharge: 13.33}}
+	f.Quotes = map[string]remnactl.ExtendQuote{"subscription:3": {CustomerID: 5, Amount: 300}, "addon:8": {CustomerID: 5, Amount: 50}}
+	f.TariffQuotes = map[string]remnactl.TariffQuote{"subscription:3:2": {Surcharge: 13.33}}
 	sp := &spy{}
 	s := &Service{DB: st.DB(), Chats: st, API: f, PayMode: config.PayMixed, Manual: true, Details: "Карта 2200",
 		TTL: 48 * time.Hour, Notify: sp, Now: func() time.Time { return now }, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
@@ -1048,7 +1048,7 @@ func setup(t *testing.T) (*Service, *vpnctl.Fake, *spy, *vpnctl.Customer) {
 }
 
 // submitted creates a renew order for 3 months and attaches a photo.
-func submitted(t *testing.T, s *Service, c *vpnctl.Customer) *Order {
+func submitted(t *testing.T, s *Service, c *remnactl.Customer) *Order {
 	t.Helper()
 	ctx := context.Background()
 	o, err := s.Create(ctx, c, 77, Request{Kind: KindRenew, ItemKind: "subscription", ItemID: 3, Months: 3})
@@ -1209,7 +1209,7 @@ package orders
 
 // Quote prices r for c on the server; nothing the client sends but the
 // choice itself is trusted.
-func (s *Service) Quote(ctx context.Context, c *vpnctl.Customer, r Request) (Quote, error) {
+func (s *Service) Quote(ctx context.Context, c *remnactl.Customer, r Request) (Quote, error) {
 	q, err := s.price(ctx, c, r)
 	if err != nil {
 		return Quote{}, err
@@ -1246,7 +1246,7 @@ func term(months, days int) string {
 	return strings.Join(p, " ")
 }
 
-func (s *Service) price(ctx context.Context, c *vpnctl.Customer, r Request) (Quote, error) {
+func (s *Service) price(ctx context.Context, c *remnactl.Customer, r Request) (Quote, error) {
 	if r.Kind != KindTopup && r.Kind != KindChangeTariff && (r.Months < 0 || r.Days < 0 || r.Months+r.Days == 0 || r.Months > 36) {
 		return Quote{}, bad("term")
 	}
@@ -1304,14 +1304,14 @@ func (s *Service) price(ctx context.Context, c *vpnctl.Customer, r Request) (Quo
 // apiErr: a 4xx from the panel means the choice is impossible (unlimited
 // subscription, inactive tariff…); anything else is passed on.
 func apiErr(err error) error {
-	var ae *vpnctl.APIError
+	var ae *remnactl.APIError
 	if errors.As(err, &ae) && ae.Status < 500 {
 		return bad("%s", ae.Message)
 	}
 	return err
 }
 
-func (s *Service) tariff(ctx context.Context, id int) (*vpnctl.Tariff, error) {
+func (s *Service) tariff(ctx context.Context, id int) (*remnactl.Tariff, error) {
 	ts, err := s.API.ListTariffs(ctx)
 	if err != nil {
 		return nil, err
@@ -1325,7 +1325,7 @@ func (s *Service) tariff(ctx context.Context, id int) (*vpnctl.Tariff, error) {
 }
 
 // itemTitle finds the customer's own subscription or add-on.
-func itemTitle(c *vpnctl.Customer, kind string, id int) (string, bool) {
+func itemTitle(c *remnactl.Customer, kind string, id int) (string, bool) {
 	for _, s := range c.Subscriptions {
 		if kind == "subscription" && s.ID == id {
 			return s.Title, true
@@ -1342,7 +1342,7 @@ func itemTitle(c *vpnctl.Customer, kind string, id int) (string, bool) {
 // Create stores an order with the quoted price. Fully covered by the
 // balance → StatusNew (method balance, Fulfill via PayFromBalance);
 // otherwise a manual order waiting for its receipt.
-func (s *Service) Create(ctx context.Context, c *vpnctl.Customer, chatID int64, r Request) (*Order, error) {
+func (s *Service) Create(ctx context.Context, c *remnactl.Customer, chatID int64, r Request) (*Order, error) {
 	q, err := s.Quote(ctx, c, r)
 	if err != nil {
 		return nil, err
@@ -1438,7 +1438,7 @@ func (s *Service) ExpireStale(ctx context.Context) error {
 }
 ```
 
-Imports: `context`, `errors`, `fmt`, `math`, `strings`, `billing`, `store`, `vpnctl`.
+Imports: `context`, `errors`, `fmt`, `math`, `strings`, `billing`, `store`, `remnactl`.
 
 - [ ] **Step 10: Run** `go test ./internal/orders/` → PASS.
 - [ ] **Step 11: Commit** `git add internal/orders && git commit -m "feat(orders): order model, server-side pricing, receipts, cancel and expiry"`
@@ -1479,7 +1479,7 @@ import (
 	"sync"
 	"testing"
 
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/remnactl"
 )
 
 func TestApproveRenew(t *testing.T) {
@@ -1491,7 +1491,7 @@ func TestApproveRenew(t *testing.T) {
 	}
 	p := f.Payments[0]
 	if p.Amount != 800 || p.Method != "manual" || p.Note != "bot order #1" || len(p.Allocations) != 1 ||
-		p.Allocations[0] != (vpnctl.Allocation{Kind: "subscription", ID: 3, Months: 3, Amount: 900}) {
+		p.Allocations[0] != (remnactl.Allocation{Kind: "subscription", ID: 3, Months: 3, Amount: 900}) {
 		t.Fatalf("payment %+v", p)
 	}
 	if len(sp.updated) != 1 || len(sp.sent) != 1 || sp.sent[0].Status != StatusApproved {
@@ -1531,7 +1531,7 @@ func TestRenewExtensionFailsThenRetry(t *testing.T) {
 	f.FailExtend = ""
 	got, err = s.Retry(context.Background(), o.ID, "@a")
 	if err != nil || got.Status != StatusApproved || len(f.Payments) != 1 || len(f.Extends) != 1 ||
-		f.Extends[0].In != (vpnctl.ExtendInput{Months: 3, Amount: 900, AllowDebt: true}) {
+		f.Extends[0].In != (remnactl.ExtendInput{Months: 3, Amount: 900, AllowDebt: true}) {
 		t.Fatalf("retry %+v %v; payments %d extends %+v", got, err, len(f.Payments), f.Extends)
 	}
 }
@@ -1539,8 +1539,8 @@ func TestRenewExtensionFailsThenRetry(t *testing.T) {
 func TestPanelDownKeepsOrderForReview(t *testing.T) {
 	s, f, _, c := setup(t)
 	o := submitted(t, s, c)
-	f.Err = vpnctl.ErrUnavailable
-	if _, err := s.Approve(context.Background(), o.ID, "@a", DecideFull); !errors.Is(err, vpnctl.ErrUnavailable) {
+	f.Err = remnactl.ErrUnavailable
+	if _, err := s.Approve(context.Background(), o.ID, "@a", DecideFull); !errors.Is(err, remnactl.ErrUnavailable) {
 		t.Fatalf("want unavailable, got %v", err)
 	}
 	if got, _ := s.Get(context.Background(), o.ID); got.Status != StatusPendingReview {
@@ -1595,7 +1595,7 @@ func TestSecondStepFailsRetryDoesNotPayAgain(t *testing.T) {
 	o, _ := s.Create(ctx, c, 77, Request{Kind: KindSubscribe, TariffID: 2, Months: 1})
 	s.RequestReceipt(ctx, c.ID, o.ID)
 	s.AttachReceipt(ctx, 77, ReceiptPhoto, "f", "")
-	f.FailStep = &vpnctl.APIError{Status: 400, Message: "no free squad"}
+	f.FailStep = &remnactl.APIError{Status: 400, Message: "no free squad"}
 	got, _ := s.Approve(ctx, o.ID, "@a", DecideFull)
 	if got.Status != StatusFailed || got.Error == "" {
 		t.Fatalf("%+v", got)
@@ -1693,7 +1693,7 @@ func TestPayFromBalance(t *testing.T) {
 	}
 	got, err := s.PayFromBalance(ctx, c.ID, o.ID)
 	if err != nil || got.Status != StatusApproved || len(f.Payments) != 0 ||
-		f.Extends[0] != (vpnctl.ExtendCall{Kind: "addon", ID: 8, In: vpnctl.ExtendInput{Months: 1, Amount: 50}}) {
+		f.Extends[0] != (remnactl.ExtendCall{Kind: "addon", ID: 8, In: remnactl.ExtendInput{Months: 1, Amount: 50}}) {
 		t.Fatalf("%+v %v %+v", got, err, f.Extends)
 	}
 	if _, err := s.PayFromBalance(ctx, 6, o.ID); !errors.Is(err, ErrNotFound) {
@@ -1794,7 +1794,7 @@ func (s *Service) Reject(ctx context.Context, id int, reason, admin string) (*Or
 // recorded the order goes back to `back` so it can be decided again.
 func (s *Service) run(ctx context.Context, o *Order, d Decision, back Status) (*Order, error) {
 	status, until, ferr := s.fulfill(ctx, o, d)
-	if ferr != nil && o.PanelPaymentID == 0 && errors.Is(ferr, vpnctl.ErrUnavailable) {
+	if ferr != nil && o.PanelPaymentID == 0 && errors.Is(ferr, remnactl.ErrUnavailable) {
 		if err := s.move(ctx, o.ID, []Status{StatusApproving}, back, nil); err != nil {
 			s.Log.Error("orders: revert", "order", o.ID, "err", err)
 		}
@@ -1818,7 +1818,7 @@ func (s *Service) run(ctx context.Context, o *Order, d Decision, back Status) (*
 }
 
 func errText(err error) string {
-	var ae *vpnctl.APIError
+	var ae *remnactl.APIError
 	if errors.As(err, &ae) && ae.Message != "" {
 		return ae.Message
 	}
@@ -1833,8 +1833,8 @@ func (s *Service) fulfill(ctx context.Context, o *Order, d Decision) (Status, *t
 	if o.Method == MethodBalance {
 		amount = 0
 	}
-	pay := func(alloc []vpnctl.Allocation) (*vpnctl.PaymentResult, error) {
-		res, err := s.API.Pay(ctx, o.CustomerID, vpnctl.PaymentInput{Amount: amount, Method: string(o.Method), Note: o.Note(), Allocations: alloc})
+	pay := func(alloc []remnactl.Allocation) (*remnactl.PaymentResult, error) {
+		res, err := s.API.Pay(ctx, o.CustomerID, remnactl.PaymentInput{Amount: amount, Method: string(o.Method), Note: o.Note(), Allocations: alloc})
 		if err == nil {
 			o.PanelPaymentID = res.PaymentID
 		}
@@ -1852,7 +1852,7 @@ func (s *Service) fulfill(ctx context.Context, o *Order, d Decision) (Status, *t
 
 	if o.Kind == KindRenew {
 		if o.PanelPaymentID == 0 && amount > 0 {
-			res, err := pay([]vpnctl.Allocation{{Kind: o.ItemKind, ID: o.ItemID, Months: o.Months, Days: o.Days, Amount: o.Price}})
+			res, err := pay([]remnactl.Allocation{{Kind: o.ItemKind, ID: o.ItemID, Months: o.Months, Days: o.Days, Amount: o.Price}})
 			if err != nil {
 				return "", nil, err
 			}
@@ -1866,7 +1866,7 @@ func (s *Service) fulfill(ctx context.Context, o *Order, d Decision) (Status, *t
 			return StatusApproved, res.Extensions[0].To, nil
 		}
 		// Paid from the balance, or a retry after the payment was recorded.
-		e, err := s.API.Extend(ctx, o.ItemKind, o.ItemID, vpnctl.ExtendInput{
+		e, err := s.API.Extend(ctx, o.ItemKind, o.ItemID, remnactl.ExtendInput{
 			Months: o.Months, Days: o.Days, Amount: o.Price, AllowDebt: o.PanelPaymentID != 0,
 		})
 		if err != nil {
@@ -1883,14 +1883,14 @@ func (s *Service) fulfill(ctx context.Context, o *Order, d Decision) (Status, *t
 	var err error
 	switch o.Kind {
 	case KindSubscribe:
-		_, err = s.API.Provision(ctx, vpnctl.ProvisionInput{
+		_, err = s.API.Provision(ctx, remnactl.ProvisionInput{
 			CustomerID: o.CustomerID, TariffID: o.TariffID, Username: fmt.Sprintf("bot_c%d_o%d", o.CustomerID, o.ID),
 			Months: o.Months, Days: o.Days, Amount: o.Price,
 		})
 	case KindAddon:
-		_, err = s.API.ConnectAddon(ctx, o.ItemID, vpnctl.ConnectAddonInput{TariffID: o.TariffID, Months: o.Months, Days: o.Days, Amount: o.Price})
+		_, err = s.API.ConnectAddon(ctx, o.ItemID, remnactl.ConnectAddonInput{TariffID: o.TariffID, Months: o.Months, Days: o.Days, Amount: o.Price})
 	case KindChangeTariff:
-		err = s.API.ChangeTariff(ctx, o.ItemKind, o.ItemID, vpnctl.ChangeTariffInput{TariffID: o.TariffID, Surcharge: o.Price})
+		err = s.API.ChangeTariff(ctx, o.ItemKind, o.ItemID, remnactl.ChangeTariffInput{TariffID: o.TariffID, Surcharge: o.Price})
 	default:
 		err = bad("kind %q", o.Kind)
 	}
@@ -1918,7 +1918,7 @@ func (s *Service) customer(ctx context.Context, o *Order) {
 
 Note `run` for `Retry` passes `back = StatusFailed`. `result_until` with a nil `*time.Time` writes NULL (database/sql handles a typed nil pointer via `driver.DefaultParameterConverter`; if modernc rejects it, convert: `var u any; if until != nil { u = *until }`).
 
-Imports: `context`, `errors`, `fmt`, `strings`, `time`, `vpnctl`.
+Imports: `context`, `errors`, `fmt`, `strings`, `time`, `remnactl`.
 
 - [ ] **Step 4: Run** `go test -race ./internal/orders/` → PASS.
 - [ ] **Step 5: Remove the stub.** Delete `internal/billing/billing.go`; update `internal/billing` package doc to live in `split.go` (`// Package billing decides how a price is covered by the customer's balance.`). The build breaks in `telegram` and `main` until Task 7/9 — so in this commit replace the `Billing` dep minimally: in `internal/telegram/bot.go` remove the `Billing` field and make the `CbRenew` case answer `view.TxtSoon` (Task 7 replaces it); in `cmd/bot/main.go` drop `Billing: billing.NotImplemented{}` and the import. Run `go build ./... && go test ./...` → PASS.
@@ -1960,7 +1960,7 @@ import (
 	"strings"
 	"testing"
 
-	"vpn-control-bot/internal/orders"
+	"remna-control-bot/internal/orders"
 )
 
 func order() orders.Order {
@@ -2105,7 +2105,7 @@ import (
 	"strconv"
 	"strings"
 
-	"vpn-control-bot/internal/orders"
+	"remna-control-bot/internal/orders"
 )
 
 var statusIcon = map[orders.Status]string{
@@ -2532,8 +2532,8 @@ func (b *Bot) onReceipt(ctx context.Context, m *models.Message) bool {
 }
 
 // renewPeriods offers the subscription tariff's periods (or 1/3/6/12 months).
-func (b *Bot) renewPeriods(ctx context.Context, chatID int64, msgID int, c *vpnctl.Customer, subID int) {
-	var sub *vpnctl.Subscription
+func (b *Bot) renewPeriods(ctx context.Context, chatID int64, msgID int, c *remnactl.Customer, subID int) {
+	var sub *remnactl.Subscription
 	for i := range c.Subscriptions {
 		if c.Subscriptions[i].ID == subID {
 			sub = &c.Subscriptions[i]
@@ -2697,7 +2697,7 @@ func (b *Bot) adminResult(answer *tgbot.AnswerCallbackQueryParams, err error) {
 	case err == nil:
 	case errors.Is(err, orders.ErrStateChanged):
 		answer.Text = view.TxtOrderDone
-	case errors.Is(err, vpnctl.ErrUnavailable):
+	case errors.Is(err, remnactl.ErrUnavailable):
 		answer.Text, answer.ShowAlert = view.TxtPanelDown, true
 	default:
 		b.Log.Error("admin action", "err", err)
@@ -2823,10 +2823,10 @@ import (
 	"testing"
 	"time"
 
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/store"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/config"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/store"
+	"remna-control-bot/internal/remnactl"
 )
 
 type nopNotify struct{ pay int }
@@ -2836,7 +2836,7 @@ func (*nopNotify) PostCard(context.Context, orders.Order) (int, error)     { ret
 func (*nopNotify) UpdateCard(context.Context, orders.Order) error          { return nil }
 func (*nopNotify) Customer(context.Context, orders.Order) error            { return nil }
 
-func withOrders(t *testing.T, f *vpnctl.Fake, d *Deps) *nopNotify {
+func withOrders(t *testing.T, f *remnactl.Fake, d *Deps) *nopNotify {
 	st, err := store.Open(filepath.Join(t.TempDir(), "b.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -2861,11 +2861,11 @@ func do(t *testing.T, d *Deps, method, path, auth, body string) (int, string) {
 	return resp.StatusCode, string(b)
 }
 
-func ordersFake() *vpnctl.Fake {
-	f := vpnctl.NewFake()
-	f.Add(vpnctl.Customer{ID: 5, Name: "Ann", TelegramID: ptr(int64(77)), Subscriptions: []vpnctl.Subscription{{ID: 3, Title: "Дом"}}})
-	f.Add(vpnctl.Customer{ID: 6, Name: "Bob", TelegramID: ptr(int64(88))})
-	f.Quotes = map[string]vpnctl.ExtendQuote{"subscription:3": {CustomerID: 5, Amount: 300}}
+func ordersFake() *remnactl.Fake {
+	f := remnactl.NewFake()
+	f.Add(remnactl.Customer{ID: 5, Name: "Ann", TelegramID: ptr(int64(77)), Subscriptions: []remnactl.Subscription{{ID: 3, Title: "Дом"}}})
+	f.Add(remnactl.Customer{ID: 6, Name: "Bob", TelegramID: ptr(int64(88))})
+	f.Quotes = map[string]remnactl.ExtendQuote{"subscription:3": {CustomerID: 5, Amount: 300}}
 	return f
 }
 
@@ -2957,7 +2957,7 @@ func (s *server) quoteOrder(c *fiber.Ctx) error {
 	if err := c.BodyParser(&r); err != nil {
 		return fail(c, fiber.StatusBadRequest, "bad_request")
 	}
-	q, err := s.Orders.Quote(c.UserContext(), c.Locals("customer").(*vpnctl.Customer), r)
+	q, err := s.Orders.Quote(c.UserContext(), c.Locals("customer").(*remnactl.Customer), r)
 	if err != nil {
 		return s.orderErr(c, err)
 	}
@@ -2969,7 +2969,7 @@ func (s *server) createOrder(c *fiber.Ctx) error {
 	if err := c.BodyParser(&r); err != nil {
 		return fail(c, fiber.StatusBadRequest, "bad_request")
 	}
-	o, err := s.Orders.Create(c.UserContext(), c.Locals("customer").(*vpnctl.Customer), c.Locals("tg").(int64), r)
+	o, err := s.Orders.Create(c.UserContext(), c.Locals("customer").(*remnactl.Customer), c.Locals("tg").(int64), r)
 	if err != nil {
 		return s.orderErr(c, err)
 	}
@@ -2978,7 +2978,7 @@ func (s *server) createOrder(c *fiber.Ctx) error {
 
 func (s *server) listOrders(c *fiber.Ctx) error {
 	page := max(c.QueryInt("page", 0), 0)
-	list, total, err := s.Orders.List(c.UserContext(), c.Locals("customer").(*vpnctl.Customer).ID, 20, page*20)
+	list, total, err := s.Orders.List(c.UserContext(), c.Locals("customer").(*remnactl.Customer).ID, 20, page*20)
 	if err != nil {
 		return s.orderErr(c, err)
 	}
@@ -2996,7 +2996,7 @@ func (s *server) orderAction(fn func(c *fiber.Ctx, customerID, id int) error) fi
 		if err != nil || id < 1 {
 			return fail(c, fiber.StatusNotFound, "not_found")
 		}
-		return fn(c, c.Locals("customer").(*vpnctl.Customer).ID, id)
+		return fn(c, c.Locals("customer").(*remnactl.Customer).ID, id)
 	}
 }
 
@@ -3023,7 +3023,7 @@ func (s *server) cancel(c *fiber.Ctx, customerID, id int) error {
 }
 ```
 
-Rename the helper `view` → `orderJSON` if it clashes with anything in the package. `vpnctl.ErrUnavailable` from Quote falls into the 503 branch.
+Rename the helper `view` → `orderJSON` if it clashes with anything in the package. `remnactl.ErrUnavailable` from Quote falls into the 503 branch.
 - [ ] **Step 4: Run** `go test ./internal/webapp/` → PASS.
 - [ ] **Step 5: Commit** `git add internal/webapp && git commit -m "feat(webapp): orders API — quote, create, receipt, pay from balance, cancel, history"`
 
@@ -3086,7 +3086,7 @@ MANUAL_PAY_DETAILS  how to pay, shown with the amount; "\n" for line breaks (e.g
 ORDER_TTL           unpaid orders expire after this (default 48h)
 ```
 
-and a note: "vpn-control token: create it with the *bot* preset (it now includes payment scopes) — re-issue the existing token."
+and a note: "remna-control token: create it with the *bot* preset (it now includes payment scopes) — re-issue the existing token."
 - [ ] **Step 5: Run** `go build ./... && go vet ./... && go test -race ./...` → PASS.
 - [ ] **Step 6: Commit** `git add -A cmd internal README* .env* compose* 2>/dev/null; git commit -m "feat: wire orders into the bot, WebApp and notifier; document payment settings"`
 

@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"vpn-control-bot/internal/refcode"
-	"vpn-control-bot/internal/telegram/view"
+	"remna-control-bot/internal/refcode"
+	"remna-control-bot/internal/telegram/view"
 )
 
 type route struct {

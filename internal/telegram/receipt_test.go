@@ -11,10 +11,10 @@ import (
 	"errors"
 	"io"
 	"net/url"
+	"remna-control-bot/internal/remnactl"
+	"remna-control-bot/internal/store"
 	"strings"
 	"testing"
-	"vpn-control-bot/internal/store"
-	"vpn-control-bot/internal/vpnctl"
 )
 
 func TestScrubURL(t *testing.T) {
@@ -56,7 +56,7 @@ func newReceiptBot(t *testing.T, h http.Handler) *Bot {
 	}
 	t.Cleanup(func() { st.Close() })
 	b, err := New(context.Background(), "123:ABC", Deps{
-		API: vpnctl.NewFake(), WebAppURL: "https://x/bot", Admins: []int64{1}, Notices: st, APIBase: srv.URL,
+		API: remnactl.NewFake(), WebAppURL: "https://x/bot", Admins: []int64{1}, Notices: st, APIBase: srv.URL,
 		IsAdmin: func(int64) bool { return true }, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 	if err != nil {
@@ -72,7 +72,7 @@ func TestReceiptStalledBodyTimesOut(t *testing.T) {
 	b := newReceiptBot(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/getMe"):
-			io.WriteString(w, `{"ok":true,"result":{"id":1,"is_bot":true,"first_name":"b","username":"vpnbot"}}`)
+			io.WriteString(w, `{"ok":true,"result":{"id":1,"is_bot":true,"first_name":"b","username":"remnabot"}}`)
 		case strings.HasSuffix(r.URL.Path, "/getFile"):
 			io.WriteString(w, `{"ok":true,"result":{"file_id":"f","file_path":"photos/1.jpg"}}`)
 		case !strings.Contains(r.URL.Path, "/file/"):

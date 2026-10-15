@@ -6,7 +6,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"vpn-control-bot/internal/profile"
+	"remna-control-bot/internal/profile"
 )
 
 func manySubs(n int) profile.Profile {

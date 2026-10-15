@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/i18n"
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/payments"
-	"vpn-control-bot/internal/store"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/config"
+	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/payments"
+	"remna-control-bot/internal/remnactl"
+	"remna-control-bot/internal/store"
 )
 
 type nopNotify struct{ pay int }
@@ -27,7 +27,7 @@ func (n *nopNotify) PayScreen(context.Context, orders.Order, string) error { n.p
 func (*nopNotify) Card(context.Context, orders.Order) error                { return nil }
 func (*nopNotify) Customer(context.Context, orders.Order) error            { return nil }
 
-func withOrders(t *testing.T, f *vpnctl.Fake, d *Deps) *nopNotify {
+func withOrders(t *testing.T, f *remnactl.Fake, d *Deps) *nopNotify {
 	st, err := store.Open(filepath.Join(t.TempDir(), "b.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -65,11 +65,11 @@ func newOrder(t *testing.T, d *Deps, body string) string {
 	return r.Order.ID
 }
 
-func ordersFake() *vpnctl.Fake {
-	f := vpnctl.NewFake()
-	f.Add(vpnctl.Customer{ID: 5, Name: "Ann", TelegramID: ptr(int64(77)), Subscriptions: []vpnctl.Subscription{{ID: 3, Title: "Дом"}}})
-	f.Add(vpnctl.Customer{ID: 6, Name: "Bob", TelegramID: ptr(int64(88))})
-	f.Quotes = map[string]vpnctl.ExtendQuote{"subscription:3": {CustomerID: 5, Amount: 300}}
+func ordersFake() *remnactl.Fake {
+	f := remnactl.NewFake()
+	f.Add(remnactl.Customer{ID: 5, Name: "Ann", TelegramID: ptr(int64(77)), Subscriptions: []remnactl.Subscription{{ID: 3, Title: "Дом"}}})
+	f.Add(remnactl.Customer{ID: 6, Name: "Bob", TelegramID: ptr(int64(88))})
+	f.Quotes = map[string]remnactl.ExtendQuote{"subscription:3": {CustomerID: 5, Amount: 300}}
 	return f
 }
 
@@ -131,10 +131,10 @@ func TestOrdersUnavailableWithoutService(t *testing.T) {
 	}
 }
 
-func balanceFake() *vpnctl.Fake {
+func balanceFake() *remnactl.Fake {
 	f := ordersFake()
-	f.Add(vpnctl.Customer{ID: 5, Name: "Ann", TelegramID: ptr(int64(77)), Balance: 400, BalanceOwn: 400,
-		Subscriptions: []vpnctl.Subscription{{ID: 3, Title: "Дом"}}})
+	f.Add(remnactl.Customer{ID: 5, Name: "Ann", TelegramID: ptr(int64(77)), Balance: 400, BalanceOwn: 400,
+		Subscriptions: []remnactl.Subscription{{ID: 3, Title: "Дом"}}})
 	return f
 }
 

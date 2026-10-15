@@ -1,4 +1,4 @@
-// Copied from vpn-control/web/scripts/build.ts, adapted: the WebApp lives
+// Copied from remna-control/web/scripts/build.ts, adapted: the WebApp lives
 // under a configurable path (WEBAPP_PATH), so every asset URL is relative.
 import { cp, mkdir, rm } from 'node:fs/promises'
 import { basename, dirname, resolve } from 'node:path'

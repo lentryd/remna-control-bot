@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"vpn-control-bot/internal/profile"
+	"remna-control-bot/internal/profile"
 )
 
 func TestHomeOffersRenewalWhenEndingSoon(t *testing.T) {

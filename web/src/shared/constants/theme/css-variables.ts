@@ -1,4 +1,4 @@
-// Copied from vpn-control/web/src/shared/constants/theme/css-variables.ts
+// Copied from remna-control/web/src/shared/constants/theme/css-variables.ts
 import { defaultCssVariablesResolver, type CSSVariablesResolver } from '@mantine/core'
 
 // App-level design tokens next to Mantine's: surfaces, borders and fills

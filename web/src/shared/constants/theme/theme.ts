@@ -1,4 +1,4 @@
-// Copied from vpn-control/web/src/shared/constants/theme/theme.ts
+// Copied from remna-control/web/src/shared/constants/theme/theme.ts
 import { createTheme, type MantineColorsTuple } from '@mantine/core'
 
 import { components } from './components'

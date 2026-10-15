@@ -1,8 +1,8 @@
-package vpnctl
+package remnactl
 
 import "time"
 
-// Customer mirrors vpn-control's CustomerDetail (only the fields the bot uses).
+// Customer mirrors remna-control's CustomerDetail (only the fields the bot uses).
 type Customer struct {
 	ID              int        `json:"id"`
 	Name            string     `json:"name"`
@@ -107,7 +107,7 @@ type Period struct {
 	Price  float64 `json:"price"`
 }
 
-// CustomerInput is vpn-control's customerInput. PUT replaces every field.
+// CustomerInput is remna-control's customerInput. PUT replaces every field.
 type CustomerInput struct {
 	Name            string   `json:"name"`
 	Contact         string   `json:"contact"`

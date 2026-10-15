@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/remnactl"
 )
 
 type memSent map[string]bool
@@ -17,10 +17,10 @@ func (m memSent) NoticeSent(_ context.Context, k string) (bool, error) { return 
 func (m memSent) MarkNoticeSent(_ context.Context, k string) error     { m[k] = true; return nil }
 
 func TestRunOnceSendsEachNoticeOnce(t *testing.T) {
-	f := vpnctl.NewFake()
+	f := remnactl.NewFake()
 	f.Tariffs = tariffs
-	f.Add(vpnctl.Customer{ID: 1, TelegramID: ptr(int64(100)), Subscriptions: []vpnctl.Subscription{
-		sub(1, 1, &vpnctl.RwUser{UsedTrafficBytes: 45 * GB, TrafficLimitBytes: 50 * GB, ExpireAt: until(48 * 3600e9)}),
+	f.Add(remnactl.Customer{ID: 1, TelegramID: ptr(int64(100)), Subscriptions: []remnactl.Subscription{
+		sub(1, 1, &remnactl.RwUser{UsedTrafficBytes: 45 * GB, TrafficLimitBytes: 50 * GB, ExpireAt: until(48 * 3600e9)}),
 	}})
 	var sent []Notice
 	fail := true
@@ -49,8 +49,8 @@ func TestRunOnceSendsEachNoticeOnce(t *testing.T) {
 }
 
 func TestRunOncePanelDown(t *testing.T) {
-	f := vpnctl.NewFake()
-	f.Err = vpnctl.ErrUnavailable
+	f := remnactl.NewFake()
+	f.Err = remnactl.ErrUnavailable
 	called := false
 	r := &Runner{API: f, Store: memSent{}, Conf: func() Conf { return Conf{Rules: rules} }, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Send: func(context.Context, Notice) error { called = true; return nil }}
@@ -61,7 +61,7 @@ func TestRunOncePanelDown(t *testing.T) {
 }
 
 func TestRunOnceCallsSweep(t *testing.T) {
-	r := &Runner{API: vpnctl.NewFake(), Store: memSent{}, Conf: func() Conf { return Conf{Rules: rules} }, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	r := &Runner{API: remnactl.NewFake(), Store: memSent{}, Conf: func() Conf { return Conf{Rules: rules} }, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Send: func(context.Context, Notice) error { return nil }}
 	called := false
 	r.Sweep = func(context.Context) error { called = true; return nil }

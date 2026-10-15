@@ -1,4 +1,4 @@
-// Copied from vpn-control/web/src/components/format.ts (trimmed to what the WebApp uses).
+// Copied from remna-control/web/src/components/format.ts (trimmed to what the WebApp uses).
 import dayjs from 'dayjs'
 
 import i18n from '../i18n'

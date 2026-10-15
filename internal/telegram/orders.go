@@ -8,9 +8,9 @@ import (
 	tgbot "github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/payments"
-	"vpn-control-bot/internal/telegram/view"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/payments"
+	"remna-control-bot/internal/telegram/view"
 )
 
 func (b *Bot) PayScreen(ctx context.Context, o orders.Order, details string) error {

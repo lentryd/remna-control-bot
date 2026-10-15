@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/remnactl"
 )
 
 func ptr[T any](v T) *T { return &v }
@@ -15,21 +15,21 @@ var (
 	GB    = int64(1 << 30)
 )
 
-func customers() []vpnctl.Customer {
-	return []vpnctl.Customer{
+func customers() []remnactl.Customer {
+	return []remnactl.Customer{
 		{ID: 1, TelegramID: ptr(int64(100))},
 		{ID: 2}, // no Telegram — never notified
 		{ID: 3, TelegramID: ptr(int64(300)), Archived: true}, // archived — never notified
 	}
 }
 
-func sub(id, customer int, u *vpnctl.RwUser) vpnctl.Subscription {
-	return vpnctl.Subscription{ID: id, CustomerID: customer, Title: "Sub" + string(rune('0'+id)), TariffID: ptr(10), RwUser: u}
+func sub(id, customer int, u *remnactl.RwUser) remnactl.Subscription {
+	return remnactl.Subscription{ID: id, CustomerID: customer, Title: "Sub" + string(rune('0'+id)), TariffID: ptr(10), RwUser: u}
 }
 
 func until(d time.Duration) *time.Time { return ptr(now.Add(d)) }
 
-var tariffs = []vpnctl.Tariff{
+var tariffs = []remnactl.Tariff{
 	{ID: 10, Kind: "base", Name: "Base", Active: true, MonthlyPrice: 100, TrafficLimitBytes: 50 * GB},
 	{ID: 11, Kind: "base", Name: "Plus", Active: true, MonthlyPrice: 200, TrafficLimitBytes: 200 * GB},
 	{ID: 12, Kind: "base", Name: "Max", Active: true, MonthlyPrice: 300}, // unlimited, pricier
@@ -50,12 +50,12 @@ func byKey(ns []Notice) map[string]Notice {
 
 func TestTrafficAlert(t *testing.T) {
 	reset := until(5 * 24 * time.Hour)
-	subs := []vpnctl.Subscription{
-		sub(1, 1, &vpnctl.RwUser{UsedTrafficBytes: 41 * GB, TrafficLimitBytes: 50 * GB, NextTrafficResetAt: reset, ExpireAt: until(30 * 24 * time.Hour)}),
-		sub(2, 1, &vpnctl.RwUser{UsedTrafficBytes: 39 * GB, TrafficLimitBytes: 50 * GB, ExpireAt: until(30 * 24 * time.Hour)}), // 78% — quiet
-		sub(3, 1, &vpnctl.RwUser{UsedTrafficBytes: 99 * GB, TrafficLimitBytes: 0, ExpireAt: until(30 * 24 * time.Hour)}),       // no limit
-		sub(4, 2, &vpnctl.RwUser{UsedTrafficBytes: 49 * GB, TrafficLimitBytes: 50 * GB}),                                       // no Telegram
-		sub(5, 1, &vpnctl.RwUser{UsedTrafficBytes: 49 * GB, TrafficLimitBytes: 50 * GB, Deleted: true}),
+	subs := []remnactl.Subscription{
+		sub(1, 1, &remnactl.RwUser{UsedTrafficBytes: 41 * GB, TrafficLimitBytes: 50 * GB, NextTrafficResetAt: reset, ExpireAt: until(30 * 24 * time.Hour)}),
+		sub(2, 1, &remnactl.RwUser{UsedTrafficBytes: 39 * GB, TrafficLimitBytes: 50 * GB, ExpireAt: until(30 * 24 * time.Hour)}), // 78% — quiet
+		sub(3, 1, &remnactl.RwUser{UsedTrafficBytes: 99 * GB, TrafficLimitBytes: 0, ExpireAt: until(30 * 24 * time.Hour)}),       // no limit
+		sub(4, 2, &remnactl.RwUser{UsedTrafficBytes: 49 * GB, TrafficLimitBytes: 50 * GB}),                                       // no Telegram
+		sub(5, 1, &remnactl.RwUser{UsedTrafficBytes: 49 * GB, TrafficLimitBytes: 50 * GB, Deleted: true}),
 	}
 	ns := Plan(customers(), subs, tariffs, rules, now)
 	if len(ns) != 1 {
@@ -74,7 +74,7 @@ func TestTrafficAlert(t *testing.T) {
 }
 
 func TestTrafficAlertNoResetUsesExpiryInKey(t *testing.T) {
-	subs := []vpnctl.Subscription{sub(1, 1, &vpnctl.RwUser{UsedTrafficBytes: 45 * GB, TrafficLimitBytes: 50 * GB, TrafficLimitStrategy: "NO_RESET", ExpireAt: until(20 * 24 * time.Hour)})}
+	subs := []remnactl.Subscription{sub(1, 1, &remnactl.RwUser{UsedTrafficBytes: 45 * GB, TrafficLimitBytes: 50 * GB, TrafficLimitStrategy: "NO_RESET", ExpireAt: until(20 * 24 * time.Hour)})}
 	n := Plan(customers(), subs, tariffs, rules, now)[0]
 	if n.ResetAt != nil || n.Key != "traffic:sub:1:until-2026-10-30" {
 		t.Fatalf("notice: %+v", n)
@@ -82,9 +82,9 @@ func TestTrafficAlertNoResetUsesExpiryInKey(t *testing.T) {
 }
 
 func TestAddonTrafficUpgradeSameAddon(t *testing.T) {
-	s := sub(1, 1, &vpnctl.RwUser{ExpireAt: until(30 * 24 * time.Hour)})
-	s.Addons = []vpnctl.Addon{{ID: 7, AddonID: 4, AddonName: "LTE", TariffID: ptr(20), RwUser: &vpnctl.RwUser{UsedTrafficBytes: 9 * GB, TrafficLimitBytes: 10 * GB, ExpireAt: until(30 * 24 * time.Hour)}}}
-	ns := Plan(customers(), []vpnctl.Subscription{s}, tariffs, rules, now)
+	s := sub(1, 1, &remnactl.RwUser{ExpireAt: until(30 * 24 * time.Hour)})
+	s.Addons = []remnactl.Addon{{ID: 7, AddonID: 4, AddonName: "LTE", TariffID: ptr(20), RwUser: &remnactl.RwUser{UsedTrafficBytes: 9 * GB, TrafficLimitBytes: 10 * GB, ExpireAt: until(30 * 24 * time.Hour)}}}
+	ns := Plan(customers(), []remnactl.Subscription{s}, tariffs, rules, now)
 	if len(ns) != 1 || ns[0].SubID != 1 || ns[0].Title != "Sub1 · LTE" || ns[0].Upgrade == nil || ns[0].Upgrade.ID != 21 {
 		t.Fatalf("addon notice: %+v", ns)
 	}
@@ -94,9 +94,9 @@ func TestAddonTrafficUpgradeSameAddon(t *testing.T) {
 }
 
 func TestNoUpgradeWhenNothingBigger(t *testing.T) {
-	s := sub(1, 1, &vpnctl.RwUser{UsedTrafficBytes: 190 * GB, TrafficLimitBytes: 200 * GB, ExpireAt: until(30 * 24 * time.Hour)})
+	s := sub(1, 1, &remnactl.RwUser{UsedTrafficBytes: 190 * GB, TrafficLimitBytes: 200 * GB, ExpireAt: until(30 * 24 * time.Hour)})
 	s.TariffID = ptr(11)
-	n := Plan(customers(), []vpnctl.Subscription{s}, tariffs[:2], rules, now)[0]
+	n := Plan(customers(), []remnactl.Subscription{s}, tariffs[:2], rules, now)[0]
 	if n.Upgrade != nil {
 		t.Fatalf("unexpected upgrade %+v", n.Upgrade)
 	}
@@ -115,8 +115,8 @@ func TestReminders(t *testing.T) {
 		{-4 * 24 * time.Hour, ""}, // ended long ago — don't nag
 	}
 	for _, c := range cases {
-		s := sub(1, 1, &vpnctl.RwUser{ExpireAt: until(c.left)})
-		got := byKey(Plan(customers(), []vpnctl.Subscription{s}, tariffs, rules, now))
+		s := sub(1, 1, &remnactl.RwUser{ExpireAt: until(c.left)})
+		got := byKey(Plan(customers(), []remnactl.Subscription{s}, tariffs, rules, now))
 		key := "remind:sub:1:" + now.Add(c.left).Format("2006-01-02") + ":" + c.stage
 		if c.stage == "" {
 			if len(got) != 0 {
@@ -132,8 +132,8 @@ func TestReminders(t *testing.T) {
 }
 
 func TestNoRemindersForUnlimited(t *testing.T) {
-	s := sub(1, 1, &vpnctl.RwUser{ExpireAt: until(time.Hour), Unlimited: true})
-	if ns := Plan(customers(), []vpnctl.Subscription{s}, tariffs, rules, now); len(ns) != 0 {
+	s := sub(1, 1, &remnactl.RwUser{ExpireAt: until(time.Hour), Unlimited: true})
+	if ns := Plan(customers(), []remnactl.Subscription{s}, tariffs, rules, now); len(ns) != 0 {
 		t.Fatalf("got %+v", ns)
 	}
 }
@@ -142,12 +142,12 @@ func TestNoRemindersForUnlimited(t *testing.T) {
 // one reminder, not two.
 func TestAddonEndingWithSubscriptionIsNotRemindedSeparately(t *testing.T) {
 	end := until(48 * time.Hour)
-	s := sub(1, 1, &vpnctl.RwUser{ExpireAt: end})
-	s.Addons = []vpnctl.Addon{
-		{ID: 7, AddonID: 4, AddonName: "same day", RwUser: &vpnctl.RwUser{ExpireAt: ptr(end.Add(time.Hour))}},
-		{ID: 8, AddonID: 4, AddonName: "own date", RwUser: &vpnctl.RwUser{ExpireAt: until(20 * time.Hour)}},
+	s := sub(1, 1, &remnactl.RwUser{ExpireAt: end})
+	s.Addons = []remnactl.Addon{
+		{ID: 7, AddonID: 4, AddonName: "same day", RwUser: &remnactl.RwUser{ExpireAt: ptr(end.Add(time.Hour))}},
+		{ID: 8, AddonID: 4, AddonName: "own date", RwUser: &remnactl.RwUser{ExpireAt: until(20 * time.Hour)}},
 	}
-	got := byKey(Plan(customers(), []vpnctl.Subscription{s}, tariffs, rules, now))
+	got := byKey(Plan(customers(), []remnactl.Subscription{s}, tariffs, rules, now))
 	if len(got) != 2 {
 		t.Fatalf("want the subscription and the add-on with its own date, got %v", got)
 	}

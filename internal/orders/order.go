@@ -6,8 +6,8 @@ import (
 	"slices"
 	"time"
 
-	"vpn-control-bot/internal/i18n"
-	"vpn-control-bot/internal/store"
+	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/store"
 )
 
 type Kind string

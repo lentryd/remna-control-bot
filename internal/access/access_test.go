@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/refcode"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/config"
+	"remna-control-bot/internal/refcode"
+	"remna-control-bot/internal/remnactl"
 )
 
 type memState map[int64]bool
@@ -19,8 +19,8 @@ func ptr[T any](v T) *T { return &v }
 
 var codec = refcode.New("s")
 
-func setup(mode config.Mode) (*Service, *vpnctl.Fake, memState) {
-	f := vpnctl.NewFake()
+func setup(mode config.Mode) (*Service, *remnactl.Fake, memState) {
+	f := remnactl.NewFake()
 	st := memState{}
 	return New(f, codec, func() config.Mode { return mode }, st), f, st
 }
@@ -31,30 +31,30 @@ func TestStart(t *testing.T) {
 	type tc struct {
 		name     string
 		mode     config.Mode
-		seed     []vpnctl.Customer
+		seed     []remnactl.Customer
 		payload  string
 		want     Outcome
 		created  bool
 		referrer *int
 		awaiting bool
 	}
-	ref := vpnctl.Customer{ID: 10, Name: "Ref"}
-	archivedRef := vpnctl.Customer{ID: 11, Name: "Old", Archived: true}
-	member := vpnctl.Customer{ID: 20, Name: "Ann", TelegramID: ptr(int64(100))}
-	gone := vpnctl.Customer{ID: 21, Name: "Ann", TelegramID: ptr(int64(100)), Archived: true}
+	ref := remnactl.Customer{ID: 10, Name: "Ref"}
+	archivedRef := remnactl.Customer{ID: 11, Name: "Old", Archived: true}
+	member := remnactl.Customer{ID: 20, Name: "Ann", TelegramID: ptr(int64(100))}
+	gone := remnactl.Customer{ID: 21, Name: "Ann", TelegramID: ptr(int64(100)), Archived: true}
 	for _, c := range []tc{
-		{name: "member closed", mode: config.ModeClosed, seed: []vpnctl.Customer{member}, want: Member},
-		{name: "member ignores ref", mode: config.ModeOpen, seed: []vpnctl.Customer{member, ref}, payload: "ref_" + codec.Encode(10), want: Member},
-		{name: "archived member", mode: config.ModeOpen, seed: []vpnctl.Customer{gone}, want: Archived},
+		{name: "member closed", mode: config.ModeClosed, seed: []remnactl.Customer{member}, want: Member},
+		{name: "member ignores ref", mode: config.ModeOpen, seed: []remnactl.Customer{member, ref}, payload: "ref_" + codec.Encode(10), want: Member},
+		{name: "archived member", mode: config.ModeOpen, seed: []remnactl.Customer{gone}, want: Archived},
 		{name: "closed no payload", mode: config.ModeClosed, want: NeedLink, awaiting: true},
 		{name: "open no payload", mode: config.ModeOpen, want: Created, created: true},
-		{name: "closed valid ref", mode: config.ModeClosed, seed: []vpnctl.Customer{ref}, payload: "ref_" + codec.Encode(10), want: Created, created: true, referrer: ptr(10)},
-		{name: "open valid ref", mode: config.ModeOpen, seed: []vpnctl.Customer{ref}, payload: "ref_" + codec.Encode(10), want: Created, created: true, referrer: ptr(10)},
-		{name: "closed forged ref", mode: config.ModeClosed, seed: []vpnctl.Customer{ref}, payload: "ref_zzzzzz", want: BadReferral, awaiting: true},
+		{name: "closed valid ref", mode: config.ModeClosed, seed: []remnactl.Customer{ref}, payload: "ref_" + codec.Encode(10), want: Created, created: true, referrer: ptr(10)},
+		{name: "open valid ref", mode: config.ModeOpen, seed: []remnactl.Customer{ref}, payload: "ref_" + codec.Encode(10), want: Created, created: true, referrer: ptr(10)},
+		{name: "closed forged ref", mode: config.ModeClosed, seed: []remnactl.Customer{ref}, payload: "ref_zzzzzz", want: BadReferral, awaiting: true},
 		{name: "open forged ref", mode: config.ModeOpen, payload: "ref_zzzzzz", want: Created, created: true},
 		{name: "closed ref to missing", mode: config.ModeClosed, payload: "ref_" + codec.Encode(999), want: BadReferral, awaiting: true},
-		{name: "closed ref to archived", mode: config.ModeClosed, seed: []vpnctl.Customer{archivedRef}, payload: "ref_" + codec.Encode(11), want: BadReferral, awaiting: true},
-		{name: "open ref to archived", mode: config.ModeOpen, seed: []vpnctl.Customer{archivedRef}, payload: "ref_" + codec.Encode(11), want: Created, created: true},
+		{name: "closed ref to archived", mode: config.ModeClosed, seed: []remnactl.Customer{archivedRef}, payload: "ref_" + codec.Encode(11), want: BadReferral, awaiting: true},
+		{name: "open ref to archived", mode: config.ModeOpen, seed: []remnactl.Customer{archivedRef}, payload: "ref_" + codec.Encode(11), want: Created, created: true},
 		{name: "closed unknown payload", mode: config.ModeClosed, payload: "hello", want: NeedLink, awaiting: true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -101,31 +101,31 @@ func TestStartNameFallback(t *testing.T) {
 
 func TestStartUnavailable(t *testing.T) {
 	s, f, _ := setup(config.ModeOpen)
-	f.Err = vpnctl.ErrUnavailable
-	if _, err := s.Start(context.Background(), ann, ""); !errors.Is(err, vpnctl.ErrUnavailable) {
+	f.Err = remnactl.ErrUnavailable
+	if _, err := s.Start(context.Background(), ann, ""); !errors.Is(err, remnactl.ErrUnavailable) {
 		t.Fatalf("err = %v", err)
 	}
 }
 
-func withSub(c vpnctl.Customer, short string) vpnctl.Customer {
-	c.Subscriptions = []vpnctl.Subscription{{ID: 1, RwUser: &vpnctl.RwUser{ShortUUID: short}}}
+func withSub(c remnactl.Customer, short string) remnactl.Customer {
+	c.Subscriptions = []remnactl.Subscription{{ID: 1, RwUser: &remnactl.RwUser{ShortUUID: short}}}
 	return c
 }
 
 func TestLink(t *testing.T) {
 	for _, c := range []struct {
 		name    string
-		seed    vpnctl.Customer
+		seed    remnactl.Customer
 		text    string
 		want    Outcome
 		updates int
 	}{
-		{"link free", withSub(vpnctl.Customer{ID: 1, Name: "X"}, "AbC123xyz"), " https://sub.x/AbC123xyz/ ", Linked, 1},
-		{"already mine", withSub(vpnctl.Customer{ID: 1, TelegramID: ptr(int64(100))}, "AbC123xyz"), "AbC123xyz", Linked, 0},
-		{"someone else's", withSub(vpnctl.Customer{ID: 1, TelegramID: ptr(int64(555))}, "AbC123xyz"), "AbC123xyz", Taken, 0},
-		{"archived", withSub(vpnctl.Customer{ID: 1, Archived: true}, "AbC123xyz"), "AbC123xyz", Archived, 0},
-		{"unknown", withSub(vpnctl.Customer{ID: 1}, "AbC123xyz"), "Zzz999zzz", NotFound, 0},
-		{"garbage", withSub(vpnctl.Customer{ID: 1}, "AbC123xyz"), "hi!", BadLink, 0},
+		{"link free", withSub(remnactl.Customer{ID: 1, Name: "X"}, "AbC123xyz"), " https://sub.x/AbC123xyz/ ", Linked, 1},
+		{"already mine", withSub(remnactl.Customer{ID: 1, TelegramID: ptr(int64(100))}, "AbC123xyz"), "AbC123xyz", Linked, 0},
+		{"someone else's", withSub(remnactl.Customer{ID: 1, TelegramID: ptr(int64(555))}, "AbC123xyz"), "AbC123xyz", Taken, 0},
+		{"archived", withSub(remnactl.Customer{ID: 1, Archived: true}, "AbC123xyz"), "AbC123xyz", Archived, 0},
+		{"unknown", withSub(remnactl.Customer{ID: 1}, "AbC123xyz"), "Zzz999zzz", NotFound, 0},
+		{"garbage", withSub(remnactl.Customer{ID: 1}, "AbC123xyz"), "hi!", BadLink, 0},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			s, f, st := setup(config.ModeClosed)
@@ -150,7 +150,7 @@ func TestLink(t *testing.T) {
 
 func TestLinkKeepsFields(t *testing.T) {
 	s, f, _ := setup(config.ModeClosed)
-	f.Add(withSub(vpnctl.Customer{ID: 1, Name: "X", Contact: "@x", Notes: "vip", ReferrerID: ptr(7), ReferralPercent: ptr(15.0)}, "AbC123xyz"))
+	f.Add(withSub(remnactl.Customer{ID: 1, Name: "X", Contact: "@x", Notes: "vip", ReferrerID: ptr(7), ReferralPercent: ptr(15.0)}, "AbC123xyz"))
 	if _, err := s.Link(context.Background(), ann, "AbC123xyz"); err != nil {
 		t.Fatal(err)
 	}

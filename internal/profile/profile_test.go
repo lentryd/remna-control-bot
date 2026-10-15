@@ -7,25 +7,25 @@ import (
 	"testing"
 	"time"
 
-	"vpn-control-bot/internal/billing"
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/billing"
+	"remna-control-bot/internal/config"
+	"remna-control-bot/internal/remnactl"
 )
 
 func ptr[T any](v T) *T { return &v }
 
 func TestBuild(t *testing.T) {
 	d1 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	c := &vpnctl.Customer{
+	c := &remnactl.Customer{
 		ID: 1, Name: "Ann", Notes: "SECRET-NOTE", Contact: "SECRET-CONTACT", Balance: 10,
-		Subscriptions: []vpnctl.Subscription{
-			{ID: 1, Title: "Main", TariffID: ptr(4), TariffName: "Std", RwUser: &vpnctl.RwUser{SubscriptionURL: "https://s/a", Status: "ACTIVE"},
-				Addons: []vpnctl.Addon{{ID: 3, AddonName: "YouTube", RwUser: &vpnctl.RwUser{Status: "ACTIVE"}}}},
-			{ID: 2, Title: "Gone", RwUser: &vpnctl.RwUser{Deleted: true}},
+		Subscriptions: []remnactl.Subscription{
+			{ID: 1, Title: "Main", TariffID: ptr(4), TariffName: "Std", RwUser: &remnactl.RwUser{SubscriptionURL: "https://s/a", Status: "ACTIVE"},
+				Addons: []remnactl.Addon{{ID: 3, AddonName: "YouTube", RwUser: &remnactl.RwUser{Status: "ACTIVE"}}}},
+			{ID: 2, Title: "Gone", RwUser: &remnactl.RwUser{Deleted: true}},
 		},
-		Ledger:    []vpnctl.LedgerEntry{{Type: "payment", Amount: 100, Date: d1, Note: "SECRET-LEDGER"}, {Type: "charge", Amount: -50, Date: d1.AddDate(0, 1, 0)}},
-		Referrals: []vpnctl.Referee{{ID: 7, Name: "Bob", TotalPaid: 300}, {ID: 8, Name: "Eve", Archived: true}},
-		Accruals: []vpnctl.Accrual{
+		Ledger:    []remnactl.LedgerEntry{{Type: "payment", Amount: 100, Date: d1, Note: "SECRET-LEDGER"}, {Type: "charge", Amount: -50, Date: d1.AddDate(0, 1, 0)}},
+		Referrals: []remnactl.Referee{{ID: 7, Name: "Bob", TotalPaid: 300}, {ID: 8, Name: "Eve", Archived: true}},
+		Accruals: []remnactl.Accrual{
 			{ReferrerID: 1, RefereeID: 7, Amount: 30}, {ReferrerID: 1, RefereeID: 7, Amount: 15},
 			{ReferrerID: 1, RefereeID: 8, Amount: 50}, {ReferrerID: 99, RefereeID: 1, Amount: 1000},
 		},
@@ -57,7 +57,7 @@ func TestBuild(t *testing.T) {
 }
 
 func TestTariffs(t *testing.T) {
-	got := Tariffs([]vpnctl.Tariff{
+	got := Tariffs([]remnactl.Tariff{
 		{ID: 1, Kind: "addon", Name: "A", Active: true, MonthlyPrice: 1},
 		{ID: 2, Kind: "base", Name: "B", Active: true, MonthlyPrice: 1, SortOrder: 2},
 		{ID: 3, Kind: "base", Name: "C", Active: false, MonthlyPrice: 1},
@@ -94,10 +94,10 @@ func TestExpiry(t *testing.T) {
 
 func TestSubscriptionsByUrgency(t *testing.T) {
 	now := time.Now()
-	sub := func(id int, exp *time.Time, unlimited bool) vpnctl.Subscription {
-		return vpnctl.Subscription{ID: id, RwUser: &vpnctl.RwUser{ExpireAt: exp, Unlimited: unlimited}}
+	sub := func(id int, exp *time.Time, unlimited bool) remnactl.Subscription {
+		return remnactl.Subscription{ID: id, RwUser: &remnactl.RwUser{ExpireAt: exp, Unlimited: unlimited}}
 	}
-	c := &vpnctl.Customer{Subscriptions: []vpnctl.Subscription{
+	c := &remnactl.Customer{Subscriptions: []remnactl.Subscription{
 		sub(1, nil, true),                         // unlimited — last
 		sub(2, ptr(now.AddDate(0, 1, 0)), false),  // a month
 		sub(3, ptr(now.Add(48*time.Hour)), false), // 2 days
@@ -116,7 +116,7 @@ func TestSubscriptionsByUrgency(t *testing.T) {
 }
 
 func TestTariffsHideFree(t *testing.T) {
-	got := Tariffs([]vpnctl.Tariff{
+	got := Tariffs([]remnactl.Tariff{
 		{ID: 1, Kind: "base", Name: "Base", Active: true, MonthlyPrice: 100},
 		{ID: 2, Kind: "base", Name: "VIP", Active: true, MonthlyPrice: 0},
 		{ID: 3, Kind: "addon", Name: "Included", Active: true, MonthlyPrice: 0},
@@ -127,9 +127,9 @@ func TestTariffsHideFree(t *testing.T) {
 }
 
 func TestRenewalUsesPayMode(t *testing.T) {
-	c := &vpnctl.Customer{BalanceOwn: 100, BalanceReferral: 250, Subscriptions: []vpnctl.Subscription{{
-		ID: 1, Price: 200, RwUser: &vpnctl.RwUser{},
-		Addons: []vpnctl.Addon{{Price: 100}, {Price: 0, Included: true}},
+	c := &remnactl.Customer{BalanceOwn: 100, BalanceReferral: 250, Subscriptions: []remnactl.Subscription{{
+		ID: 1, Price: 200, RwUser: &remnactl.RwUser{},
+		Addons: []remnactl.Addon{{Price: 100}, {Price: 0, Included: true}},
 	}}}
 	mixed := Build(c, "", config.PayMixed).Subscriptions[0].Renewal
 	if mixed != (billing.Payment{Price: 300, FromReferral: 250, FromOwn: 50}) {

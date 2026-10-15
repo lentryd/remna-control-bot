@@ -3,7 +3,10 @@ package telegram
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -11,15 +14,15 @@ import (
 	tgbot "github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"vpn-control-bot/internal/access"
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/i18n"
-	"vpn-control-bot/internal/notify"
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/profile"
-	"vpn-control-bot/internal/refcode"
-	"vpn-control-bot/internal/telegram/view"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/access"
+	"remna-control-bot/internal/config"
+	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/notify"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/profile"
+	"remna-control-bot/internal/refcode"
+	"remna-control-bot/internal/remnactl"
+	"remna-control-bot/internal/telegram/view"
 )
 
 func (d Deps) payMode() config.PayMode {
@@ -31,7 +34,7 @@ func (d Deps) payMode() config.PayMode {
 
 type Deps struct {
 	Access    *access.Service
-	API       vpnctl.Client
+	API       remnactl.Client
 	Codec     *refcode.Codec
 	WebAppURL string
 	PayMode   func() config.PayMode
@@ -82,37 +85,45 @@ func New(ctx context.Context, token string, d Deps) (*Bot, error) {
 	tg.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, view.CbHome, tgbot.MatchTypeExact, b.onCallback)
 	tg.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, view.CbOrderCancel, tgbot.MatchTypePrefix, b.onOrderCallback)
 	tg.RegisterHandler(tgbot.HandlerTypeMessageText, "admin", tgbot.MatchTypeCommand, b.onAdminCmd)
+	tg.RegisterHandler(tgbot.HandlerTypeMessageText, "init", tgbot.MatchTypeCommand, b.onInitCmd)
 
-	b.setCommands(ctx)
-	if _, err := tg.SetChatMenuButton(ctx, &tgbot.SetChatMenuButtonParams{MenuButton: models.MenuButtonWebApp{
-		Type: models.MenuButtonTypeWebApp, Text: i18n.Default.For(i18n.Base).T("menu.open"), WebApp: models.WebAppInfo{URL: d.WebAppURL + "/"},
-	}}); err != nil {
+	if err := b.setCommands(ctx); err != nil {
+		d.Log.Warn("set commands", "err", err)
+	}
+	if err := b.setMenuButton(ctx); err != nil {
 		d.Log.Warn("set menu button", "err", err)
 	}
+	b.initIfBlank(ctx)
 	return b, nil
 }
 
-// setCommands registers the command menu: English as the default scope, every other language under its own code.
-func (b *Bot) setCommands(ctx context.Context) {
-	set := func(code string, loc i18n.Localizer) {
-		_, err := b.tg.SetMyCommands(ctx, &tgbot.SetMyCommandsParams{
-			LanguageCode: code,
-			Commands: []models.BotCommand{
-				{Command: "menu", Description: loc.T("cmd.menu")},
-				{Command: "start", Description: loc.T("cmd.start")},
-				{Command: "help", Description: loc.T("cmd.help")},
-			},
-		})
-		if err != nil {
-			b.Log.Warn("set commands", "lang", code, "err", err)
+// setCommands registers the command menu: English as the default scope, every other language under its own
+// code. Each admin's chat gets the same menu plus /admin and /init.
+func (b *Bot) setCommands(ctx context.Context) error {
+	return perLang(func(code string, loc i18n.Localizer) error {
+		public := []models.BotCommand{
+			{Command: "menu", Description: loc.T("cmd.menu")},
+			{Command: "start", Description: loc.T("cmd.start")},
+			{Command: "help", Description: loc.T("cmd.help")},
 		}
-	}
-	set("", i18n.Default.For(i18n.Base))
-	for _, l := range i18n.Default.Langs() {
-		if l != i18n.Base {
-			set(l, i18n.Default.For(l))
+		errs := []error{b.setCommandList(ctx, code, nil, public)}
+		admin := append(slices.Clip(public),
+			models.BotCommand{Command: "admin", Description: loc.T("cmd.admin")},
+			models.BotCommand{Command: "init", Description: loc.T("cmd.init")},
+		)
+		for _, id := range b.Admins {
+			errs = append(errs, b.setCommandList(ctx, code, &models.BotCommandScopeChat{ChatID: id}, admin))
 		}
+		return errors.Join(errs...)
+	})
+}
+
+func (b *Bot) setCommandList(ctx context.Context, code string, scope models.BotCommandScope, cmds []models.BotCommand) error {
+	_, err := b.tg.SetMyCommands(ctx, &tgbot.SetMyCommandsParams{LanguageCode: code, Scope: scope, Commands: cmds})
+	if err != nil {
+		return fmt.Errorf("lang %q scope %v: %w", code, scope, err)
 	}
+	return nil
 }
 
 // SendNotice sends a notification as a new message (notify.Runner's Send).
@@ -181,7 +192,7 @@ func (b *Bot) outcome(loc i18n.Localizer, r access.Result, err error) (view.Scre
 	return view.Screen{}, false
 }
 
-func (b *Bot) profile(c *vpnctl.Customer) profile.Profile {
+func (b *Bot) profile(c *remnactl.Customer) profile.Profile {
 	return profile.Build(c, RefLink(b.username, b.Codec, c.ID), b.payMode())
 }
 

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"vpn-control-bot/internal/config"
+	"remna-control-bot/internal/config"
 )
 
 const (

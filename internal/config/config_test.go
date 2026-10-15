@@ -8,7 +8,7 @@ import (
 func env(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
 
 func base() map[string]string {
-	return map[string]string{"BOT_TOKEN": "t", "VPNCTL_URL": "http://p/", "VPNCTL_TOKEN": "x", "PUBLIC_URL": "https://b.example/", "REF_SECRET": "s", "ADMIN_IDS": "5"}
+	return map[string]string{"BOT_TOKEN": "t", "REMNACTL_URL": "http://p/", "REMNACTL_TOKEN": "x", "PUBLIC_URL": "https://b.example/", "REF_SECRET": "s", "ADMIN_IDS": "5"}
 }
 
 func TestLoadDefaults(t *testing.T) {
@@ -16,7 +16,7 @@ func TestLoadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.VpnctlURL != "http://p" || c.PublicURL != "https://b.example" || c.WebAppPath != "/bot" || c.HTTPAddr != ":8090" ||
+	if c.RemnactlURL != "http://p" || c.PublicURL != "https://b.example" || c.WebAppPath != "/bot" || c.HTTPAddr != ":8090" ||
 		c.DBPath != "/data/bot.db" || c.LogLevel != "info" || len(c.AdminIDs) != 1 {
 		t.Fatalf("defaults: %+v", c)
 	}
@@ -26,7 +26,7 @@ func TestLoadDefaults(t *testing.T) {
 }
 
 func TestLoadRequired(t *testing.T) {
-	for _, k := range []string{"BOT_TOKEN", "VPNCTL_URL", "VPNCTL_TOKEN", "PUBLIC_URL", "REF_SECRET", "ADMIN_IDS"} {
+	for _, k := range []string{"BOT_TOKEN", "REMNACTL_URL", "REMNACTL_TOKEN", "PUBLIC_URL", "REF_SECRET", "ADMIN_IDS"} {
 		m := base()
 		delete(m, k)
 		if _, err := load(env(m)); err == nil || !strings.Contains(err.Error(), k) {

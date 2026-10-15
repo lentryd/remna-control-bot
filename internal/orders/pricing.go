@@ -3,13 +3,13 @@ package orders
 import (
 	"math"
 
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/remnactl"
 )
 
-// TermCost prices months+days of a tariff like vpn-control does (keep in
+// TermCost prices months+days of a tariff like remna-control does (keep in
 // sync with its internal/billing/pricing.go): an exact package wins,
 // otherwise the cheapest mix of whole-month periods plus monthly/30 a day.
-func TermCost(monthly float64, periods []vpnctl.Period, months, days int) float64 {
+func TermCost(monthly float64, periods []remnactl.Period, months, days int) float64 {
 	if days > 0 {
 		for _, p := range periods {
 			if p.Months == months && p.Days == days {

@@ -4,7 +4,7 @@ package billing
 import (
 	"math"
 
-	"vpn-control-bot/internal/config"
+	"remna-control-bot/internal/config"
 )
 
 // Payment is how a price is covered: from the customer's own funds, from

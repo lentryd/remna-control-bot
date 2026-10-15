@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Env after the change keeps only: `ADMIN_IDS`, `BOT_TOKEN`, `VPNCTL_URL`, `VPNCTL_TOKEN`, `PUBLIC_URL`, `WEBAPP_PATH`, `HTTP_ADDR`, `DB_PATH`, `REF_SECRET`, `LOG_LEVEL` (+ dev-only `LOCAL_DOMAIN`). `ADMIN_CHAT_ID` is removed (in Task 7; the bot keeps working with it until then).
+- Env after the change keeps only: `ADMIN_IDS`, `BOT_TOKEN`, `REMNACTL_URL`, `REMNACTL_TOKEN`, `PUBLIC_URL`, `WEBAPP_PATH`, `HTTP_ADDR`, `DB_PATH`, `REF_SECRET`, `LOG_LEVEL` (+ dev-only `LOCAL_DOMAIN`). `ADMIN_CHAT_ID` is removed (in Task 7; the bot keeps working with it until then).
 - No backward compatibility: the old env variables are simply dropped; the dev database `data/bot.db` may be deleted (the `orders.admin_msg_id` column and `admin_prompts` table disappear from the schema).
 - Secrets: AES-GCM, key = HKDF-SHA256(`REF_SECRET`); no new env variable. Rotating `REF_SECRET` makes stored secrets unreadable — they load as empty and are listed in `lost`.
 - Admin routes live under `{WEBAPP_PATH}/api/admin/*`; admin = valid `initData` AND `telegramID ∈ ADMIN_IDS`; no panel-customer lookup on those routes.
@@ -86,8 +86,8 @@ import (
 	"strings"
 	"testing"
 
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/store"
+	"remna-control-bot/internal/config"
+	"remna-control-bot/internal/store"
 )
 
 func openDB(t *testing.T) *sql.DB {
@@ -278,7 +278,7 @@ var errCannotOpen = errors.New("settings: cannot decrypt a stored secret")
 type box struct{ aead cipher.AEAD }
 
 func newBox(secret string) (*box, error) {
-	key, err := hkdf.Key(sha256.New, []byte(secret), []byte("vpn-control-bot/settings"), "secrets-v1", 32)
+	key, err := hkdf.Key(sha256.New, []byte(secret), []byte("remna-control-bot/settings"), "secrets-v1", 32)
 	if err != nil {
 		return nil, err
 	}
@@ -343,7 +343,7 @@ import (
 	"strings"
 	"time"
 
-	"vpn-control-bot/internal/config"
+	"remna-control-bot/internal/config"
 )
 
 const (
@@ -860,7 +860,7 @@ import (
 	"slices"
 	"testing"
 
-	"vpn-control-bot/internal/settings"
+	"remna-control-bot/internal/settings"
 )
 
 func snapshot(secs ...settings.Section) settings.Snapshot {
@@ -1089,7 +1089,7 @@ func (y *YooKassa) Check(ctx context.Context) (string, error) {
 package payments
 
 import (
-	"vpn-control-bot/internal/settings"
+	"remna-control-bot/internal/settings"
 )
 
 // BuildInput is everything Build needs besides the settings themselves.
@@ -1179,7 +1179,7 @@ git commit -m "feat(payments): build the registry from settings; retire switched
   - `(*currency.Source).SetFallback(code string)`.
   - `notify.Conf{Interval time.Duration; Rules Rules}`; `Runner.Conf func() Conf` replaces `Runner.Interval`/`Runner.Rules`.
   - `webapp.Deps.PayMode` and `telegram.Deps.PayMode` become `func() config.PayMode`.
-  - `config.Config` keeps: `BotToken, VpnctlURL, VpnctlToken, PublicURL, WebAppPath, HTTPAddr, DBPath, LogLevel, RefSecret, AdminChatID (until Task 7), AdminIDs`.
+  - `config.Config` keeps: `BotToken, RemnactlURL, RemnactlToken, PublicURL, WebAppPath, HTTPAddr, DBPath, LogLevel, RefSecret, AdminChatID (until Task 7), AdminIDs`.
 
 - [ ] **Step 1: Failing test for `orders.Live`**
 
@@ -1193,7 +1193,7 @@ import (
 	"sync"
 	"testing"
 
-	"vpn-control-bot/internal/payments"
+	"remna-control-bot/internal/payments"
 )
 
 type stubProvider struct{ id string }
@@ -1251,8 +1251,8 @@ package orders
 import (
 	"time"
 
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/payments"
+	"remna-control-bot/internal/config"
+	"remna-control-bot/internal/payments"
 )
 
 // Live is the part of the configuration admins change while the bot runs.
@@ -1293,7 +1293,7 @@ In `internal/orders/service.go` replace the struct head:
 type Service struct {
 	DB     *sql.DB
 	Chats  ChatStates
-	API    vpnctl.Client
+	API    remnactl.Client
 	Notify Notifier
 	Now    func() time.Time
 	Log    *slog.Logger
@@ -1341,11 +1341,11 @@ git commit -m "refactor(orders): read pay mode, manual details, TTL and provider
 
 - [ ] **Step 5: `access` takes the mode as a function**
 
-In `internal/access/access.go`: field `mode func() config.Mode`; `func New(api vpnctl.Client, codec *refcode.Codec, mode func() config.Mode, state State) *Service`; the two comparisons `s.mode == config.ModeClosed` become `s.mode() == config.ModeClosed`. In `access_test.go` change `setup`:
+In `internal/access/access.go`: field `mode func() config.Mode`; `func New(api remnactl.Client, codec *refcode.Codec, mode func() config.Mode, state State) *Service`; the two comparisons `s.mode == config.ModeClosed` become `s.mode() == config.ModeClosed`. In `access_test.go` change `setup`:
 
 ```go
-func setup(mode config.Mode) (*Service, *vpnctl.Fake, memState) {
-	f := vpnctl.NewFake()
+func setup(mode config.Mode) (*Service, *remnactl.Fake, memState) {
+	f := remnactl.NewFake()
 	st := memState{}
 	return New(f, codec, func() config.Mode { return mode }, st), f, st
 }
@@ -1428,7 +1428,7 @@ type Conf struct {
 const tick = time.Minute
 
 type Runner struct {
-	API   vpnctl.Client
+	API   remnactl.Client
 	Store Sent
 	Send  func(ctx context.Context, n Notice) error
 	Conf  func() Conf
@@ -1497,8 +1497,8 @@ const (
 
 type Config struct {
 	BotToken    string
-	VpnctlURL   string
-	VpnctlToken string
+	RemnactlURL   string
+	RemnactlToken string
 	PublicURL   string
 	WebAppPath  string // "" or "/x[/y]", no trailing slash
 	HTTPAddr    string
@@ -1526,8 +1526,8 @@ func load(get func(string) string) (Config, error) {
 	}
 	c := Config{
 		BotToken:    or("BOT_TOKEN", ""),
-		VpnctlURL:   strings.TrimRight(or("VPNCTL_URL", ""), "/"),
-		VpnctlToken: or("VPNCTL_TOKEN", ""),
+		RemnactlURL:   strings.TrimRight(or("REMNACTL_URL", ""), "/"),
+		RemnactlToken: or("REMNACTL_TOKEN", ""),
 		PublicURL:   strings.TrimRight(or("PUBLIC_URL", ""), "/"),
 		WebAppPath:  normPath(or("WEBAPP_PATH", "/bot")),
 		HTTPAddr:    or("HTTP_ADDR", ":8090"),
@@ -1536,7 +1536,7 @@ func load(get func(string) string) (Config, error) {
 		RefSecret:   or("REF_SECRET", ""),
 	}
 	for _, r := range []struct{ k, v string }{
-		{"BOT_TOKEN", c.BotToken}, {"VPNCTL_URL", c.VpnctlURL}, {"VPNCTL_TOKEN", c.VpnctlToken},
+		{"BOT_TOKEN", c.BotToken}, {"REMNACTL_URL", c.RemnactlURL}, {"REMNACTL_TOKEN", c.RemnactlToken},
 		{"PUBLIC_URL", c.PublicURL}, {"REF_SECRET", c.RefSecret},
 	} {
 		if r.v == "" {
@@ -1585,7 +1585,7 @@ import (
 func env(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
 
 func base() map[string]string {
-	return map[string]string{"BOT_TOKEN": "t", "VPNCTL_URL": "http://p/", "VPNCTL_TOKEN": "x", "PUBLIC_URL": "https://b.example/", "REF_SECRET": "s"}
+	return map[string]string{"BOT_TOKEN": "t", "REMNACTL_URL": "http://p/", "REMNACTL_TOKEN": "x", "PUBLIC_URL": "https://b.example/", "REF_SECRET": "s"}
 }
 
 func TestLoadDefaults(t *testing.T) {
@@ -1593,7 +1593,7 @@ func TestLoadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.VpnctlURL != "http://p" || c.PublicURL != "https://b.example" || c.WebAppPath != "/bot" || c.HTTPAddr != ":8090" ||
+	if c.RemnactlURL != "http://p" || c.PublicURL != "https://b.example" || c.WebAppPath != "/bot" || c.HTTPAddr != ":8090" ||
 		c.DBPath != "/data/bot.db" || c.LogLevel != "info" || len(c.AdminIDs) != 0 {
 		t.Fatalf("defaults: %+v", c)
 	}
@@ -1603,7 +1603,7 @@ func TestLoadDefaults(t *testing.T) {
 }
 
 func TestLoadRequired(t *testing.T) {
-	for _, k := range []string{"BOT_TOKEN", "VPNCTL_URL", "VPNCTL_TOKEN", "PUBLIC_URL", "REF_SECRET"} {
+	for _, k := range []string{"BOT_TOKEN", "REMNACTL_URL", "REMNACTL_TOKEN", "PUBLIC_URL", "REF_SECRET"} {
 		m := base()
 		delete(m, k)
 		if _, err := load(env(m)); err == nil || !strings.Contains(err.Error(), k) {
@@ -1685,20 +1685,20 @@ import (
 	"syscall"
 	"time"
 
-	"vpn-control-bot/internal/access"
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/currency"
-	"vpn-control-bot/internal/notify"
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/payments"
-	"vpn-control-bot/internal/refcode"
-	"vpn-control-bot/internal/settings"
-	"vpn-control-bot/internal/store"
-	"vpn-control-bot/internal/telegram"
-	"vpn-control-bot/internal/telegram/view"
-	"vpn-control-bot/internal/vpnctl"
-	"vpn-control-bot/internal/webapp"
-	"vpn-control-bot/web"
+	"remna-control-bot/internal/access"
+	"remna-control-bot/internal/config"
+	"remna-control-bot/internal/currency"
+	"remna-control-bot/internal/notify"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/payments"
+	"remna-control-bot/internal/refcode"
+	"remna-control-bot/internal/settings"
+	"remna-control-bot/internal/store"
+	"remna-control-bot/internal/telegram"
+	"remna-control-bot/internal/telegram/view"
+	"remna-control-bot/internal/remnactl"
+	"remna-control-bot/internal/webapp"
+	"remna-control-bot/web"
 )
 
 func main() {
@@ -1733,7 +1733,7 @@ func run() error {
 		log.Warn("stored secrets cannot be decrypted (REF_SECRET changed?): re-enter them in the admin settings", "section", k)
 	}
 
-	api := vpnctl.New(cfg.VpnctlURL, cfg.VpnctlToken)
+	api := remnactl.New(cfg.RemnactlURL, cfg.RemnactlToken)
 	cur := &currency.Source{API: api, Log: log, OnChange: view.SetCurrency}
 	cur.SetFallback(fallbackCurrency(set.Snapshot()))
 	base := cur.Get(ctx) // resolves once at startup: with the panel down the fallback is used and a warning is logged
@@ -2127,15 +2127,15 @@ import (
 	"strings"
 	"testing"
 
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/settings"
-	"vpn-control-bot/internal/store"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/settings"
+	"remna-control-bot/internal/store"
+	"remna-control-bot/internal/remnactl"
 )
 
 const adminID = 900 // an admin who is not a panel customer
 
-func adminApp(t *testing.T) (*Deps, *vpnctl.Fake) {
+func adminApp(t *testing.T) (*Deps, *remnactl.Fake) {
 	t.Helper()
 	f := ordersFake()
 	d := app(f)
@@ -2154,7 +2154,7 @@ func adminApp(t *testing.T) (*Deps, *vpnctl.Fake) {
 }
 
 // pending creates a top-up order of 100 for customer 5 (telegram 77) and hands it to the admins.
-func pending(t *testing.T, d *Deps, f *vpnctl.Fake) string {
+func pending(t *testing.T, d *Deps, f *remnactl.Fake) string {
 	t.Helper()
 	ctx := context.Background()
 	c, err := f.GetCustomer(ctx, 5)
@@ -2334,7 +2334,7 @@ Run: `go test ./internal/webapp/ 2>&1 | head` → FAIL (undefined `Settings`, `I
 
 - [ ] **Step 2: Split authentication in `server.go`**
 
-Add imports `"vpn-control-bot/internal/settings"` and `"context"`/`"io"` as needed. Add to `Deps`:
+Add imports `"remna-control-bot/internal/settings"` and `"context"`/`"io"` as needed. Add to `Deps`:
 
 ```go
 	Settings    *settings.Store
@@ -2395,11 +2395,11 @@ func (s *server) initAuth(c *fiber.Ctx) error {
 	return c.Next()
 }
 
-// customerAuth resolves the caller to their vpn-control customer.
+// customerAuth resolves the caller to their remna-control customer.
 func (s *server) customerAuth(c *fiber.Ctx) error {
 	cu, err := s.API.LookupByTelegram(c.UserContext(), c.Locals("tg").(int64))
 	switch {
-	case errors.Is(err, vpnctl.ErrNotFound):
+	case errors.Is(err, remnactl.ErrNotFound):
 		return fail(c, fiber.StatusForbidden, "no_access")
 	case err != nil:
 		s.Log.Error("webapp lookup", "err", err)
@@ -2436,10 +2436,10 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/payments"
-	"vpn-control-bot/internal/settings"
-	"vpn-control-bot/internal/webapp/initdata"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/payments"
+	"remna-control-bot/internal/settings"
+	"remna-control-bot/internal/webapp/initdata"
 )
 
 // ReceiptSource streams a receipt file kept at Telegram (*telegram.Bot).
@@ -3649,9 +3649,9 @@ import (
 	"sync"
 	"testing"
 
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/store"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/store"
+	"remna-control-bot/internal/remnactl"
 )
 
 // fakeTelegram answers the Bot API: chat 2 is an admin who never started the bot.
@@ -3670,7 +3670,7 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Unlock()
 	switch {
 	case method == "getMe":
-		io.WriteString(w, `{"ok":true,"result":{"id":1,"is_bot":true,"first_name":"b","username":"vpnbot"}}`)
+		io.WriteString(w, `{"ok":true,"result":{"id":1,"is_bot":true,"first_name":"b","username":"remnabot"}}`)
 	case (method == "sendMessage" || method == "editMessageText") && chat == 2:
 		w.WriteHeader(403)
 		io.WriteString(w, `{"ok":false,"error_code":403,"description":"Forbidden: bot can't initiate conversation with a user"}`)
@@ -3706,7 +3706,7 @@ func newCardBot(t *testing.T) (*Bot, *fakeTelegram, *store.Store) {
 	}
 	t.Cleanup(func() { st.Close() })
 	b, err := New(context.Background(), "123:ABC", Deps{
-		API: vpnctl.NewFake(), WebAppURL: "https://x/bot", Admins: []int64{1, 2, 3}, Notices: st, APIBase: srv.URL,
+		API: remnactl.NewFake(), WebAppURL: "https://x/bot", Admins: []int64{1, 2, 3}, Notices: st, APIBase: srv.URL,
 		IsAdmin: func(id int64) bool { return id >= 1 && id <= 3 },
 		Log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
@@ -3838,8 +3838,8 @@ import (
 	tgbot "github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/telegram/view"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/telegram/view"
 )
 
 var (
@@ -4011,9 +4011,9 @@ Replace the whole file with (keeping the existing comments' tone):
 ```
 # Telegram bot token from @BotFather
 BOT_TOKEN=
-# vpn-control base URL and an API token created with the "bot" preset
-VPNCTL_URL=http://vpn-control:8080
-VPNCTL_TOKEN=
+# remna-control base URL and an API token created with the "bot" preset
+REMNACTL_URL=http://vpn-control:8080
+REMNACTL_TOKEN=
 # Public origin where the WebApp is served; WEBAPP_PATH is appended.
 # Payment providers send webhooks to PUBLIC_URL/pay/<provider>, so it must be https and reachable.
 PUBLIC_URL=https://control.example.com

@@ -13,7 +13,7 @@ do not want to set up providers. Providers later plug into the same order core.
 
 ## Decisions
 
-- **The panel needs no new endpoints.** Everything exists in vpn-control `/api/v1`; only the `bot` token preset grows.
+- **The panel needs no new endpoints.** Everything exists in remna-control `/api/v1`; only the `bot` token preset grows.
 - **Orders live in the bot's SQLite** — the order lifecycle is the bot's concern. The panel only receives the
   final payment via `customers:pay`, with `note = "bot order #N"`.
 - **Admins:** one `ADMIN_CHAT_ID` (private chat or group) receives cards; only Telegram ids in `ADMIN_IDS` may press their buttons.
@@ -22,7 +22,7 @@ do not want to set up providers. Providers later plug into the same order core.
 - **Reject** asks for a reason (or "no reason"). **Admin may correct the received amount.**
 - **Price is fixed at order creation**, computed server-side; never taken from the client, not recomputed on approval.
 
-## Panel (vpn-control) change
+## Panel (remna-control) change
 
 `web/src/components/api-tokens/modals/create-api-token-modal.tsx` — `BOT_PRESET_KEYS` adds:
 `items:quote`, `items:extend`, `items:tariff_quote`, `items:tariff`, `customers:payment_preview`, `customers:pay`,
@@ -165,9 +165,9 @@ UI: subscription card "Продлить" → period → pay screen; tariffs "П�
 
 ## Testing
 
-- `orders`: transition table, `ErrStateChanged` on races, Fulfill per Kind on `vpnctl.Fake`, partial failure + retry, amount correction both branches, quote per Kind incl. Split modes.
+- `orders`: transition table, `ErrStateChanged` on races, Fulfill per Kind on `remnactl.Fake`, partial failure + retry, amount correction both branches, quote per Kind incl. Split modes.
 - `store`: orders and chat_state CRUD, expiry query.
-- `vpnctl`: httptest for the new methods (DTO mapping, major units).
+- `remnactl`: httptest for the new methods (DTO mapping, major units).
 - `telegram/view`: golden tests for pay screen, admin card variants, notifications, history.
 - `telegram`: non-admin callback rejected; receipt routing by `chat_state`.
 - `webapp`: `/api/orders*` handlers incl. ownership checks.

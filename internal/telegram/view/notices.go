@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"vpn-control-bot/internal/i18n"
-	"vpn-control-bot/internal/notify"
+	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/notify"
 )
 
 // TrafficAlert: the limit is nearly used up — when it resets and which

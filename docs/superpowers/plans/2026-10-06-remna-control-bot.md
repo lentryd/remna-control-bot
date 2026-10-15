@@ -1,22 +1,22 @@
-# vpn-control-bot Implementation Plan
+# remna-control-bot Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A Telegram bot + Telegram WebApp for vpn-control customers: open/closed access with referral and subscription-link onboarding, read-only views of subscriptions, add-ons, balance, invitees and tariffs.
+**Goal:** A Telegram bot + Telegram WebApp for remna-control customers: open/closed access with referral and subscription-link onboarding, read-only views of subscriptions, add-ons, balance, invitees and tariffs.
 
-**Architecture:** One Go process (one container): go-telegram/bot long polling + a Fiber HTTP server that serves the embedded WebApp and its JSON API under `WEBAPP_PATH`. All business data comes from the vpn-control public API (`/api/v1`, bearer token); the bot's own SQLite only keeps "waiting for a subscription link" state. Pure packages (`refcode`, `sublink`, `profile`, `access`, `telegram/view`, `webapp/initdata`) carry the logic and the tests; `telegram` and `webapp` are thin adapters.
+**Architecture:** One Go process (one container): go-telegram/bot long polling + a Fiber HTTP server that serves the embedded WebApp and its JSON API under `WEBAPP_PATH`. All business data comes from the remna-control public API (`/api/v1`, bearer token); the bot's own SQLite only keeps "waiting for a subscription link" state. Pure packages (`refcode`, `sublink`, `profile`, `access`, `telegram/view`, `webapp/initdata`) carry the logic and the tests; `telegram` and `webapp` are thin adapters.
 
 **Tech Stack:** Go 1.26.4, `github.com/go-telegram/bot` v1.23.0, `github.com/gofiber/fiber/v2`, `modernc.org/sqlite`, `log/slog`; WebApp: Bun, React 19, TypeScript, Mantine 9, TanStack Query, react-router 7 (HashRouter), i18next, `@tabler/icons-react`, Geist, dayjs (versions copied from `../vpn-control/web/package.json`); Docker (multi-stage), traefik v3, mkcert.
 
-**Spec:** `docs/superpowers/specs/2026-10-06-vpn-control-bot-design.md`
+**Spec:** `docs/superpowers/specs/2026-10-06-remna-control-bot-design.md`
 
 ## Global Constraints
 
-- Go module name `vpn-control-bot`, `go 1.26.4`; no CGO (`CGO_ENABLED=0`), SQLite via `modernc.org/sqlite`.
+- Go module name `remna-control-bot`, `go 1.26.4`; no CGO (`CGO_ENABLED=0`), SQLite via `modernc.org/sqlite`.
 - Single process, single container; no releases/CI — built from `Dockerfile` / `compose.yml` / `compose.dev.yml` (never `docker-compose*`).
-- ENV: `BOT_TOKEN`*, `BOT_MODE` (`open`|`closed`, default `closed`), `VPNCTL_URL`*, `VPNCTL_TOKEN`*, `PUBLIC_URL`*, `WEBAPP_PATH` (default `/bot`), `HTTP_ADDR` (default `:8090`), `DB_PATH` (default `/data/bot.db`), `LOG_LEVEL` (default `info`), `REF_SECRET`* (* = required).
+- ENV: `BOT_TOKEN`*, `BOT_MODE` (`open`|`closed`, default `closed`), `REMNACTL_URL`*, `REMNACTL_TOKEN`*, `PUBLIC_URL`*, `WEBAPP_PATH` (default `/bot`), `HTTP_ADDR` (default `:8090`), `DB_PATH` (default `/data/bot.db`), `LOG_LEVEL` (default `info`), `REF_SECRET`* (* = required).
 - WebApp URL = `PUBLIC_URL + WEBAPP_PATH`.
-- vpn-control is used only through `/api/v1` with `Authorization: Bearer <token>`; the only change in that repo is a "bot" token preset (Task 15).
+- remna-control is used only through `/api/v1` with `Authorization: Bearer <token>`; the only change in that repo is a "bot" token preset (Task 15).
 - `customers:update` is a full PUT: always GET the customer, change `telegram_id`, PUT every field back.
 - Referral payload format: `/start ref_<code>`, `<code>` from `refcode`, `[0-9A-Za-z]`, no storage.
 - Admin fields `notes`, `contact`, `referral_percent` and ledger notes never reach the WebApp or bot screens.
@@ -42,9 +42,9 @@ cmd/bot/main.go                     wiring, graceful shutdown
 internal/config/config.go(+_test)   ENV → Config
 internal/refcode/refcode.go(+_test) id ⇄ code
 internal/sublink/sublink.go(+_test) link → short_uuid
-internal/vpnctl/types.go            DTOs mirrored from vpn-control
-internal/vpnctl/client.go(+_test)   HTTP client
-internal/vpnctl/fake.go             in-memory Client for tests
+internal/remnactl/types.go            DTOs mirrored from remna-control
+internal/remnactl/client.go(+_test)   HTTP client
+internal/remnactl/fake.go             in-memory Client for tests
 internal/profile/profile.go(+_test) customer view model + tariffs + expiry state
 internal/store/store.go(+_test)     SQLite awaiting-link state
 internal/billing/billing.go         payments interface + NotImplemented
@@ -65,12 +65,12 @@ Dockerfile, compose.yml, compose.dev.yml, dev/traefik/*.yml, Makefile, .env.exam
 - Create: `go.mod`, `.gitignore`, `internal/config/config.go`, `internal/config/config_test.go`
 
 **Interfaces:**
-- Produces: `config.Mode` (`ModeOpen = "open"`, `ModeClosed = "closed"`), `config.Config{BotToken, Mode, VpnctlURL, VpnctlToken, PublicURL, WebAppPath, HTTPAddr, DBPath, LogLevel, RefSecret string/Mode}`, `func Load() (Config, error)`, `func (c Config) WebAppURL() string`.
+- Produces: `config.Mode` (`ModeOpen = "open"`, `ModeClosed = "closed"`), `config.Config{BotToken, Mode, RemnactlURL, RemnactlToken, PublicURL, WebAppPath, HTTPAddr, DBPath, LogLevel, RefSecret string/Mode}`, `func Load() (Config, error)`, `func (c Config) WebAppURL() string`.
 
 - [ ] **Step 1: Init module**
 
 ```bash
-go mod init vpn-control-bot
+go mod init remna-control-bot
 go mod edit -go=1.26.4
 ```
 
@@ -95,7 +95,7 @@ func env(m map[string]string) func(string) string { return func(k string) string
 
 func base() map[string]string {
 	return map[string]string{
-		"BOT_TOKEN": "t", "VPNCTL_URL": "http://p:8080", "VPNCTL_TOKEN": "x",
+		"BOT_TOKEN": "t", "REMNACTL_URL": "http://p:8080", "REMNACTL_TOKEN": "x",
 		"PUBLIC_URL": "https://vpn.example.com/", "REF_SECRET": "s",
 	}
 }
@@ -128,7 +128,7 @@ func TestWebAppPathNormalized(t *testing.T) {
 }
 
 func TestRequiredAndMode(t *testing.T) {
-	for _, k := range []string{"BOT_TOKEN", "VPNCTL_URL", "VPNCTL_TOKEN", "PUBLIC_URL", "REF_SECRET"} {
+	for _, k := range []string{"BOT_TOKEN", "REMNACTL_URL", "REMNACTL_TOKEN", "PUBLIC_URL", "REF_SECRET"} {
 		m := base()
 		delete(m, k)
 		if _, err := load(env(m)); err == nil {
@@ -171,8 +171,8 @@ const (
 type Config struct {
 	BotToken    string
 	Mode        Mode
-	VpnctlURL   string
-	VpnctlToken string
+	RemnactlURL   string
+	RemnactlToken string
 	PublicURL   string
 	WebAppPath  string // "" or "/x[/y]", no trailing slash
 	HTTPAddr    string
@@ -196,8 +196,8 @@ func load(get func(string) string) (Config, error) {
 	c := Config{
 		BotToken:    or("BOT_TOKEN", ""),
 		Mode:        Mode(or("BOT_MODE", string(ModeClosed))),
-		VpnctlURL:   strings.TrimRight(or("VPNCTL_URL", ""), "/"),
-		VpnctlToken: or("VPNCTL_TOKEN", ""),
+		RemnactlURL:   strings.TrimRight(or("REMNACTL_URL", ""), "/"),
+		RemnactlToken: or("REMNACTL_TOKEN", ""),
 		PublicURL:   strings.TrimRight(or("PUBLIC_URL", ""), "/"),
 		WebAppPath:  normPath(or("WEBAPP_PATH", "/bot")),
 		HTTPAddr:    or("HTTP_ADDR", ":8090"),
@@ -206,7 +206,7 @@ func load(get func(string) string) (Config, error) {
 		RefSecret:   or("REF_SECRET", ""),
 	}
 	for k, v := range map[string]string{
-		"BOT_TOKEN": c.BotToken, "VPNCTL_URL": c.VpnctlURL, "VPNCTL_TOKEN": c.VpnctlToken,
+		"BOT_TOKEN": c.BotToken, "REMNACTL_URL": c.RemnactlURL, "REMNACTL_TOKEN": c.RemnactlToken,
 		"PUBLIC_URL": c.PublicURL, "REF_SECRET": c.RefSecret,
 	} {
 		if v == "" {
@@ -494,10 +494,10 @@ func Parse(s string) (string, bool) {
 
 ---
 
-### Task 4: vpn-control API client (`internal/vpnctl`)
+### Task 4: remna-control API client (`internal/remnactl`)
 
 **Files:**
-- Create: `internal/vpnctl/types.go`, `internal/vpnctl/client.go`, `internal/vpnctl/client_test.go`, `internal/vpnctl/fake.go`
+- Create: `internal/remnactl/types.go`, `internal/remnactl/client.go`, `internal/remnactl/client_test.go`, `internal/remnactl/fake.go`
 
 **Interfaces:**
 - Produces:
@@ -506,14 +506,14 @@ func Parse(s string) (string, bool) {
   - Types `Customer`, `Referee`, `Accrual`, `LedgerEntry`, `Subscription`, `Addon`, `RwUser`, `Tariff`, `Period`, `CustomerInput`; `func (c *Customer) Input() CustomerInput`.
   - `func New(baseURL, token string) *HTTPClient`; `func NewFake() *Fake` with `Add(Customer) *Customer`, fields `Tariffs []Tariff`, `Updates []Update` (`Update{ID int; In CustomerInput}`), `Creates []CustomerInput`, `Err error` (returned by every call when set).
 
-- [ ] **Step 1: Types** — `internal/vpnctl/types.go` (JSON names copied from `../vpn-control/internal/api/handlers/{customers,views,tariffs}.go`)
+- [ ] **Step 1: Types** — `internal/remnactl/types.go` (JSON names copied from `../vpn-control/internal/api/handlers/{customers,views,tariffs}.go`)
 
 ```go
-package vpnctl
+package remnactl
 
 import "time"
 
-// Customer mirrors vpn-control's CustomerDetail (only the fields the bot uses).
+// Customer mirrors remna-control's CustomerDetail (only the fields the bot uses).
 type Customer struct {
 	ID              int        `json:"id"`
 	Name            string     `json:"name"`
@@ -610,7 +610,7 @@ type Period struct {
 	Price  float64 `json:"price"`
 }
 
-// CustomerInput is vpn-control's customerInput. PUT replaces every field.
+// CustomerInput is remna-control's customerInput. PUT replaces every field.
 type CustomerInput struct {
 	Name            string   `json:"name"`
 	Contact         string   `json:"contact"`
@@ -631,10 +631,10 @@ func (c *Customer) Input() CustomerInput {
 }
 ```
 
-- [ ] **Step 2: Write the failing test** — `internal/vpnctl/client_test.go`
+- [ ] **Step 2: Write the failing test** — `internal/remnactl/client_test.go`
 
 ```go
-package vpnctl
+package remnactl
 
 import (
 	"context"
@@ -721,13 +721,13 @@ func TestCreateAndUpdate(t *testing.T) {
 }
 ```
 
-- [ ] **Step 3: Run** `go test ./internal/vpnctl/` — Expected: FAIL (`undefined: New`).
+- [ ] **Step 3: Run** `go test ./internal/remnactl/` — Expected: FAIL (`undefined: New`).
 
-- [ ] **Step 4: Implement** — `internal/vpnctl/client.go`
+- [ ] **Step 4: Implement** — `internal/remnactl/client.go`
 
 ```go
-// Package vpnctl is a client for vpn-control's public API (/api/v1).
-package vpnctl
+// Package remnactl is a client for remna-control's public API (/api/v1).
+package remnactl
 
 import (
 	"bytes"
@@ -744,8 +744,8 @@ import (
 )
 
 var (
-	ErrNotFound    = errors.New("vpnctl: not found")
-	ErrUnavailable = errors.New("vpnctl: panel unavailable")
+	ErrNotFound    = errors.New("remnactl: not found")
+	ErrUnavailable = errors.New("remnactl: panel unavailable")
 )
 
 type Client interface {
@@ -757,7 +757,7 @@ type Client interface {
 	ListTariffs(ctx context.Context) ([]Tariff, error)
 }
 
-// APIError is a non-2xx answer; vpn-control sends {"message","code"}.
+// APIError is a non-2xx answer; remna-control sends {"message","code"}.
 type APIError struct {
 	Status  int
 	Code    string
@@ -765,7 +765,7 @@ type APIError struct {
 }
 
 func (e *APIError) Error() string {
-	return fmt.Sprintf("vpnctl: %d %s %s", e.Status, e.Code, e.Message)
+	return fmt.Sprintf("remnactl: %d %s %s", e.Status, e.Code, e.Message)
 }
 
 func (e *APIError) Is(target error) bool {
@@ -863,10 +863,10 @@ func (c *HTTPClient) do(ctx context.Context, method, path string, body, out any)
 }
 ```
 
-- [ ] **Step 5: Fake** — `internal/vpnctl/fake.go` (used by `access` and `webapp` tests)
+- [ ] **Step 5: Fake** — `internal/remnactl/fake.go` (used by `access` and `webapp` tests)
 
 ```go
-package vpnctl
+package remnactl
 
 import (
 	"context"
@@ -874,7 +874,7 @@ import (
 	"sync"
 )
 
-// Fake is an in-memory Client that behaves like vpn-control's lookup rules.
+// Fake is an in-memory Client that behaves like remna-control's lookup rules.
 type Fake struct {
 	mu        sync.Mutex
 	customers map[int]*Customer
@@ -1006,9 +1006,9 @@ func apply(c *Customer, in CustomerInput) {
 }
 ```
 
-- [ ] **Step 6: Run** `go test ./internal/vpnctl/` — Expected: PASS.
+- [ ] **Step 6: Run** `go test ./internal/remnactl/` — Expected: PASS.
 
-- [ ] **Step 7: Commit** `git add internal/vpnctl && git commit -m "feat: vpn-control API client and fake"`
+- [ ] **Step 7: Commit** `git add internal/remnactl && git commit -m "feat: remna-control API client and fake"`
 
 ---
 
@@ -1018,15 +1018,15 @@ func apply(c *Customer, in CustomerInput) {
 - Create: `internal/profile/profile.go`, `internal/profile/profile_test.go`
 
 **Interfaces:**
-- Consumes: `vpnctl.Customer`, `vpnctl.Tariff`.
+- Consumes: `remnactl.Customer`, `remnactl.Tariff`.
 - Produces:
   - `type Profile struct{ ID int; Name string; Balance, BalanceOwn, BalanceReferral, Monthly float64; NearestExpireAt *time.Time; Subscriptions []Subscription; Ledger []LedgerEntry; Referrals []Referral; ReferralsEarned float64; RefLink string }` (JSON snake_case, see code).
   - `type Subscription struct{ ID int; Title, Tariff string; Price float64; Status string; ExpireAt *time.Time; Unlimited bool; UsedBytes, LimitBytes int64; DeviceLimit *int; URL string; Addons []Addon }`
   - `type Addon struct{ ID int; Name, Tariff string; Price float64; Included bool; Status string; ExpireAt *time.Time; Unlimited bool; UsedBytes, LimitBytes int64 }`
   - `type LedgerEntry struct{ Type string; Amount float64; Date time.Time }`
   - `type Referral struct{ Name string; Active bool; Monthly, TotalPaid, Earned float64 }`
-  - `func Build(c *vpnctl.Customer, refLink string) Profile`
-  - `type Tariff struct{ ID int; Kind, Name, Description, AddonName string; MonthlyPrice float64; TrafficLimitBytes int64; HwidLimit *int; Periods []vpnctl.Period }`, `func Tariffs(in []vpnctl.Tariff) []Tariff` (active only; base first, then by `SortOrder`, then name).
+  - `func Build(c *remnactl.Customer, refLink string) Profile`
+  - `type Tariff struct{ ID int; Kind, Name, Description, AddonName string; MonthlyPrice float64; TrafficLimitBytes int64; HwidLimit *int; Periods []remnactl.Period }`, `func Tariffs(in []remnactl.Tariff) []Tariff` (active only; base first, then by `SortOrder`, then name).
   - `type State int` (`StateNone`, `StateActive`, `StateSoon`, `StateExpired`), `func Expiry(exp *time.Time, unlimited bool, now time.Time) State` (soon = < 72h left).
 
 - [ ] **Step 1: Write the failing test**
@@ -1040,23 +1040,23 @@ import (
 	"testing"
 	"time"
 
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/remnactl"
 )
 
 func ptr[T any](v T) *T { return &v }
 
 func TestBuild(t *testing.T) {
 	d1 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	c := &vpnctl.Customer{
+	c := &remnactl.Customer{
 		ID: 1, Name: "Ann", Notes: "SECRET-NOTE", Contact: "SECRET-CONTACT", Balance: 10,
-		Subscriptions: []vpnctl.Subscription{
-			{ID: 1, Title: "Main", TariffName: "Std", RwUser: &vpnctl.RwUser{SubscriptionURL: "https://s/a", Status: "ACTIVE"},
-				Addons: []vpnctl.Addon{{ID: 3, AddonName: "YouTube", RwUser: &vpnctl.RwUser{Status: "ACTIVE"}}}},
-			{ID: 2, Title: "Gone", RwUser: &vpnctl.RwUser{Deleted: true}},
+		Subscriptions: []remnactl.Subscription{
+			{ID: 1, Title: "Main", TariffName: "Std", RwUser: &remnactl.RwUser{SubscriptionURL: "https://s/a", Status: "ACTIVE"},
+				Addons: []remnactl.Addon{{ID: 3, AddonName: "YouTube", RwUser: &remnactl.RwUser{Status: "ACTIVE"}}}},
+			{ID: 2, Title: "Gone", RwUser: &remnactl.RwUser{Deleted: true}},
 		},
-		Ledger: []vpnctl.LedgerEntry{{Type: "payment", Amount: 100, Date: d1, Note: "SECRET-LEDGER"}, {Type: "charge", Amount: -50, Date: d1.AddDate(0, 1, 0)}},
-		Referrals: []vpnctl.Referee{{ID: 7, Name: "Bob", TotalPaid: 300}, {ID: 8, Name: "Eve", Archived: true}},
-		Accruals: []vpnctl.Accrual{
+		Ledger: []remnactl.LedgerEntry{{Type: "payment", Amount: 100, Date: d1, Note: "SECRET-LEDGER"}, {Type: "charge", Amount: -50, Date: d1.AddDate(0, 1, 0)}},
+		Referrals: []remnactl.Referee{{ID: 7, Name: "Bob", TotalPaid: 300}, {ID: 8, Name: "Eve", Archived: true}},
+		Accruals: []remnactl.Accrual{
 			{ReferrerID: 1, RefereeID: 7, Amount: 30}, {ReferrerID: 1, RefereeID: 7, Amount: 15},
 			{ReferrerID: 1, RefereeID: 8, Amount: 50}, {ReferrerID: 99, RefereeID: 1, Amount: 1000},
 		},
@@ -1081,7 +1081,7 @@ func TestBuild(t *testing.T) {
 }
 
 func TestTariffs(t *testing.T) {
-	got := Tariffs([]vpnctl.Tariff{
+	got := Tariffs([]remnactl.Tariff{
 		{ID: 1, Kind: "addon", Name: "A", Active: true},
 		{ID: 2, Kind: "base", Name: "B", Active: true, SortOrder: 2},
 		{ID: 3, Kind: "base", Name: "C", Active: false},
@@ -1130,7 +1130,7 @@ import (
 	"sort"
 	"time"
 
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/remnactl"
 )
 
 type Profile struct {
@@ -1190,7 +1190,7 @@ type Referral struct {
 	Earned    float64 `json:"earned"`
 }
 
-func Build(c *vpnctl.Customer, refLink string) Profile {
+func Build(c *remnactl.Customer, refLink string) Profile {
 	p := Profile{
 		ID: c.ID, Name: c.Name, Balance: c.Balance, BalanceOwn: c.BalanceOwn, BalanceReferral: c.BalanceReferral,
 		Monthly: c.Monthly, NearestExpireAt: c.NearestExpireAt, RefLink: refLink,
@@ -1246,10 +1246,10 @@ type Tariff struct {
 	MonthlyPrice      float64         `json:"monthly_price"`
 	TrafficLimitBytes int64           `json:"traffic_limit_bytes"`
 	HwidLimit         *int            `json:"hwid_limit"`
-	Periods           []vpnctl.Period `json:"periods"`
+	Periods           []remnactl.Period `json:"periods"`
 }
 
-func Tariffs(in []vpnctl.Tariff) []Tariff {
+func Tariffs(in []remnactl.Tariff) []Tariff {
 	out := []Tariff{}
 	for _, t := range in {
 		if !t.Active {
@@ -1365,7 +1365,7 @@ func TestAwaitingLink(t *testing.T) {
 
 ```go
 // Package store keeps the bot's own state: who is expected to send a
-// subscription link. Customer data lives in vpn-control.
+// subscription link. Customer data lives in remna-control.
 package store
 
 import (
@@ -1463,17 +1463,17 @@ func (NotImplemented) Pay(context.Context, int, Item) error            { return 
 - Create: `internal/access/access.go`, `internal/access/access_test.go`
 
 **Interfaces:**
-- Consumes: `vpnctl.Client`, `vpnctl.ErrNotFound`, `refcode.Codec`, `sublink.Parse`, `config.Mode`.
+- Consumes: `remnactl.Client`, `remnactl.ErrNotFound`, `refcode.Codec`, `sublink.Parse`, `config.Mode`.
 - Produces:
   - `type User struct{ ID int64; Name string }`
   - `type Outcome int` with `Member, Created, NeedLink, BadReferral, Archived, Linked, BadLink, NotFound, Taken`
-  - `type Result struct{ Outcome Outcome; Customer *vpnctl.Customer }` (`Customer` set for `Member`, `Created`, `Linked`, `Archived`)
+  - `type Result struct{ Outcome Outcome; Customer *remnactl.Customer }` (`Customer` set for `Member`, `Created`, `Linked`, `Archived`)
   - `type State interface{ SetAwaitingLink(ctx, int64, bool) error; AwaitingLink(ctx, int64) (bool, error) }` (satisfied by `*store.Store`)
-  - `func New(api vpnctl.Client, codec *refcode.Codec, mode config.Mode, state State) *Service`
+  - `func New(api remnactl.Client, codec *refcode.Codec, mode config.Mode, state State) *Service`
   - `(*Service).Start(ctx, u User, payload string) (Result, error)` — used for `/start` and for every other update with `payload == ""`.
   - `(*Service).Link(ctx, u User, text string) (Result, error)`
   - `(*Service).AwaitingLink(ctx, tgID int64) (bool, error)`
-  - Errors other than "not found" (e.g. `vpnctl.ErrUnavailable`) are returned unchanged.
+  - Errors other than "not found" (e.g. `remnactl.ErrUnavailable`) are returned unchanged.
 
 - [ ] **Step 1: Write the failing test** — `internal/access/access_test.go`
 
@@ -1485,9 +1485,9 @@ import (
 	"errors"
 	"testing"
 
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/refcode"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/config"
+	"remna-control-bot/internal/refcode"
+	"remna-control-bot/internal/remnactl"
 )
 
 type memState map[int64]bool
@@ -1499,8 +1499,8 @@ func ptr[T any](v T) *T { return &v }
 
 var codec = refcode.New("s")
 
-func setup(mode config.Mode) (*Service, *vpnctl.Fake, memState) {
-	f := vpnctl.NewFake()
+func setup(mode config.Mode) (*Service, *remnactl.Fake, memState) {
+	f := remnactl.NewFake()
 	st := memState{}
 	return New(f, codec, mode, st), f, st
 }
@@ -1511,30 +1511,30 @@ func TestStart(t *testing.T) {
 	type tc struct {
 		name     string
 		mode     config.Mode
-		seed     []vpnctl.Customer
+		seed     []remnactl.Customer
 		payload  string
 		want     Outcome
 		created  bool
 		referrer *int
 		awaiting bool
 	}
-	ref := vpnctl.Customer{ID: 10, Name: "Ref"}
-	archivedRef := vpnctl.Customer{ID: 11, Name: "Old", Archived: true}
-	member := vpnctl.Customer{ID: 20, Name: "Ann", TelegramID: ptr(int64(100))}
-	gone := vpnctl.Customer{ID: 21, Name: "Ann", TelegramID: ptr(int64(100)), Archived: true}
+	ref := remnactl.Customer{ID: 10, Name: "Ref"}
+	archivedRef := remnactl.Customer{ID: 11, Name: "Old", Archived: true}
+	member := remnactl.Customer{ID: 20, Name: "Ann", TelegramID: ptr(int64(100))}
+	gone := remnactl.Customer{ID: 21, Name: "Ann", TelegramID: ptr(int64(100)), Archived: true}
 	for _, c := range []tc{
-		{name: "member closed", mode: config.ModeClosed, seed: []vpnctl.Customer{member}, want: Member},
-		{name: "member ignores ref", mode: config.ModeOpen, seed: []vpnctl.Customer{member, ref}, payload: "ref_" + codec.Encode(10), want: Member},
-		{name: "archived member", mode: config.ModeOpen, seed: []vpnctl.Customer{gone}, want: Archived},
+		{name: "member closed", mode: config.ModeClosed, seed: []remnactl.Customer{member}, want: Member},
+		{name: "member ignores ref", mode: config.ModeOpen, seed: []remnactl.Customer{member, ref}, payload: "ref_" + codec.Encode(10), want: Member},
+		{name: "archived member", mode: config.ModeOpen, seed: []remnactl.Customer{gone}, want: Archived},
 		{name: "closed no payload", mode: config.ModeClosed, want: NeedLink, awaiting: true},
 		{name: "open no payload", mode: config.ModeOpen, want: Created, created: true},
-		{name: "closed valid ref", mode: config.ModeClosed, seed: []vpnctl.Customer{ref}, payload: "ref_" + codec.Encode(10), want: Created, created: true, referrer: ptr(10)},
-		{name: "open valid ref", mode: config.ModeOpen, seed: []vpnctl.Customer{ref}, payload: "ref_" + codec.Encode(10), want: Created, created: true, referrer: ptr(10)},
-		{name: "closed forged ref", mode: config.ModeClosed, seed: []vpnctl.Customer{ref}, payload: "ref_zzzzzz", want: BadReferral, awaiting: true},
+		{name: "closed valid ref", mode: config.ModeClosed, seed: []remnactl.Customer{ref}, payload: "ref_" + codec.Encode(10), want: Created, created: true, referrer: ptr(10)},
+		{name: "open valid ref", mode: config.ModeOpen, seed: []remnactl.Customer{ref}, payload: "ref_" + codec.Encode(10), want: Created, created: true, referrer: ptr(10)},
+		{name: "closed forged ref", mode: config.ModeClosed, seed: []remnactl.Customer{ref}, payload: "ref_zzzzzz", want: BadReferral, awaiting: true},
 		{name: "open forged ref", mode: config.ModeOpen, payload: "ref_zzzzzz", want: Created, created: true},
 		{name: "closed ref to missing", mode: config.ModeClosed, payload: "ref_" + codec.Encode(999), want: BadReferral, awaiting: true},
-		{name: "closed ref to archived", mode: config.ModeClosed, seed: []vpnctl.Customer{archivedRef}, payload: "ref_" + codec.Encode(11), want: BadReferral, awaiting: true},
-		{name: "open ref to archived", mode: config.ModeOpen, seed: []vpnctl.Customer{archivedRef}, payload: "ref_" + codec.Encode(11), want: Created, created: true},
+		{name: "closed ref to archived", mode: config.ModeClosed, seed: []remnactl.Customer{archivedRef}, payload: "ref_" + codec.Encode(11), want: BadReferral, awaiting: true},
+		{name: "open ref to archived", mode: config.ModeOpen, seed: []remnactl.Customer{archivedRef}, payload: "ref_" + codec.Encode(11), want: Created, created: true},
 		{name: "closed unknown payload", mode: config.ModeClosed, payload: "hello", want: NeedLink, awaiting: true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -1581,31 +1581,31 @@ func TestStartNameFallback(t *testing.T) {
 
 func TestStartUnavailable(t *testing.T) {
 	s, f, _ := setup(config.ModeOpen)
-	f.Err = vpnctl.ErrUnavailable
-	if _, err := s.Start(context.Background(), ann, ""); !errors.Is(err, vpnctl.ErrUnavailable) {
+	f.Err = remnactl.ErrUnavailable
+	if _, err := s.Start(context.Background(), ann, ""); !errors.Is(err, remnactl.ErrUnavailable) {
 		t.Fatalf("err = %v", err)
 	}
 }
 
-func withSub(c vpnctl.Customer, short string) vpnctl.Customer {
-	c.Subscriptions = []vpnctl.Subscription{{ID: 1, RwUser: &vpnctl.RwUser{ShortUUID: short}}}
+func withSub(c remnactl.Customer, short string) remnactl.Customer {
+	c.Subscriptions = []remnactl.Subscription{{ID: 1, RwUser: &remnactl.RwUser{ShortUUID: short}}}
 	return c
 }
 
 func TestLink(t *testing.T) {
 	for _, c := range []struct {
 		name    string
-		seed    vpnctl.Customer
+		seed    remnactl.Customer
 		text    string
 		want    Outcome
 		updates int
 	}{
-		{"link free", withSub(vpnctl.Customer{ID: 1, Name: "X"}, "AbC123xyz"), " https://sub.x/AbC123xyz/ ", Linked, 1},
-		{"already mine", withSub(vpnctl.Customer{ID: 1, TelegramID: ptr(int64(100))}, "AbC123xyz"), "AbC123xyz", Linked, 0},
-		{"someone else's", withSub(vpnctl.Customer{ID: 1, TelegramID: ptr(int64(555))}, "AbC123xyz"), "AbC123xyz", Taken, 0},
-		{"archived", withSub(vpnctl.Customer{ID: 1, Archived: true}, "AbC123xyz"), "AbC123xyz", Archived, 0},
-		{"unknown", withSub(vpnctl.Customer{ID: 1}, "AbC123xyz"), "Zzz999zzz", NotFound, 0},
-		{"garbage", withSub(vpnctl.Customer{ID: 1}, "AbC123xyz"), "hi!", BadLink, 0},
+		{"link free", withSub(remnactl.Customer{ID: 1, Name: "X"}, "AbC123xyz"), " https://sub.x/AbC123xyz/ ", Linked, 1},
+		{"already mine", withSub(remnactl.Customer{ID: 1, TelegramID: ptr(int64(100))}, "AbC123xyz"), "AbC123xyz", Linked, 0},
+		{"someone else's", withSub(remnactl.Customer{ID: 1, TelegramID: ptr(int64(555))}, "AbC123xyz"), "AbC123xyz", Taken, 0},
+		{"archived", withSub(remnactl.Customer{ID: 1, Archived: true}, "AbC123xyz"), "AbC123xyz", Archived, 0},
+		{"unknown", withSub(remnactl.Customer{ID: 1}, "AbC123xyz"), "Zzz999zzz", NotFound, 0},
+		{"garbage", withSub(remnactl.Customer{ID: 1}, "AbC123xyz"), "hi!", BadLink, 0},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			s, f, st := setup(config.ModeClosed)
@@ -1630,7 +1630,7 @@ func TestLink(t *testing.T) {
 
 func TestLinkKeepsFields(t *testing.T) {
 	s, f, _ := setup(config.ModeClosed)
-	f.Add(withSub(vpnctl.Customer{ID: 1, Name: "X", Contact: "@x", Notes: "vip", ReferrerID: ptr(7), ReferralPercent: ptr(15.0)}, "AbC123xyz"))
+	f.Add(withSub(remnactl.Customer{ID: 1, Name: "X", Contact: "@x", Notes: "vip", ReferrerID: ptr(7), ReferralPercent: ptr(15.0)}, "AbC123xyz"))
 	if _, err := s.Link(context.Background(), ann, "AbC123xyz"); err != nil {
 		t.Fatal(err)
 	}
@@ -1647,7 +1647,7 @@ func TestLinkKeepsFields(t *testing.T) {
 
 ```go
 // Package access decides who may use the bot and turns a Telegram user
-// into a vpn-control customer (spec: "Access and onboarding").
+// into a remna-control customer (spec: "Access and onboarding").
 package access
 
 import (
@@ -1656,10 +1656,10 @@ import (
 	"fmt"
 	"strings"
 
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/refcode"
-	"vpn-control-bot/internal/sublink"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/config"
+	"remna-control-bot/internal/refcode"
+	"remna-control-bot/internal/sublink"
+	"remna-control-bot/internal/remnactl"
 )
 
 type User struct {
@@ -1671,7 +1671,7 @@ type Outcome int
 
 const (
 	Member      Outcome = iota // known, active customer
-	Created                    // new customer created in vpn-control
+	Created                    // new customer created in remna-control
 	NeedLink                   // closed mode: send your subscription link
 	BadReferral                // closed mode: the referral link is invalid
 	Archived                   // customer exists but is archived
@@ -1683,7 +1683,7 @@ const (
 
 type Result struct {
 	Outcome  Outcome
-	Customer *vpnctl.Customer
+	Customer *remnactl.Customer
 }
 
 type State interface {
@@ -1692,13 +1692,13 @@ type State interface {
 }
 
 type Service struct {
-	api   vpnctl.Client
+	api   remnactl.Client
 	codec *refcode.Codec
 	mode  config.Mode
 	state State
 }
 
-func New(api vpnctl.Client, codec *refcode.Codec, mode config.Mode, state State) *Service {
+func New(api remnactl.Client, codec *refcode.Codec, mode config.Mode, state State) *Service {
 	return &Service{api: api, codec: codec, mode: mode, state: state}
 }
 
@@ -1714,7 +1714,7 @@ func (s *Service) Start(ctx context.Context, u User, payload string) (Result, er
 		}
 		return Result{Outcome: Member, Customer: c}, nil
 	}
-	if !errors.Is(err, vpnctl.ErrNotFound) {
+	if !errors.Is(err, remnactl.ErrNotFound) {
 		return Result{}, err
 	}
 
@@ -1743,7 +1743,7 @@ func (s *Service) referrer(ctx context.Context, code string) (int, bool, error) 
 		return 0, false, nil
 	}
 	c, err := s.api.GetCustomer(ctx, id)
-	if errors.Is(err, vpnctl.ErrNotFound) {
+	if errors.Is(err, remnactl.ErrNotFound) {
 		return 0, false, nil
 	}
 	if err != nil {
@@ -1758,7 +1758,7 @@ func (s *Service) create(ctx context.Context, u User, referrer *int) (Result, er
 		name = fmt.Sprintf("Telegram %d", u.ID)
 	}
 	tg := u.ID
-	id, err := s.api.CreateCustomer(ctx, vpnctl.CustomerInput{Name: name, TelegramID: &tg, ReferrerID: referrer})
+	id, err := s.api.CreateCustomer(ctx, remnactl.CustomerInput{Name: name, TelegramID: &tg, ReferrerID: referrer})
 	if err != nil {
 		return Result{}, err
 	}
@@ -1775,7 +1775,7 @@ func (s *Service) Link(ctx context.Context, u User, text string) (Result, error)
 		return Result{Outcome: BadLink}, nil
 	}
 	c, err := s.api.LookupByShortUUID(ctx, short)
-	if errors.Is(err, vpnctl.ErrNotFound) {
+	if errors.Is(err, remnactl.ErrNotFound) {
 		return Result{Outcome: NotFound}, nil
 	}
 	if err != nil {
@@ -1932,7 +1932,7 @@ func Rub(v float64) string {
 	return sign + b.String() + " ₽"
 }
 
-const unlimitedYear = 2090 // vpn-control's "never expires" dates
+const unlimitedYear = 2090 // remna-control's "never expires" dates
 
 func Date(t *time.Time) string {
 	switch {
@@ -2024,7 +2024,7 @@ import (
 	"testing"
 	"time"
 
-	"vpn-control-bot/internal/profile"
+	"remna-control-bot/internal/profile"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")
@@ -2048,7 +2048,7 @@ func fixture() profile.Profile {
 		},
 		Referrals:       []profile.Referral{{Name: "Bob", Active: true, Monthly: 250, TotalPaid: 750, Earned: 75}},
 		ReferralsEarned: 75,
-		RefLink:         "https://t.me/vpnbot?start=ref_Ab12cd",
+		RefLink:         "https://t.me/remnabot?start=ref_Ab12cd",
 	}
 }
 
@@ -2116,7 +2116,7 @@ func TestScreens(t *testing.T) {
 }
 
 func TestEmptyStates(t *testing.T) {
-	p := profile.Profile{Name: "New", RefLink: "https://t.me/vpnbot?start=ref_x"}
+	p := profile.Profile{Name: "New", RefLink: "https://t.me/remnabot?start=ref_x"}
 	golden(t, "home_empty", Home(p, links, now))
 	golden(t, "subscriptions_empty", Subscriptions(p, now))
 	golden(t, "referrals_empty", Referrals(p, links))
@@ -2148,7 +2148,7 @@ import (
 	"strings"
 	"time"
 
-	"vpn-control-bot/internal/profile"
+	"remna-control-bot/internal/profile"
 )
 
 func stateIcon(s profile.State) string {
@@ -2364,9 +2364,9 @@ Add `"github.com/go-telegram/bot/models"` to the imports of `screens.go`.
 - Create: `internal/telegram/bot.go`, `internal/telegram/route.go`, `internal/telegram/route_test.go`
 
 **Interfaces:**
-- Consumes: `access.Service` (`Start`, `Link`, `AwaitingLink`), `vpnctl.Client.ListTariffs`, `refcode.Codec.Encode`, `billing.Billing`, `profile.Build/Tariffs`, `view.*`.
+- Consumes: `access.Service` (`Start`, `Link`, `AwaitingLink`), `remnactl.Client.ListTariffs`, `refcode.Codec.Encode`, `billing.Billing`, `profile.Build/Tariffs`, `view.*`.
 - Produces:
-  - `type Deps struct{ Access *access.Service; API vpnctl.Client; Codec *refcode.Codec; Billing billing.Billing; WebAppURL string; Log *slog.Logger }`
+  - `type Deps struct{ Access *access.Service; API remnactl.Client; Codec *refcode.Codec; Billing billing.Billing; WebAppURL string; Log *slog.Logger }`
   - `func New(ctx context.Context, token string, d Deps) (*Bot, error)` — creates the go-telegram bot, calls `GetMe`, registers handlers, sets commands and the WebApp menu button.
   - `(*Bot).Run(ctx)` (blocks until ctx is done), `(*Bot).Username() string`.
   - `func RefLink(username string, codec *refcode.Codec, customerID int) string` = `https://t.me/<username>?start=ref_<code>` (also used by the WebApp).
@@ -2380,7 +2380,7 @@ package telegram
 import (
 	"testing"
 
-	"vpn-control-bot/internal/refcode"
+	"remna-control-bot/internal/refcode"
 )
 
 func TestParseRoute(t *testing.T) {
@@ -2404,7 +2404,7 @@ func TestParseRoute(t *testing.T) {
 
 func TestRefLink(t *testing.T) {
 	c := refcode.New("s")
-	if got := RefLink("vpnbot", c, 5); got != "https://t.me/vpnbot?start=ref_"+c.Encode(5) {
+	if got := RefLink("remnabot", c, 5); got != "https://t.me/remnabot?start=ref_"+c.Encode(5) {
 		t.Fatal(got)
 	}
 }
@@ -2421,8 +2421,8 @@ import (
 	"strconv"
 	"strings"
 
-	"vpn-control-bot/internal/refcode"
-	"vpn-control-bot/internal/telegram/view"
+	"remna-control-bot/internal/refcode"
+	"remna-control-bot/internal/telegram/view"
 )
 
 type route struct {
@@ -2470,17 +2470,17 @@ import (
 	tgbot "github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"vpn-control-bot/internal/access"
-	"vpn-control-bot/internal/billing"
-	"vpn-control-bot/internal/profile"
-	"vpn-control-bot/internal/refcode"
-	"vpn-control-bot/internal/telegram/view"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/access"
+	"remna-control-bot/internal/billing"
+	"remna-control-bot/internal/profile"
+	"remna-control-bot/internal/refcode"
+	"remna-control-bot/internal/telegram/view"
+	"remna-control-bot/internal/remnactl"
 )
 
 type Deps struct {
 	Access    *access.Service
-	API       vpnctl.Client
+	API       remnactl.Client
 	Codec     *refcode.Codec
 	Billing   billing.Billing
 	WebAppURL string
@@ -2585,7 +2585,7 @@ func (b *Bot) outcome(r access.Result, err error) (view.Screen, bool) {
 	return view.Screen{}, false
 }
 
-func (b *Bot) profile(c *vpnctl.Customer) profile.Profile {
+func (b *Bot) profile(c *remnactl.Customer) profile.Profile {
 	return profile.Build(c, RefLink(b.username, b.Codec, c.ID))
 }
 
@@ -2867,8 +2867,8 @@ func mac(key, data []byte) []byte {
 - Create: `internal/webapp/server.go`, `internal/webapp/server_test.go`, `web/embed.go`, `web/dist/.gitkeep`
 
 **Interfaces:**
-- Consumes: `initdata.Validate`, `vpnctl.Client`, `profile.Build/Tariffs`, `telegram.RefLink`, `refcode.Codec`.
-- Produces: `type Deps struct{ API vpnctl.Client; Codec *refcode.Codec; BotToken, BotUsername, Path string; Static fs.FS; Log *slog.Logger }`, `func New(d Deps) *fiber.App`; `web.Dist fs.FS`.
+- Consumes: `initdata.Validate`, `remnactl.Client`, `profile.Build/Tariffs`, `telegram.RefLink`, `refcode.Codec`.
+- Produces: `type Deps struct{ API remnactl.Client; Codec *refcode.Codec; BotToken, BotUsername, Path string; Static fs.FS; Log *slog.Logger }`, `func New(d Deps) *fiber.App`; `web.Dist fs.FS`.
 - HTTP contract (used by the frontend, Task 13):
   - `GET {path}/api/me` with `Authorization: tma <initData>` → `200 profile.Profile`; `401 {"code":"unauthorized"}`; `403 {"code":"no_access"}` (no/archived customer); `503 {"code":"unavailable"}`.
   - `GET {path}/api/tariffs` → `200 []profile.Tariff` (same auth).
@@ -2915,18 +2915,18 @@ import (
 	"testing/fstest"
 	"time"
 
-	"vpn-control-bot/internal/refcode"
-	"vpn-control-bot/internal/vpnctl"
-	"vpn-control-bot/internal/webapp/initdata"
+	"remna-control-bot/internal/refcode"
+	"remna-control-bot/internal/remnactl"
+	"remna-control-bot/internal/webapp/initdata"
 )
 
 const token = "123:ABC"
 
 func ptr[T any](v T) *T { return &v }
 
-func app(f *vpnctl.Fake) *Deps {
+func app(f *remnactl.Fake) *Deps {
 	return &Deps{
-		API: f, Codec: refcode.New("s"), BotToken: token, BotUsername: "vpnbot", Path: "/bot",
+		API: f, Codec: refcode.New("s"), BotToken: token, BotUsername: "remnabot", Path: "/bot",
 		Static: fstest.MapFS{"index.html": {Data: []byte("<html>app</html>")}, "assets/a.js": {Data: []byte("js")}},
 		Log:    slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
@@ -2954,8 +2954,8 @@ func get(t *testing.T, d *Deps, path, auth string) (int, string) {
 }
 
 func TestMe(t *testing.T) {
-	f := vpnctl.NewFake()
-	f.Add(vpnctl.Customer{ID: 1, Name: "Ann", TelegramID: ptr(int64(42)), Notes: "SECRET", Balance: 10})
+	f := remnactl.NewFake()
+	f.Add(remnactl.Customer{ID: 1, Name: "Ann", TelegramID: ptr(int64(42)), Notes: "SECRET", Balance: 10})
 	d := app(f)
 
 	if code, _ := get(t, d, "/bot/api/me", ""); code != 401 {
@@ -2976,28 +2976,28 @@ func TestMe(t *testing.T) {
 		RefLink string `json:"ref_link"`
 	}
 	json.Unmarshal([]byte(body), &p)
-	if p.Name != "Ann" || !strings.HasPrefix(p.RefLink, "https://t.me/vpnbot?start=ref_") {
+	if p.Name != "Ann" || !strings.HasPrefix(p.RefLink, "https://t.me/remnabot?start=ref_") {
 		t.Fatalf("profile %+v", p)
 	}
 }
 
 func TestArchivedAndDown(t *testing.T) {
-	f := vpnctl.NewFake()
-	f.Add(vpnctl.Customer{ID: 1, TelegramID: ptr(int64(42)), Archived: true})
+	f := remnactl.NewFake()
+	f.Add(remnactl.Customer{ID: 1, TelegramID: ptr(int64(42)), Archived: true})
 	d := app(f)
 	if code, _ := get(t, d, "/bot/api/me", tma(42)); code != 403 {
 		t.Fatalf("archived: %d", code)
 	}
-	f.Err = vpnctl.ErrUnavailable
+	f.Err = remnactl.ErrUnavailable
 	if code, _ := get(t, d, "/bot/api/me", tma(42)); code != 503 {
 		t.Fatalf("down: %d", code)
 	}
 }
 
 func TestTariffsAndStatic(t *testing.T) {
-	f := vpnctl.NewFake()
-	f.Add(vpnctl.Customer{ID: 1, TelegramID: ptr(int64(42))})
-	f.Tariffs = []vpnctl.Tariff{{ID: 1, Kind: "base", Name: "Std", Active: true}, {ID: 2, Name: "Off"}}
+	f := remnactl.NewFake()
+	f.Add(remnactl.Customer{ID: 1, TelegramID: ptr(int64(42))})
+	f.Tariffs = []remnactl.Tariff{{ID: 1, Kind: "base", Name: "Std", Active: true}, {ID: 2, Name: "Off"}}
 	d := app(f)
 	code, body := get(t, d, "/bot/api/tariffs", tma(42))
 	if code != 200 || !strings.Contains(body, "Std") || strings.Contains(body, "Off") {
@@ -3038,17 +3038,17 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/filesystem"
 
-	"vpn-control-bot/internal/profile"
-	"vpn-control-bot/internal/refcode"
-	"vpn-control-bot/internal/telegram"
-	"vpn-control-bot/internal/vpnctl"
-	"vpn-control-bot/internal/webapp/initdata"
+	"remna-control-bot/internal/profile"
+	"remna-control-bot/internal/refcode"
+	"remna-control-bot/internal/telegram"
+	"remna-control-bot/internal/remnactl"
+	"remna-control-bot/internal/webapp/initdata"
 )
 
 const maxInitDataAge = 24 * time.Hour
 
 type Deps struct {
-	API         vpnctl.Client
+	API         remnactl.Client
 	Codec       *refcode.Codec
 	BotToken    string
 	BotUsername string
@@ -3079,7 +3079,7 @@ func fail(c *fiber.Ctx, status int, code string) error {
 	return c.Status(status).JSON(fiber.Map{"code": code})
 }
 
-// auth resolves the caller to their vpn-control customer.
+// auth resolves the caller to their remna-control customer.
 func (s *server) auth(c *fiber.Ctx) error {
 	raw, ok := strings.CutPrefix(c.Get(fiber.HeaderAuthorization), "tma ")
 	if !ok {
@@ -3091,7 +3091,7 @@ func (s *server) auth(c *fiber.Ctx) error {
 	}
 	cu, err := s.API.LookupByTelegram(c.UserContext(), u.ID)
 	switch {
-	case errors.Is(err, vpnctl.ErrNotFound):
+	case errors.Is(err, remnactl.ErrNotFound):
 		return fail(c, fiber.StatusForbidden, "no_access")
 	case err != nil:
 		s.Log.Error("webapp lookup", "err", err)
@@ -3104,7 +3104,7 @@ func (s *server) auth(c *fiber.Ctx) error {
 }
 
 func (s *server) me(c *fiber.Ctx) error {
-	cu := c.Locals("customer").(*vpnctl.Customer)
+	cu := c.Locals("customer").(*remnactl.Customer)
 	return c.JSON(profile.Build(cu, telegram.RefLink(s.BotUsername, s.Codec, cu.ID)))
 }
 
@@ -3147,15 +3147,15 @@ import (
 	"os/signal"
 	"syscall"
 
-	"vpn-control-bot/internal/access"
-	"vpn-control-bot/internal/billing"
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/refcode"
-	"vpn-control-bot/internal/store"
-	"vpn-control-bot/internal/telegram"
-	"vpn-control-bot/internal/vpnctl"
-	"vpn-control-bot/internal/webapp"
-	"vpn-control-bot/web"
+	"remna-control-bot/internal/access"
+	"remna-control-bot/internal/billing"
+	"remna-control-bot/internal/config"
+	"remna-control-bot/internal/refcode"
+	"remna-control-bot/internal/store"
+	"remna-control-bot/internal/telegram"
+	"remna-control-bot/internal/remnactl"
+	"remna-control-bot/internal/webapp"
+	"remna-control-bot/web"
 )
 
 func main() {
@@ -3183,7 +3183,7 @@ func run() error {
 	}
 	defer st.Close()
 
-	api := vpnctl.New(cfg.VpnctlURL, cfg.VpnctlToken)
+	api := remnactl.New(cfg.RemnactlURL, cfg.RemnactlToken)
 	codec := refcode.New(cfg.RefSecret)
 	acc := access.New(api, codec, cfg.Mode, st)
 
@@ -3220,9 +3220,9 @@ func run() error {
 BOT_TOKEN=
 # open — anyone can join; closed — only panel customers / subscription link / referral link
 BOT_MODE=closed
-# vpn-control base URL and an API token created with the "bot" preset
-VPNCTL_URL=http://vpn-control:8080
-VPNCTL_TOKEN=
+# remna-control base URL and an API token created with the "bot" preset
+REMNACTL_URL=http://vpn-control:8080
+REMNACTL_TOKEN=
 # Public origin where the WebApp is served; WEBAPP_PATH is appended
 PUBLIC_URL=https://control.example.com
 WEBAPP_PATH=/bot
@@ -3264,7 +3264,7 @@ run:
 ### Task 14: WebApp frontend
 
 **Files:**
-- Copy from `../vpn-control/web` (each copied source file gets a first-line comment `// Copied from vpn-control/web/<path>`; CSS files get `/* Copied from … */`): `bunfig.toml`, `postcss.config.cjs`, `tsconfig.json`, `tsconfig.app.json`, `tsconfig.node.json`, `scripts/postcss-plugin.ts`, `scripts/env.d.ts`, `src/env.d.ts`, `src/app/vendor.css`, `src/app/global.css`, `src/shared/constants/theme/*`, `src/shared/ui/{section-card,stat-strip,copyable-field,shimmer-skeleton,info-field}/*`, `src/components/format.ts` → `src/shared/format.ts`.
+- Copy from `../vpn-control/web` (each copied source file gets a first-line comment `// Copied from remna-control/web/<path>`; CSS files get `/* Copied from … */`): `bunfig.toml`, `postcss.config.cjs`, `tsconfig.json`, `tsconfig.app.json`, `tsconfig.node.json`, `scripts/postcss-plugin.ts`, `scripts/env.d.ts`, `src/env.d.ts`, `src/app/vendor.css`, `src/app/global.css`, `src/shared/constants/theme/*`, `src/shared/ui/{section-card,stat-strip,copyable-field,shimmer-skeleton,info-field}/*`, `src/components/format.ts` → `src/shared/format.ts`.
 - Create: `web/package.json`, `web/index.html`, `web/scripts/build.ts`, `web/scripts/dev.ts`, `web/public/locales/ru/bot.json`, `web/src/main.tsx`, `web/src/i18n.ts`, `web/src/telegram.ts`, `web/src/api.ts`, `web/src/types.ts`, `web/src/App.tsx`, `web/src/layout/AppShell.tsx`, `web/src/layout/app-shell.module.css`, `web/src/pages/{Overview,Subscriptions,SubscriptionDetails,Balance,Referrals,Tariffs}.tsx`, `web/src/ui/{StateBadge,Empty,PageSkeleton,ErrorScreen}.tsx`.
 
 **Interfaces:**
@@ -3291,7 +3291,7 @@ Then add the source comment to the top of every copied `.ts/.tsx/.css` file. In 
 
 ```json
 {
-  "name": "vpn-control-bot-web",
+  "name": "remna-control-bot-web",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -3338,7 +3338,7 @@ Run `cd web && bun install` and commit `bun.lock`.
 `web/scripts/build.ts` — start from `../vpn-control/web/scripts/build.ts` and change exactly these things: `publicPath: './'`; the vendor `<link>` href `./${vendorName}`; drop the web-manifest block and the precompression (`.br/.gz`) block; keep fonts copying and `.gitkeep`. Result header comment:
 
 ```ts
-// Copied from vpn-control/web/scripts/build.ts, adapted: the WebApp lives
+// Copied from remna-control/web/scripts/build.ts, adapted: the WebApp lives
 // under a configurable path (WEBAPP_PATH), so every asset URL is relative.
 ```
 
@@ -4153,7 +4153,7 @@ git commit -m "feat: telegram webapp frontend"
 
 ---
 
-### Task 15: "bot" token preset in vpn-control (other repository)
+### Task 15: "bot" token preset in remna-control (other repository)
 
 **Files:**
 - Modify: `../vpn-control/web/src/components/api-tokens/modals/create-api-token-modal.tsx` (next to `SUBPAGE_PRESET_KEYS`, line ~26, and the preset buttons that use it)
@@ -4164,7 +4164,7 @@ git commit -m "feat: telegram webapp frontend"
 - [ ] **Step 2: Add the preset**
 
 ```ts
-// What vpn-control-bot needs: find/create customers, link a Telegram id,
+// What remna-control-bot needs: find/create customers, link a Telegram id,
 // read their card (subscriptions, balance, referrals) and the tariffs.
 const BOT_PRESET_KEYS = ['customers:lookup', 'customers:get', 'customers:create', 'customers:update', 'tariffs:list']
 ```
@@ -4231,12 +4231,12 @@ docs
 - [ ] **Step 2: `compose.yml`** (production example, next to the panel)
 
 ```yaml
-# Example deployment next to vpn-control: same docker network, the WebApp is
+# Example deployment next to remna-control: same docker network, the WebApp is
 # routed by path ($WEBAPP_PATH) on the panel's domain by your balancer/Traefik.
 services:
-    vpn-control-bot:
+    remna-control-bot:
         build: .
-        container_name: vpn-control-bot
+        container_name: remna-control-bot
         restart: unless-stopped
         env_file: .env
         environment:
@@ -4248,12 +4248,12 @@ services:
             - remnawave-network
         labels:
             - 'traefik.enable=true'
-            - 'traefik.http.routers.vpn-control-bot.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`${WEBAPP_PATH:-/bot}`)'
-            - 'traefik.http.routers.vpn-control-bot.priority=100'
-            - 'traefik.http.routers.vpn-control-bot.tls=true'
-            - 'traefik.http.routers.vpn-control-bot.entrypoints=${TRAEFIK_ENTRYPOINTS:-web,websecure}'
-            - 'traefik.http.routers.vpn-control-bot.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}'
-            - 'traefik.http.services.vpn-control-bot.loadbalancer.server.port=8090'
+            - 'traefik.http.routers.remna-control-bot.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`${WEBAPP_PATH:-/bot}`)'
+            - 'traefik.http.routers.remna-control-bot.priority=100'
+            - 'traefik.http.routers.remna-control-bot.tls=true'
+            - 'traefik.http.routers.remna-control-bot.entrypoints=${TRAEFIK_ENTRYPOINTS:-web,websecure}'
+            - 'traefik.http.routers.remna-control-bot.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}'
+            - 'traefik.http.services.remna-control-bot.loadbalancer.server.port=8090'
 
 volumes:
     bot-data:
@@ -4303,9 +4303,9 @@ tls:
 - [ ] **Step 4: `compose.dev.yml`**
 
 ```yaml
-# Local stack: https://$LOCAL_DOMAIN → vpn-control, https://$LOCAL_DOMAIN$WEBAPP_PATH → bot.
+# Local stack: https://$LOCAL_DOMAIN → remna-control, https://$LOCAL_DOMAIN$WEBAPP_PATH → bot.
 # Needs: `make certs` (mkcert) and `127.0.0.1 $LOCAL_DOMAIN` in /etc/hosts (`make hosts`).
-name: vpn-control-dev
+name: remna-control-dev
 services:
     traefik:
         image: traefik:v3
@@ -4316,12 +4316,12 @@ services:
             - ./dev/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
             - ./dev/certs:/certs:ro
 
-    vpn-control:
+    remna-control:
         image: ghcr.io/lentryd/vpn-control:latest
         env_file: ${PANEL_ENV:-../vpn-control/.env}
         environment:
             PORT: 8080
-            DB_PATH: /data/vpn-control.db
+            DB_PATH: /data/remna-control.db
             APP_DOMAIN: ${LOCAL_DOMAIN:?set LOCAL_DOMAIN in .env}
         volumes:
             - panel-data:/data
@@ -4336,13 +4336,13 @@ services:
         build: .
         env_file: .env
         environment:
-            VPNCTL_URL: http://vpn-control:8080
+            REMNACTL_URL: http://vpn-control:8080
             PUBLIC_URL: https://${LOCAL_DOMAIN}
             DB_PATH: /data/bot.db
             HTTP_ADDR: ':8090'
         volumes:
             - bot-data:/data
-        depends_on: [vpn-control]
+        depends_on: [remna-control]
         labels:
             - 'traefik.enable=true'
             - 'traefik.http.routers.bot.rule=Host(`${LOCAL_DOMAIN}`) && PathPrefix(`${WEBAPP_PATH:-/bot}`)'
@@ -4393,7 +4393,7 @@ logs:
 
 - [ ] **Step 7: Verify**
 
-Run: `docker build -t vpn-control-bot:dev . && docker compose -f compose.dev.yml config >/dev/null && echo ok`
+Run: `docker build -t remna-control-bot:dev . && docker compose -f compose.dev.yml config >/dev/null && echo ok`
 Expected: image builds; `ok`.
 
 Then with a filled `.env`: `make up`, open `https://$LOCAL_DOMAIN/bot/` in a browser — expected: the "open from the bot" screen (no initData), valid certificate; `https://$LOCAL_DOMAIN/` — the panel. In Telegram Desktop: `/start` → onboarding per `BOT_MODE`; the "Открыть" menu button opens the WebApp with data.

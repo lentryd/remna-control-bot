@@ -3,8 +3,8 @@ package orders
 import (
 	"time"
 
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/payments"
+	"remna-control-bot/internal/config"
+	"remna-control-bot/internal/payments"
 )
 
 // Live is the part of the configuration admins change while the bot runs.

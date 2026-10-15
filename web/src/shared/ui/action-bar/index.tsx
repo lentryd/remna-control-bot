@@ -1,4 +1,4 @@
-// Adapted from vpn-control/web/src/pages/SettingsPage.tsx (the sticky save bar)
+// Adapted from remna-control/web/src/pages/SettingsPage.tsx (the sticky save bar)
 import { Text, Transition } from '@mantine/core'
 import type { ReactNode } from 'react'
 

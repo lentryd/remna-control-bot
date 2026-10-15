@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"vpn-control-bot/internal/i18n"
-	"vpn-control-bot/internal/payments"
-	"vpn-control-bot/internal/store"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/payments"
+	"remna-control-bot/internal/remnactl"
+	"remna-control-bot/internal/store"
 )
 
-func setupP(t *testing.T) (*Service, *vpnctl.Fake, *spy, *vpnctl.Customer, *payments.Fake) {
+func setupP(t *testing.T) (*Service, *remnactl.Fake, *spy, *remnactl.Customer, *payments.Fake) {
 	t.Helper()
 	s, f, sp, c := setup(t)
 	fp := &payments.Fake{Name: "fake"}
@@ -23,7 +23,7 @@ func setupP(t *testing.T) (*Service, *vpnctl.Fake, *spy, *vpnctl.Customer, *paym
 
 var renew3 = Request{Kind: KindRenew, ItemKind: "subscription", ItemID: 3, Months: 3} // 900, 100 from balance → 800 to pay
 
-func providerOrder(t *testing.T, s *Service, c *vpnctl.Customer) *Order {
+func providerOrder(t *testing.T, s *Service, c *remnactl.Customer) *Order {
 	t.Helper()
 	o, err := s.CreateWith(context.Background(), c, 77, renew3, "fake")
 	if err != nil {
@@ -166,11 +166,11 @@ func TestPaidTopupCreditsBalance(t *testing.T) {
 }
 
 func TestPaidAfterExpiredOrCancelled(t *testing.T) {
-	for name, prep := range map[string]func(*Service, *vpnctl.Customer, *Order) error{
-		"expired": func(s *Service, _ *vpnctl.Customer, o *Order) error {
+	for name, prep := range map[string]func(*Service, *remnactl.Customer, *Order) error{
+		"expired": func(s *Service, _ *remnactl.Customer, o *Order) error {
 			return s.move(context.Background(), o.ID, []Status{StatusAwaitingPayment}, StatusExpired, nil)
 		},
-		"cancelled": func(s *Service, c *vpnctl.Customer, o *Order) error {
+		"cancelled": func(s *Service, c *remnactl.Customer, o *Order) error {
 			return s.Cancel(context.Background(), c.ID, o.ID)
 		},
 	} {
@@ -406,7 +406,7 @@ func TestSweepExpires(t *testing.T) {
 }
 
 func TestSweepCancelledOrders(t *testing.T) {
-	cancelled := func(t *testing.T, s *Service, c *vpnctl.Customer) *Order {
+	cancelled := func(t *testing.T, s *Service, c *remnactl.Customer) *Order {
 		t.Helper()
 		o := providerOrder(t, s, c)
 		if err := s.Cancel(context.Background(), c.ID, o.ID); err != nil {
@@ -749,11 +749,11 @@ func TestPaidZeroWithoutFixedNeedsReview(t *testing.T) {
 }
 
 func TestPaidFixedAfterExpiredOrCancelled(t *testing.T) {
-	for name, prep := range map[string]func(*Service, *vpnctl.Customer, *Order) error{
-		"expired": func(s *Service, _ *vpnctl.Customer, o *Order) error {
+	for name, prep := range map[string]func(*Service, *remnactl.Customer, *Order) error{
+		"expired": func(s *Service, _ *remnactl.Customer, o *Order) error {
 			return s.move(context.Background(), o.ID, []Status{StatusAwaitingPayment}, StatusExpired, nil)
 		},
-		"cancelled": func(s *Service, c *vpnctl.Customer, o *Order) error {
+		"cancelled": func(s *Service, c *remnactl.Customer, o *Order) error {
 			return s.Cancel(context.Background(), c.ID, o.ID)
 		},
 	} {

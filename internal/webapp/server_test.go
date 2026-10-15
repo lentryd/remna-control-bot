@@ -14,18 +14,18 @@ import (
 	"testing/fstest"
 	"time"
 
-	"vpn-control-bot/internal/refcode"
-	"vpn-control-bot/internal/vpnctl"
-	"vpn-control-bot/internal/webapp/initdata"
+	"remna-control-bot/internal/refcode"
+	"remna-control-bot/internal/remnactl"
+	"remna-control-bot/internal/webapp/initdata"
 )
 
 const token = "123:ABC"
 
 func ptr[T any](v T) *T { return &v }
 
-func app(f *vpnctl.Fake) *Deps {
+func app(f *remnactl.Fake) *Deps {
 	return &Deps{
-		API: f, Codec: refcode.New("s"), BotToken: token, BotUsername: "vpnbot", Path: "/bot",
+		API: f, Codec: refcode.New("s"), BotToken: token, BotUsername: "remnabot", Path: "/bot",
 		Static: fstest.MapFS{"index.html": {Data: []byte("<html>app</html>")}, "assets/a.js": {Data: []byte("js")}},
 		Log:    slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
@@ -53,8 +53,8 @@ func get(t *testing.T, d *Deps, path, auth string) (int, string) {
 }
 
 func TestMe(t *testing.T) {
-	f := vpnctl.NewFake()
-	f.Add(vpnctl.Customer{ID: 1, Name: "Ann", TelegramID: ptr(int64(42)), Notes: "SECRET", Balance: 10})
+	f := remnactl.NewFake()
+	f.Add(remnactl.Customer{ID: 1, Name: "Ann", TelegramID: ptr(int64(42)), Notes: "SECRET", Balance: 10})
 	d := app(f)
 
 	if code, _ := get(t, d, "/bot/api/me", ""); code != 401 {
@@ -79,14 +79,14 @@ func TestMe(t *testing.T) {
 	if p.IsAdmin == nil || *p.IsAdmin {
 		t.Fatalf("is_admin must be present and false for a customer: %s", body)
 	}
-	if p.Name != "Ann" || !strings.HasPrefix(p.RefLink, "https://t.me/vpnbot?start=ref_") {
+	if p.Name != "Ann" || !strings.HasPrefix(p.RefLink, "https://t.me/remnabot?start=ref_") {
 		t.Fatalf("profile %+v", p)
 	}
 }
 
 func TestMeCurrency(t *testing.T) {
-	f := vpnctl.NewFake()
-	f.Add(vpnctl.Customer{ID: 1, Name: "Ann", TelegramID: ptr(int64(42))})
+	f := remnactl.NewFake()
+	f.Add(remnactl.Customer{ID: 1, Name: "Ann", TelegramID: ptr(int64(42))})
 	d := app(f)
 	if _, body := get(t, d, "/bot/api/me", tma(42)); !strings.Contains(body, `"currency":"RUB"`) {
 		t.Fatalf("nil Currency should fall back to RUB: %s", body)
@@ -98,22 +98,22 @@ func TestMeCurrency(t *testing.T) {
 }
 
 func TestArchivedAndDown(t *testing.T) {
-	f := vpnctl.NewFake()
-	f.Add(vpnctl.Customer{ID: 1, TelegramID: ptr(int64(42)), Archived: true})
+	f := remnactl.NewFake()
+	f.Add(remnactl.Customer{ID: 1, TelegramID: ptr(int64(42)), Archived: true})
 	d := app(f)
 	if code, _ := get(t, d, "/bot/api/me", tma(42)); code != 403 {
 		t.Fatalf("archived: %d", code)
 	}
-	f.Err = vpnctl.ErrUnavailable
+	f.Err = remnactl.ErrUnavailable
 	if code, _ := get(t, d, "/bot/api/me", tma(42)); code != 503 {
 		t.Fatalf("down: %d", code)
 	}
 }
 
 func TestTariffsAndStatic(t *testing.T) {
-	f := vpnctl.NewFake()
-	f.Add(vpnctl.Customer{ID: 1, TelegramID: ptr(int64(42))})
-	f.Tariffs = []vpnctl.Tariff{{ID: 1, Kind: "base", Name: "Std", Active: true, MonthlyPrice: 100}, {ID: 2, Name: "Off"}}
+	f := remnactl.NewFake()
+	f.Add(remnactl.Customer{ID: 1, TelegramID: ptr(int64(42))})
+	f.Tariffs = []remnactl.Tariff{{ID: 1, Kind: "base", Name: "Std", Active: true, MonthlyPrice: 100}, {ID: 2, Name: "Off"}}
 	d := app(f)
 	code, body := get(t, d, "/bot/api/tariffs", tma(42))
 	if code != 200 || !strings.Contains(body, "Std") || strings.Contains(body, "Off") {
@@ -157,8 +157,8 @@ func tmaLang(id int64, lang string) string {
 }
 
 func TestAuthRemembersLanguage(t *testing.T) {
-	f := vpnctl.NewFake()
-	f.Add(vpnctl.Customer{ID: 5, Name: "Ann", TelegramID: ptr(int64(77))})
+	f := remnactl.NewFake()
+	f.Add(remnactl.Customer{ID: 5, Name: "Ann", TelegramID: ptr(int64(77))})
 	d := app(f)
 	l := &fakeLangs{}
 	d.Langs = l

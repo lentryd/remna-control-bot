@@ -1,4 +1,4 @@
-package vpnctl
+package remnactl
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// Fake is an in-memory Client that behaves like vpn-control's lookup rules.
+// Fake is an in-memory Client that behaves like remna-control's lookup rules.
 type Fake struct {
 	mu            sync.Mutex
 	customers     map[int]*Customer

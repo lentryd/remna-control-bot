@@ -1,4 +1,4 @@
-/* Adapted from vpn-control/web/src/pages/settings.module.css (.saveBar) */
+/* Adapted from remna-control/web/src/pages/settings.module.css (.saveBar) */
 .bar {
     position: sticky;
     bottom: calc(12px + env(safe-area-inset-bottom));

@@ -11,21 +11,27 @@ import (
 	"syscall"
 	"time"
 
-	"vpn-control-bot/internal/access"
-	"vpn-control-bot/internal/config"
-	"vpn-control-bot/internal/currency"
-	"vpn-control-bot/internal/i18n"
-	"vpn-control-bot/internal/notify"
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/payments"
-	"vpn-control-bot/internal/refcode"
-	"vpn-control-bot/internal/settings"
-	"vpn-control-bot/internal/store"
-	"vpn-control-bot/internal/telegram"
-	"vpn-control-bot/internal/telegram/view"
-	"vpn-control-bot/internal/vpnctl"
-	"vpn-control-bot/internal/webapp"
-	"vpn-control-bot/web"
+	"remna-control-bot/internal/access"
+	"remna-control-bot/internal/config"
+	"remna-control-bot/internal/currency"
+	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/notify"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/payments"
+	"remna-control-bot/internal/refcode"
+	"remna-control-bot/internal/remnactl"
+	"remna-control-bot/internal/settings"
+	"remna-control-bot/internal/store"
+	"remna-control-bot/internal/telegram"
+	"remna-control-bot/internal/telegram/view"
+	"remna-control-bot/internal/webapp"
+	"remna-control-bot/web"
+)
+
+// Version and Commit are set by goreleaser through -ldflags.
+var (
+	Version = "dev"
+	Commit  = "none"
 )
 
 func main() {
@@ -60,7 +66,7 @@ func run() error {
 		log.Warn("stored secrets cannot be decrypted (REF_SECRET changed?): re-enter them in the admin settings", "section", k)
 	}
 
-	api := vpnctl.New(cfg.VpnctlURL, cfg.VpnctlToken)
+	api := remnactl.New(cfg.RemnactlURL, cfg.RemnactlToken)
 	cur := &currency.Source{API: api, Log: log, OnChange: view.SetCurrency}
 	cur.SetFallback(fallbackCurrency(set.Snapshot()))
 	base := cur.Get(ctx) // resolves once at startup: with the panel down the fallback is used and a warning is logged
@@ -134,7 +140,7 @@ func run() error {
 	go sweepLoop(ctx, svc, log)
 	go providerLoop(ctx, svc, log)
 	go currencyLoop(ctx, cur, log, func() bool { return len(svc.Live().Providers.IDs()) > 0 }, svc.CurrencyKnown, unconfirmed)
-	log.Info("started", "currency", base, "bot", "@"+bot.Username(), "webapp", cfg.WebAppURL(), "addr", cfg.HTTPAddr)
+	log.Info("started", "version", Version, "commit", Commit, "currency", base, "bot", "@"+bot.Username(), "webapp", cfg.WebAppURL(), "addr", cfg.HTTPAddr)
 
 	select {
 	case <-ctx.Done():

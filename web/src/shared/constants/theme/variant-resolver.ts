@@ -1,4 +1,4 @@
-// Copied from vpn-control/web/src/shared/constants/theme/variant-resolver.ts
+// Copied from remna-control/web/src/shared/constants/theme/variant-resolver.ts
 import { defaultVariantColorsResolver, parseThemeColor, type VariantColorsResolver } from '@mantine/core'
 
 // "soft" is the app's tinted variant: Mantine's per-scheme light colours

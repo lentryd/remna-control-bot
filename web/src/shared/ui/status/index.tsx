@@ -1,5 +1,5 @@
-// Dot and StatusPill copied from vpn-control/web/src/components/badges.tsx;
-// BackLink from vpn-control/web/src/components/ui.tsx. Adapted: StatusPill
+// Dot and StatusPill copied from remna-control/web/src/components/badges.tsx;
+// BackLink from remna-control/web/src/components/ui.tsx. Adapted: StatusPill
 // takes a colour and a label (the bot's statuses are orders, not panel users).
 import { Anchor, Badge, type BadgeProps } from '@mantine/core'
 import { IconChevronLeft } from '@tabler/icons-react'

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"vpn-control-bot/internal/i18n"
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/remnactl"
 )
 
 type Decision string
@@ -154,7 +154,7 @@ func (e definite) Error() string { return e.msg }
 // answer (a 4xx or an explicit refusal), the step may have been applied, so
 // the admin must check the panel before Retry repeats it.
 func failText(o *Order, err error) string {
-	var ae *vpnctl.APIError
+	var ae *remnactl.APIError
 	var de definite
 	if errors.As(err, &de) || (errors.As(err, &ae) && ae.Status >= 400 && ae.Status < 500) {
 		return errText(err)
@@ -224,7 +224,7 @@ func (s *Service) failStaleApprovals(ctx context.Context) error {
 }
 
 func errText(err error) string {
-	var ae *vpnctl.APIError
+	var ae *remnactl.APIError
 	if errors.As(err, &ae) && ae.Message != "" {
 		return ae.Message
 	}
@@ -239,8 +239,8 @@ func (s *Service) fulfill(ctx context.Context, o *Order, d Decision) (Status, *t
 	if o.Method == MethodBalance {
 		amount = 0
 	}
-	pay := func(alloc []vpnctl.Allocation) (*vpnctl.PaymentResult, error) {
-		res, err := s.API.Pay(ctx, o.CustomerID, vpnctl.PaymentInput{Amount: amount, Method: string(o.Method), Note: o.Note(), Allocations: alloc})
+	pay := func(alloc []remnactl.Allocation) (*remnactl.PaymentResult, error) {
+		res, err := s.API.Pay(ctx, o.CustomerID, remnactl.PaymentInput{Amount: amount, Method: string(o.Method), Note: o.Note(), Allocations: alloc})
 		if err == nil {
 			o.PanelPaymentID = res.PaymentID
 			// Never forget recorded money, even if the final status write fails.
@@ -265,7 +265,7 @@ func (s *Service) fulfill(ctx context.Context, o *Order, d Decision) (Status, *t
 
 	if o.Kind == KindRenew {
 		if o.PanelPaymentID == 0 && amount > 0 {
-			res, err := pay([]vpnctl.Allocation{{Kind: o.ItemKind, ID: o.ItemID, Months: o.Months, Days: o.Days, Amount: o.Price}})
+			res, err := pay([]remnactl.Allocation{{Kind: o.ItemKind, ID: o.ItemID, Months: o.Months, Days: o.Days, Amount: o.Price}})
 			if err != nil {
 				return "", nil, err
 			}
@@ -279,7 +279,7 @@ func (s *Service) fulfill(ctx context.Context, o *Order, d Decision) (Status, *t
 			return StatusApproved, res.Extensions[0].To, nil
 		}
 		// Paid from the balance, or a retry after the payment was recorded.
-		e, err := s.API.Extend(ctx, o.ItemKind, o.ItemID, vpnctl.ExtendInput{
+		e, err := s.API.Extend(ctx, o.ItemKind, o.ItemID, remnactl.ExtendInput{
 			Months: o.Months, Days: o.Days, Amount: o.Price, AllowDebt: o.PanelPaymentID != 0,
 		})
 		if err != nil {
@@ -296,14 +296,14 @@ func (s *Service) fulfill(ctx context.Context, o *Order, d Decision) (Status, *t
 	var err error
 	switch o.Kind {
 	case KindSubscribe:
-		_, err = s.API.Provision(ctx, vpnctl.ProvisionInput{
+		_, err = s.API.Provision(ctx, remnactl.ProvisionInput{
 			CustomerID: o.CustomerID, TariffID: o.TariffID, Username: fmt.Sprintf("bot_c%d_o%s", o.CustomerID, o.Short()),
 			Months: o.Months, Days: o.Days, Amount: o.Price,
 		})
 	case KindAddon:
-		_, err = s.API.ConnectAddon(ctx, o.ItemID, vpnctl.ConnectAddonInput{TariffID: o.TariffID, Months: o.Months, Days: o.Days, Amount: o.Price})
+		_, err = s.API.ConnectAddon(ctx, o.ItemID, remnactl.ConnectAddonInput{TariffID: o.TariffID, Months: o.Months, Days: o.Days, Amount: o.Price})
 	case KindChangeTariff:
-		err = s.API.ChangeTariff(ctx, o.ItemKind, o.ItemID, vpnctl.ChangeTariffInput{TariffID: o.TariffID, Surcharge: o.Price})
+		err = s.API.ChangeTariff(ctx, o.ItemKind, o.ItemID, remnactl.ChangeTariffInput{TariffID: o.TariffID, Surcharge: o.Price})
 	default:
 		err = bad("kind %q", o.Kind)
 	}

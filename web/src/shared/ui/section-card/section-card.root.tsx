@@ -1,4 +1,4 @@
-// Copied from vpn-control/web/src/shared/ui/section-card/section-card.root.tsx
+// Copied from remna-control/web/src/shared/ui/section-card/section-card.root.tsx
 import { Card, Divider, Stack, type CardProps, type MantineSpacing } from '@mantine/core'
 import { Children, type ReactNode, type RefObject } from 'react'
 

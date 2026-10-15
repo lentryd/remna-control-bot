@@ -1,4 +1,4 @@
-// Copied from vpn-control/web/src/shared/ui/settings-row/index.tsx
+// Copied from remna-control/web/src/shared/ui/settings-row/index.tsx
 import { Box, Card, Text } from '@mantine/core'
 import type { ReactNode } from 'react'
 

@@ -1,4 +1,4 @@
-// Copied from vpn-control/web/src/shared/ui/copyable-field/copyable-field.tsx
+// Copied from remna-control/web/src/shared/ui/copyable-field/copyable-field.tsx
 // Adapted from remnawave/frontend (AGPL-3.0)
 import { ActionIcon, CopyButton, Input } from '@mantine/core'
 import { PiCheck, PiCopy } from 'react-icons/pi'

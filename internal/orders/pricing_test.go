@@ -3,11 +3,11 @@ package orders
 import (
 	"testing"
 
-	"vpn-control-bot/internal/vpnctl"
+	"remna-control-bot/internal/remnactl"
 )
 
 func TestTermCost(t *testing.T) {
-	periods := []vpnctl.Period{{Months: 3, Price: 250}, {Days: 7, Price: 0}, {Months: 1, Days: 15, Price: 120}}
+	periods := []remnactl.Period{{Months: 3, Price: 250}, {Days: 7, Price: 0}, {Months: 1, Days: 15, Price: 120}}
 	cases := []struct {
 		months, days int
 		want         float64

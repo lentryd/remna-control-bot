@@ -1,4 +1,4 @@
-// Copied from vpn-control/web/src/shared/ui/page-header/page-header.shared.tsx
+// Copied from remna-control/web/src/shared/ui/page-header/page-header.shared.tsx
 import { Box, Group, Text, Title, type BoxProps } from '@mantine/core'
 import { forwardRef, type ReactNode } from 'react'
 

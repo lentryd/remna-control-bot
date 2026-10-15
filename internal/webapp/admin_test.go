@@ -8,17 +8,17 @@ import (
 	"strings"
 	"testing"
 
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/payments"
-	"vpn-control-bot/internal/settings"
-	"vpn-control-bot/internal/store"
-	"vpn-control-bot/internal/vpnctl"
-	"vpn-control-bot/internal/webapp/initdata"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/payments"
+	"remna-control-bot/internal/remnactl"
+	"remna-control-bot/internal/settings"
+	"remna-control-bot/internal/store"
+	"remna-control-bot/internal/webapp/initdata"
 )
 
 const adminID = 900 // an admin who is not a panel customer
 
-func adminApp(t *testing.T) (*Deps, *vpnctl.Fake) {
+func adminApp(t *testing.T) (*Deps, *remnactl.Fake) {
 	t.Helper()
 	f := ordersFake()
 	d := app(f)
@@ -37,7 +37,7 @@ func adminApp(t *testing.T) (*Deps, *vpnctl.Fake) {
 }
 
 // pending creates a top-up order of 100 for customer 5 (telegram 77) and hands it to the admins.
-func pending(t *testing.T, d *Deps, f *vpnctl.Fake) string {
+func pending(t *testing.T, d *Deps, f *remnactl.Fake) string {
 	t.Helper()
 	ctx := context.Background()
 	c, err := f.GetCustomer(ctx, 5)

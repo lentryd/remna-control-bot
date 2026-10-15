@@ -1,4 +1,4 @@
-/* Copied from vpn-control/web/src/shared/ui/stat-strip/stat-strip.module.css */
+/* Copied from remna-control/web/src/shared/ui/stat-strip/stat-strip.module.css */
 .strip {
     display: grid;
     grid-template-columns: repeat(var(--cells), minmax(0, 1fr));

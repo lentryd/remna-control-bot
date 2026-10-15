@@ -6,8 +6,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"vpn-control-bot/internal/orders"
-	"vpn-control-bot/internal/payments"
+	"remna-control-bot/internal/orders"
+	"remna-control-bot/internal/payments"
 )
 
 const maxHookBody = 64 << 10

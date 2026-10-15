@@ -1,7 +1,7 @@
 // Package store keeps the bot's own state: who is expected to send a
 // subscription link, which notifications were already sent, payment orders,
 // what a chat is expected to send next and where each admin's order card is.
-// Customer data lives in vpn-control.
+// Customer data lives in remna-control.
 package store
 
 import (

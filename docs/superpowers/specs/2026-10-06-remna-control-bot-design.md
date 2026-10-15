@@ -1,10 +1,10 @@
-# vpn-control-bot — design
+# remna-control-bot — design
 
 Date: 2026-10-06
 
 ## Goal
 
-Telegram bot + Telegram WebApp for customers of the vpn-control panel
+Telegram bot + Telegram WebApp for customers of the remna-control panel
 (`../vpn-control`). In this iteration: access/onboarding (including referral access)
 and viewing the customer's current information. Payments and checkout are only
 stubbed out behind interfaces.
@@ -27,18 +27,18 @@ stubbed out behind interfaces.
 
 ## Decisions
 
-- **Source of truth is vpn-control.** The bot does not read the panel DB; it works only through `/api/v1`
+- **Source of truth is remna-control.** The bot does not read the panel DB; it works only through `/api/v1`
   with a service token (the "bot" preset of scopes). A new user is created as a Customer immediately.
 - The bot has its own SQLite only for service data: dialog state (waiting for a subscription link).
-- vpn-control is not modified, except for the "bot" scope preset in the token form.
+- remna-control is not modified, except for the "bot" scope preset in the token form.
 
 ## Architecture
 
 ```
-cmd/bot/main.go         config → store → vpnctl → access → telegram + webapp; graceful shutdown
+cmd/bot/main.go         config → store → remnactl → access → telegram + webapp; graceful shutdown
 internal/config         ENV
-internal/vpnctl         typed client for /api/v1 (interface Client, fake for tests)
-internal/access         access policy and onboarding (pure logic on top of vpnctl.Client)
+internal/remnactl         typed client for /api/v1 (interface Client, fake for tests)
+internal/access         access policy and onboarding (pure logic on top of remnactl.Client)
 internal/refcode        customer_id ⇄ short referral code (see "Referral code")
 internal/sublink        parsing short_uuid out of a subscription link
 internal/telegram       go-telegram/bot: router, handlers, keyboards, texts
@@ -46,7 +46,7 @@ internal/webapp         Fiber: initData validation, JSON API for the frontend, s
 internal/store          SQLite (modernc, no CGO): dialog state (waiting for a subscription link)
 internal/profile        customer view model (shared by bot screens and WebApp API)
 internal/billing        interface Billing{Quote, Pay} + NotImplemented implementation
-web/                    WebApp frontend: the vpn-control/web stack (Bun, React, Mantine), hash routing
+web/                    WebApp frontend: the remna-control/web stack (Bun, React, Mantine), hash routing
 ```
 
 ### Configuration (ENV)
@@ -55,8 +55,8 @@ web/                    WebApp frontend: the vpn-control/web stack (Bun, React, 
 |---|---|---|---|
 | `BOT_TOKEN` | yes | | Telegram bot token |
 | `BOT_MODE` | no | `closed` | `open` / `closed` |
-| `VPNCTL_URL` | yes | | base URL of the panel, e.g. `http://vpn-control:8080` |
-| `VPNCTL_TOKEN` | yes | | API token created with the "bot" preset |
+| `REMNACTL_URL` | yes | | base URL of the panel, e.g. `http://vpn-control:8080` |
+| `REMNACTL_TOKEN` | yes | | API token created with the "bot" preset |
 | `PUBLIC_URL` | yes | | public origin, e.g. `https://vpn.example.com` |
 | `WEBAPP_PATH` | no | `/bot` | WebApp path prefix |
 | `HTTP_ADDR` | no | `:8090` | listen address |
@@ -120,9 +120,9 @@ What stays in the bot: onboarding and link entry, receipts, Telegram Stars, noti
 
 ### Frontend: stack and design
 
-Main criterion: beautiful and clear to the user. Visually it is part of the vpn-control family.
+Main criterion: beautiful and clear to the user. Visually it is part of the remna-control family.
 
-- Stack is the same as in `vpn-control/web`: Bun (build via `scripts/build.ts`), React 19, TypeScript,
+- Stack is the same as in `remna-control/web`: Bun (build via `scripts/build.ts`), React 19, TypeScript,
   Mantine 9 (+ postcss-preset-mantine), TanStack Query, react-router (HashRouter), i18next,
   `@tabler/icons-react`, Geist fonts, dayjs. Versions are pinned the same as in the panel.
 - Reused from the panel by **copying into `web/src/shared`** (not a cross-repo import: the
@@ -141,7 +141,7 @@ Main criterion: beautiful and clear to the user. Visually it is part of the vpn-
 
 ## Referral code
 
-Computed in the bot and not stored anywhere; vpn-control is not modified for it.
+Computed in the bot and not stored anywhere; remna-control is not modified for it.
 
 - `code = base62(id XOR k) + base62(HMAC-SHA256(REF_SECRET, id))[:4]`, where `k` is derived from
   `REF_SECRET` (masks the sequential id). Result: ~6–9 characters, `[0-9A-Za-z]` (valid for `start`).
@@ -149,7 +149,7 @@ Computed in the bot and not stored anywhere; vpn-control is not modified for it.
   mismatch → invalid code. Enumeration requires guessing the HMAC (62⁴ ≈ 14.7M per id).
 - The code is unique because it is a bijection on `id`. Tests: round-trip, tamper, wrong secret.
 
-## vpn-control
+## remna-control
 
 The panel's public API (`/api/v1`, by token) already covers everything required; no backend changes.
 Used scopes:
@@ -180,13 +180,13 @@ returns `ErrNotImplemented`, handlers show "coming soon". Later the implementati
 
 `compose.dev.yml`:
 - `traefik` (v3): ports 80/443, file provider with mkcert certificates from `./dev/certs`, http→https redirect.
-- `vpn-control`: image `ghcr.io/lentryd/vpn-control:latest` (the panel repo has no Dockerfile; the image comes from its release workflow), host `${LOCAL_DOMAIN}` (required in `.env`, no default).
+- `remna-control`: image `ghcr.io/lentryd/vpn-control:latest` (the panel repo has no Dockerfile; the image comes from its release workflow), host `${LOCAL_DOMAIN}` (required in `.env`, no default).
 - `bot`: `build: .`, rule `Host(${LOCAL_DOMAIN}) && PathPrefix(${WEBAPP_PATH})`.
 
 Like in space-rocket-next: `LOCAL_DOMAIN` is a subdomain of your own domain (e.g. `local.<domain>`),
 entry `127.0.0.1 local.<domain>` in `/etc/hosts`, certificate via `mkcert` (CA installed with `mkcert -install`)
 — Telegram Desktop on the same machine opens the WebApp at that URL.
-`taskfile.yaml` (as in vpn-control): `certs` (mkcert), `hosts` (check), `panel:db` (local panel DB snapshot), `up`, `down`, `logs`, `test`.
+`taskfile.yaml` (as in remna-control): `certs` (mkcert), `hosts` (check), `panel:db` (local panel DB snapshot), `up`, `down`, `logs`, `test`.
 
 ## Production
 
@@ -202,10 +202,10 @@ is configured on the external balancer.
 
 ## Testing
 
-- `access`: table-driven tests over a fake `vpnctl.Client` covering all onboarding branches × both modes.
+- `access`: table-driven tests over a fake `remnactl.Client` covering all onboarding branches × both modes.
 - `sublink`: URL formats/bare uuid/garbage.
 - `webapp`: initData validation (valid/tampered/expired), ownership checks.
-- `vpnctl`: `httptest` server, DTO mapping and errors.
+- `remnactl`: `httptest` server, DTO mapping and errors.
 - `telegram`: rendering texts/keyboards from fixtures (golden), without the network.
 
 ## Addendum 2026-10-07: balance pay mode and notifications

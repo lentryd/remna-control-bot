@@ -1,9 +1,9 @@
-# Example deployment next to vpn-control: same docker network, the WebApp is
+# Example deployment next to remna-control: same docker network, the WebApp is
 # routed by path ($WEBAPP_PATH) on the panel's domain by your balancer/Traefik.
 services:
-    vpn-control-bot:
+    remna-control-bot:
         build: .
-        container_name: vpn-control-bot
+        container_name: remna-control-bot
         restart: unless-stopped
         env_file: .env
         environment:
@@ -15,12 +15,12 @@ services:
             - remnawave-network
         labels:
             - 'traefik.enable=true'
-            - 'traefik.http.routers.vpn-control-bot.rule=Host(`${APP_DOMAIN}`) && (PathPrefix(`${WEBAPP_PATH:-/bot}`) || PathPrefix(`/pay/`))'
-            - 'traefik.http.routers.vpn-control-bot.priority=100'
-            - 'traefik.http.routers.vpn-control-bot.tls=true'
-            - 'traefik.http.routers.vpn-control-bot.entrypoints=${TRAEFIK_ENTRYPOINTS:-web,websecure}'
-            - 'traefik.http.routers.vpn-control-bot.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}'
-            - 'traefik.http.services.vpn-control-bot.loadbalancer.server.port=8090'
+            - 'traefik.http.routers.remna-control-bot.rule=Host(`${APP_DOMAIN}`) && (PathPrefix(`${WEBAPP_PATH:-/bot}`) || PathPrefix(`/pay/`))'
+            - 'traefik.http.routers.remna-control-bot.priority=100'
+            - 'traefik.http.routers.remna-control-bot.tls=true'
+            - 'traefik.http.routers.remna-control-bot.entrypoints=${TRAEFIK_ENTRYPOINTS:-web,websecure}'
+            - 'traefik.http.routers.remna-control-bot.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}'
+            - 'traefik.http.services.remna-control-bot.loadbalancer.server.port=8090'
 
 volumes:
     bot-data:
