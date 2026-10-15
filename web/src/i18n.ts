@@ -14,7 +14,8 @@ export function langFromTelegram(code?: string): Lang {
     return (supported as readonly string[]).includes(primary) ? (primary as Lang) : 'en'
 }
 
-const lng = langFromTelegram(tg?.initDataUnsafe?.user?.language_code)
+// Known synchronously; i18n.language is only set once the async init has run.
+export const lng = langFromTelegram(tg?.initDataUnsafe?.user?.language_code)
 
 i18n.use(HttpBackend)
     .use(initReactI18next)

@@ -2,7 +2,7 @@ import '@fontsource-variable/geist'
 import '@fontsource-variable/geist-mono'
 import './app/vendor.css'
 import './app/global.css'
-import i18n, { type Lang } from './i18n'
+import { lng } from './i18n'
 
 import { MantineProvider } from '@mantine/core'
 import dayjs from 'dayjs'
@@ -19,7 +19,7 @@ import { cssVariablesResolver, theme } from '@shared/constants/theme'
 import { setFormat } from '@shared/format'
 
 initTelegram()
-const lang = i18n.language as Lang
+const lang = lng
 dayjs.locale(lang)
 setFormat({ base: 'RUB', locale: lang === 'ru' ? 'ru-RU' : 'en-US' })
 document.documentElement.lang = lang
