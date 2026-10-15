@@ -105,18 +105,6 @@ func TestScreens(t *testing.T) {
 		loc := i18n.Default.For(lang)
 		p := fixture()
 		golden(t, lang, "home", Home(loc, p, links, now))
-		golden(t, lang, "subscriptions", Subscriptions(loc, p, 0, now))
-		sub, ok := Subscription(loc, p, 3, links, now)
-		if !ok {
-			t.Fatal("subscription 3 not found")
-		}
-		golden(t, lang, "subscription", sub)
-		golden(t, lang, "balance", Balance(loc, p, links))
-		golden(t, lang, "referrals", Referrals(loc, p, links))
-		golden(t, lang, "tariffs", Tariffs(loc, []profile.Tariff{
-			{ID: 1, Kind: "base", Name: "Стандарт", Description: "Все страны", MonthlyPrice: 250, TrafficLimitBytes: 100 << 30, HwidLimit: ptr(3)},
-			{ID: 2, Kind: "addon", Name: "YT", AddonName: "YouTube", MonthlyPrice: 50},
-		}, 0, links))
 	}
 }
 
@@ -125,11 +113,6 @@ func TestEmptyStates(t *testing.T) {
 		loc := i18n.Default.For(lang)
 		p := profile.Profile{Name: "New", RefLink: "https://t.me/vpnbot?start=ref_x"}
 		golden(t, lang, "home_empty", Home(loc, p, links, now))
-		golden(t, lang, "subscriptions_empty", Subscriptions(loc, p, 0, now))
-		golden(t, lang, "referrals_empty", Referrals(loc, p, links))
-		if _, ok := Subscription(loc, p, 1, links, now); ok {
-			t.Error("missing subscription reported as found")
-		}
 	}
 }
 

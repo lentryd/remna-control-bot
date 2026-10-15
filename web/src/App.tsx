@@ -5,6 +5,7 @@ import { ApiError, useProfile } from './api'
 import { AppShell } from './layout/AppShell'
 import { Balance } from './pages/Balance'
 import { Checkout } from './pages/Checkout'
+import { Orders } from './pages/Orders'
 import { Overview } from './pages/Overview'
 import { Referrals } from './pages/Referrals'
 import { SubscriptionDetails } from './pages/SubscriptionDetails'
@@ -42,6 +43,7 @@ function CustomerApp() {
                 <Route element={<Referrals p={p} />} path="/referrals" />
                 <Route element={<Tariffs />} path="/tariffs" />
                 <Route element={<Checkout p={p} />} path="/checkout" />
+                <Route element={<Orders />} path="/orders" />
                 <Route element={<Overview p={p} />} path="*" />
             </Routes>
         </AppShell>

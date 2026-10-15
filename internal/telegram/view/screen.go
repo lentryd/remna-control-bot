@@ -23,24 +23,8 @@ func (l Links) Page(hash string) *models.WebAppInfo {
 }
 
 const (
-	CbHome    = "m:home"
-	CbSubs    = "m:subs"
-	CbBalance = "m:bal"
-	CbRefs    = "m:ref"
-	CbTariffs = "m:tar"
-	CbSub     = "s:" // + subscription id
-
-	CbRenew       = "r:"  // + subscription id
-	CbSubsPage    = "ps:" // + page number, from 0
-	CbTariffsPage = "pt:" // + page number, from 0
-
-	CbOrders        = "m:pay"
-	CbOrdersPage    = "po:" // + page number, from 0
-	CbRenewPick     = "rp:" // + subID:months:days
-	CbOrderPay      = "pr:" // + order id: send the receipt
-	CbOrderBal      = "pb:" // + order id: pay from the balance
-	CbOrderCancel   = "pc:" // + order id
-	CbOrderProvider = "pp:" // + provider id : order id — pay with that provider
+	CbHome        = "m:home"
+	CbOrderCancel = "pc:" // + order id
 )
 
 type btn = models.InlineKeyboardButton

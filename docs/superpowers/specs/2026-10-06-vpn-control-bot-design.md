@@ -89,18 +89,22 @@ by `telegram_id`; no customer → the onboarding screen. Archived customer → "
 
 ## Bot UX
 
-One "main" message that is edited in place (`editMessageText`); the bot only sends new messages
-in response to text input. Callback data is short: `m:home`, `m:subs`, `s:<id>`, `m:bal`, `m:ref`, `m:tar`.
+The bot is a launcher; see `2026-10-15-bot-minimal-menu-design.md` for the current design.
+The main message shows the name, balance, subscriptions summary and a renewal warning. Every
+button is a `web_app` button that opens the WebApp on a page:
 
-- **Home**: name, balance, the nearest expiration with status (🟢 active / 🟡 < 3 days / 🔴 expired).
-  Buttons: 📦 Subscriptions · 💰 Balance · 👥 Referrals · 🏷 Tariffs · 🌐 Open app (WebApp).
-- **Subscriptions**: list (label/tariff, until when) → card: tariff, until, traffic/HWID limits,
-  add-ons with their dates, subscription link (copied in `<code>`), "Details in the app" (`#/subscriptions/<id>`).
-- **Balance**: current balance, last 5 operations, "Full history" (`#/balance`).
-- **Referrals**: personal link `t.me/<bot>?start=ref_<code>`, "Share" button (`switch_inline_query`/share URL),
-  number of invitees, total accruals, top 5 by income, "Everything in the app" (`#/referrals`).
-- **Tariffs**: list with prices; the "Pay/Pick" button → `billing` → "payment will be available soon".
-- Commands: `/start`, `/menu`, `/help`. The menu button (`setChatMenuButton`) opens the WebApp.
+| Button | Page |
+|---|---|
+| Open app | `#/` |
+| Subscriptions | `#/subscriptions` |
+| Balance | `#/balance` |
+| Friends | `#/referrals` |
+| Tariffs | `#/tariffs` |
+| Payments | `#/orders` |
+| Renew (when a subscription ends soon) | `#/checkout?kind=renew&item_kind=subscription&item_id=<id>` |
+
+Commands: `/start`, `/menu`, `/help`. The menu button (`setChatMenuButton`) opens the WebApp.
+What stays in the bot: onboarding and link entry, receipts, Telegram Stars, notifications, admin order cards.
 
 ## WebApp
 

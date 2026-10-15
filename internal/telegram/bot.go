@@ -79,12 +79,8 @@ func New(ctx context.Context, token string, d Deps) (*Bot, error) {
 	tg.RegisterHandler(tgbot.HandlerTypeMessageText, "start", tgbot.MatchTypeCommand, b.onStart)
 	tg.RegisterHandler(tgbot.HandlerTypeMessageText, "menu", tgbot.MatchTypeCommand, b.onMenu)
 	tg.RegisterHandler(tgbot.HandlerTypeMessageText, "help", tgbot.MatchTypeCommand, b.onHelp)
-	for _, p := range []string{"m:", view.CbSub, view.CbSubsPage, view.CbTariffsPage, view.CbRenew, view.CbOrdersPage} {
-		tg.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, p, tgbot.MatchTypePrefix, b.onCallback)
-	}
-	for _, p := range []string{view.CbRenewPick, view.CbOrderPay, view.CbOrderBal, view.CbOrderCancel, view.CbOrderProvider} {
-		tg.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, p, tgbot.MatchTypePrefix, b.onOrderCallback)
-	}
+	tg.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, view.CbHome, tgbot.MatchTypeExact, b.onCallback)
+	tg.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, view.CbOrderCancel, tgbot.MatchTypePrefix, b.onOrderCallback)
 	tg.RegisterHandler(tgbot.HandlerTypeMessageText, "admin", tgbot.MatchTypeCommand, b.onAdminCmd)
 
 	b.setCommands(ctx)
@@ -288,8 +284,7 @@ func (b *Bot) onCallback(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 	defer func() { b.tg.AnswerCallbackQuery(ctx, answer) }()
 
 	chatID, msgID := q.Message.Message.Chat.ID, q.Message.Message.ID
-	rt, ok := parseRoute(q.Data)
-	if !ok {
+	if _, ok := parseRoute(q.Data); !ok {
 		return
 	}
 	r, err := b.Access.Start(ctx, user(&q.From), "")
@@ -297,42 +292,5 @@ func (b *Bot) onCallback(ctx context.Context, _ *tgbot.Bot, u *models.Update) {
 		b.show(ctx, chatID, msgID, s)
 		return
 	}
-	p := b.profile(r.Customer)
-	now := time.Now()
-	switch rt.kind {
-	case view.CbHome:
-		b.show(ctx, chatID, msgID, view.Home(loc, p, b.links, now))
-	case view.CbSubs, view.CbSubsPage:
-		b.show(ctx, chatID, msgID, view.Subscriptions(loc, p, rt.id, now))
-	case view.CbSub:
-		s, found := view.Subscription(loc, p, rt.id, b.links, now)
-		if !found {
-			s = view.Subscriptions(loc, p, 0, now)
-		}
-		b.show(ctx, chatID, msgID, s)
-	case view.CbBalance:
-		b.show(ctx, chatID, msgID, view.Balance(loc, p, b.links))
-	case view.CbRefs:
-		b.show(ctx, chatID, msgID, view.Referrals(loc, p, b.links))
-	case view.CbTariffs, view.CbTariffsPage:
-		ts, err := b.API.ListTariffs(ctx)
-		if err != nil {
-			b.Log.Error("tariffs", "err", err)
-			b.show(ctx, chatID, msgID, view.Notice(loc, loc.T("msg.down")))
-			return
-		}
-		b.show(ctx, chatID, msgID, view.Tariffs(loc, profile.Tariffs(ts), rt.id, b.links))
-	case view.CbRenew:
-		if b.Orders == nil {
-			answer.Text, answer.ShowAlert = loc.T("msg.soon"), true
-			return
-		}
-		b.renewPeriods(ctx, chatID, msgID, r.Customer, rt.id)
-	case view.CbOrders, view.CbOrdersPage:
-		if b.Orders == nil {
-			answer.Text, answer.ShowAlert = loc.T("msg.soon"), true
-			return
-		}
-		b.showOrders(ctx, chatID, msgID, r.Customer.ID, rt.id)
-	}
+	b.show(ctx, chatID, msgID, view.Home(loc, b.profile(r.Customer), b.links, time.Now()))
 }

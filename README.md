@@ -4,6 +4,11 @@ Telegram bot and Telegram WebApp for customers of [vpn-control](../vpn-control).
 subscriptions and add-ons, balance and history, invitees and what each one brings in, and the
 available tariffs. They can pay for tariffs and top up the balance in the WebApp.
 
+The bot itself is a launcher: every button of its menu (Subscriptions, Balance, Friends, Tariffs,
+Payments, Renew) opens the WebApp on the matching page. What stays in the bot is onboarding (`/start`,
+entering a subscription link), receipts for manual payments, Telegram Stars, notifications and the
+order cards of the admins.
+
 One Go process: the bot (long polling) plus an HTTP server for the WebApp under `WEBAPP_PATH`.
 All customer data comes from the vpn-control public API; the bot's own SQLite only remembers
 who is expected to send a subscription link.

@@ -1,7 +1,6 @@
 package view
 
 import (
-	"slices"
 	"strings"
 	"testing"
 
@@ -68,72 +67,9 @@ func TestOrderNotice(t *testing.T) {
 		if st == orders.StatusCredited {
 			o.Received = &r
 		}
-		if s := OrderNotice(ru, o); !strings.Contains(s.Text, want) {
+		if s := OrderNotice(ru, o, links); !strings.Contains(s.Text, want) {
 			t.Errorf("%s: %s", st, s.Text)
 		}
-	}
-}
-
-func TestOrdersHistory(t *testing.T) {
-	list := []orders.Order{order(), order()}
-	list[1].ID, list[1].Status = "b1b1b1b1-0000-4000-8000-000000000000", orders.StatusApproved
-	s := Orders(ru, list, 0, 2)
-	if !strings.Contains(s.Text, "⏳") || !strings.Contains(s.Text, "✅") || !strings.Contains(s.Text, "№b1b1b1b1") {
-		t.Fatal(s.Text)
-	}
-	if e := Orders(ru, nil, 0, 0); !strings.Contains(e.Text, "пока нет") {
-		t.Fatal(e.Text)
-	}
-}
-
-func TestRenewPeriods(t *testing.T) {
-	s := RenewPeriods(ru, 3, "Дом", []RenewOption{{Months: 1, Price: 300}, {Months: 3, Price: 800}})
-	if b := buttons(s); !has(b, CbRenewPick+"3:1:0") || !has(b, CbRenewPick+"3:3:0") {
-		t.Fatalf("%v", b)
-	}
-}
-
-func TestConfirmWithProviders(t *testing.T) {
-	o := order() // manual
-	s := Confirm(ru, o, ProviderButton{ID: "yookassa", Title: "Карта / СБП"}, ProviderButton{ID: "stars", Title: "Telegram Stars ⭐"})
-	b := buttons(s)
-	if !has(b, CbOrderPay+o.ID) || !has(b, CbOrderProvider+"yookassa:"+o.ID) || !has(b, CbOrderProvider+"stars:"+o.ID) || !has(b, CbOrderCancel+o.ID) {
-		t.Fatalf("buttons %v", b)
-	}
-	for _, cb := range b {
-		if len(cb) > 64 {
-			t.Errorf("callback data %q is over Telegram's 64 bytes", cb)
-		}
-	}
-	undecided := o
-	undecided.Method, undecided.Status = "", orders.StatusNew
-	if b := buttons(Confirm(ru, undecided, ProviderButton{ID: "stars", Title: "S"})); has(b, CbOrderPay+o.ID) || !has(b, CbOrderProvider+"stars:"+o.ID) {
-		t.Errorf("an undecided order offers only providers: %v", b)
-	}
-	bal := o
-	bal.Method = orders.MethodBalance
-	if b := buttons(Confirm(ru, bal, ProviderButton{ID: "stars", Title: "S"})); has(b, CbOrderProvider+"stars:"+o.ID) {
-		t.Errorf("a balance order offers no provider: %v", b)
-	}
-}
-
-func TestProviderPay(t *testing.T) {
-	o := order()
-	o.Status, o.Method, o.PayURL = orders.StatusAwaitingPayment, "yookassa", "https://yoomoney.ru/pay/p1"
-	s := ProviderPay(ru, o, "Карта / СБП")
-	if !strings.Contains(s.Text, "Карта / СБП") || !strings.Contains(s.Text, "800") {
-		t.Fatalf("text:\n%s", s.Text)
-	}
-	var url string
-	for _, row := range s.Keyboard.InlineKeyboard {
-		for _, b := range row {
-			if b.URL != "" {
-				url = b.URL
-			}
-		}
-	}
-	if url != o.PayURL || !has(buttons(s), CbOrderCancel+o.ID) {
-		t.Fatalf("url %q buttons %v", url, buttons(s))
 	}
 }
 
@@ -163,7 +99,7 @@ func TestStoredOrderTextsPerViewer(t *testing.T) {
 		en: {"Renewal of “Дом &lt;b&gt;” · 3 mo.", "VPN panel", "wrong amount"},
 	} {
 		card := AdminCard(loc, o, AdminCustomer{}, nil).Text
-		list := Orders(loc, []orders.Order{o}, 0, 1).Text
+		list := PayScreen(loc, o, "details").Text
 		for _, w := range want {
 			if !strings.Contains(card, w) {
 				t.Errorf("%s card lacks %q:\n%s", loc.Lang(), w, card)
@@ -174,37 +110,7 @@ func TestStoredOrderTextsPerViewer(t *testing.T) {
 		}
 	}
 	o.Status, o.Title = orders.StatusApproved, "Продление «Дом» · 3 мес." // a row written before titles were localized
-	if s := OrderNotice(en, o).Text; !strings.Contains(s, "Продление «Дом» · 3 мес.") {
+	if s := OrderNotice(en, o, links).Text; !strings.Contains(s, "Продление «Дом» · 3 мес.") {
 		t.Errorf("legacy title must be shown as stored: %s", s)
 	}
-}
-
-func TestProviderTitlesFromCatalog(t *testing.T) {
-	en := i18n.Default.For("en")
-	o := order()
-	s := Confirm(ru, o, ProviderButton{ID: "yookassa", Title: "fallback"}, ProviderButton{ID: "newpay", Title: "New Pay"})
-	if b := buttonTexts(s); !slices.Contains(b, "💳 Карта / СБП") || !slices.Contains(b, "💳 New Pay") {
-		t.Errorf("ru buttons %v", b)
-	}
-	if b := buttonTexts(Confirm(en, o, ProviderButton{ID: "yookassa", Title: "fallback"})); !slices.Contains(b, "💳 Card / bank transfer") {
-		t.Errorf("en buttons %v", b)
-	}
-	o.Method = "cryptobot"
-	if s := ProviderPay(en, o, "fallback").Text; !strings.Contains(s, "Crypto (CryptoBot)") {
-		t.Errorf("en pay screen:\n%s", s)
-	}
-	o.Method = "newpay"
-	if s := ProviderPay(ru, o, "New Pay").Text; !strings.Contains(s, "New Pay") {
-		t.Errorf("unknown provider falls back to its title:\n%s", s)
-	}
-}
-
-func buttonTexts(s Screen) []string {
-	var out []string
-	for _, row := range s.Keyboard.InlineKeyboard {
-		for _, b := range row {
-			out = append(out, b.Text)
-		}
-	}
-	return out
 }

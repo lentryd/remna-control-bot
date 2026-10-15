@@ -6,7 +6,7 @@
 🟡 “Основная” ends in 2 days — Oct 8, 2026
 ---
 [🌐 Open the app → app https://x.dev/bot/#/]
-[💳 Renew “Основная” · r:3]
-[📦 Subscriptions · m:subs] | [💰 Balance · m:bal]
-[👥 Referrals · m:ref] | [🏷 Plans · m:tar]
-[🧾 Payments · m:pay]
+[💳 Renew “Основная” → app https://x.dev/bot/#/checkout?kind=renew&item_kind=subscription&item_id=3]
+[📦 Subscriptions → app https://x.dev/bot/#/subscriptions] | [💰 Balance → app https://x.dev/bot/#/balance]
+[👥 Referrals → app https://x.dev/bot/#/referrals] | [🏷 Plans → app https://x.dev/bot/#/tariffs]
+[🧾 Payments → app https://x.dev/bot/#/orders]

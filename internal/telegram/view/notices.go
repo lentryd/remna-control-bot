@@ -29,7 +29,7 @@ func TrafficAlert(loc i18n.Localizer, n notify.Notice, l Links, now time.Time) S
 	}
 	return Screen{Text: b.String(), Keyboard: kb(
 		[]btn{{Text: loc.T("btn.tariffs_app"), WebApp: l.Page("/tariffs")}},
-		[]btn{cb(loc.T("btn.open_sub"), CbSub+strconv.Itoa(n.SubID))},
+		[]btn{{Text: loc.T("btn.open_sub"), WebApp: l.Page("/subscriptions/" + strconv.Itoa(n.SubID))}},
 	)}
 }
 
@@ -43,7 +43,7 @@ func PaymentReminder(loc i18n.Localizer, n notify.Notice, l Links, now time.Time
 		text = loc.T("notice.remind", title, left(loc, n.ExpireAt, now), Date(loc, &n.ExpireAt))
 	}
 	return Screen{Text: text, Keyboard: kb(
-		[]btn{cb(loc.T("btn.renew"), CbRenew+strconv.Itoa(n.SubID))},
+		[]btn{{Text: loc.T("btn.renew"), WebApp: l.Page(renewPage(n.SubID))}},
 		[]btn{{Text: loc.T("btn.details"), WebApp: l.Page("/subscriptions/" + strconv.Itoa(n.SubID))}},
 	)}
 }

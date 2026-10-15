@@ -25,7 +25,7 @@ const colors: Record<Order['status'], string> = {
     cancelled: 'gray',
 }
 
-export function OrdersList() {
+export function OrdersList({ heading = true }: { heading?: boolean }) {
     const { t } = useTranslation()
     const qc = useQueryClient()
     const q = useOrders()
@@ -50,7 +50,7 @@ export function OrdersList() {
     if (list.length === 0) return null
     return (
         <Stack gap="xs">
-            <Text fw={600}>{t('orders.title')}</Text>
+            {heading && <Text fw={600}>{t('orders.title')}</Text>}
             <SectionCard.Root gap="sm">
                 {list.map((o) => (
                     <Stack gap={4} key={o.id}>

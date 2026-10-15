@@ -104,6 +104,7 @@
         "subs": "No subscriptions yet",
         "subs_hint": "Pick a plan — the subscription will appear here.",
         "ledger": "No transactions yet",
+        "orders": "No payments yet",
         "refs": "You haven't invited anyone yet",
         "refs_hint": "Share your link — you get a percentage of your friends' payments added to your balance."
     },
