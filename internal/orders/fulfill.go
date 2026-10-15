@@ -298,6 +298,7 @@ func (s *Service) fulfill(ctx context.Context, o *Order, d Decision) (Status, *t
 	case KindSubscribe:
 		_, err = s.API.Provision(ctx, remnactl.ProvisionInput{
 			CustomerID: o.CustomerID, TariffID: o.TariffID, Username: fmt.Sprintf("bot_c%d_o%s", o.CustomerID, o.Short()),
+			Label:  "order #" + o.Short(),
 			Months: o.Months, Days: o.Days, Amount: o.Price,
 		})
 	case KindAddon:

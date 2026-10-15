@@ -186,7 +186,7 @@ func TestSubscribeAddonChangeTariff(t *testing.T) {
 		switch r.Kind {
 		case KindSubscribe:
 			p := f.Provisions[0]
-			if p.CustomerID != 5 || p.TariffID != 1 || p.Months != 3 || p.Amount != 800 || p.AllowDebt || p.Username != "bot_c5_o1" {
+			if p.CustomerID != 5 || p.TariffID != 1 || p.Months != 3 || p.Amount != 800 || p.AllowDebt || p.Username != "bot_c5_o1" || p.Label != "order #1" {
 				t.Fatalf("provision %+v", p)
 			}
 		case KindAddon:
