@@ -107,6 +107,7 @@ func run() error {
 	bot, err = telegram.New(ctx, cfg.BotToken, telegram.Deps{
 		Access: acc, API: api, Codec: codec, Orders: svc, IsAdmin: cfg.IsAdmin, Admins: cfg.AdminIDs, Notices: st, Langs: st, Reach: st,
 		WebAppURL: cfg.WebAppURL(), PayMode: payMode, Log: log,
+		Profile: func() settings.Profile { return set.Snapshot().Profile() },
 	})
 	if err != nil {
 		return err
@@ -123,7 +124,7 @@ func run() error {
 	app := webapp.New(webapp.Deps{
 		API: api, Codec: codec, BotToken: cfg.BotToken, BotUsername: bot.Username(),
 		Path: cfg.WebAppPath, PayMode: payMode, Orders: svc, Currency: cur.Get, Static: static, Log: log,
-		Settings: set, IsAdmin: cfg.IsAdmin, PublicURL: cfg.PublicURL, Receipts: bot, Unreachable: bot.Unreachable, Langs: st,
+		Settings: set, IsAdmin: cfg.IsAdmin, PublicURL: cfg.PublicURL, Receipts: bot, Unreachable: bot.Unreachable, Langs: st, Profile: bot,
 	})
 
 	errc := make(chan error, 1)

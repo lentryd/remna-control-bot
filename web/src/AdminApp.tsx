@@ -1,5 +1,5 @@
 import { Box } from '@mantine/core'
-import { IconCreditCard, IconReceipt, IconSettings } from '@tabler/icons-react'
+import { IconCreditCard, IconReceipt, IconRobot, IconSettings } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 import { Route, Routes, useLocation, useNavigate } from 'react-router'
 
@@ -12,6 +12,7 @@ import { AdminGeneral } from './pages/admin/AdminGeneral'
 import { AdminMethods } from './pages/admin/AdminMethods'
 import { AdminOrder } from './pages/admin/AdminOrder'
 import { AdminOrders } from './pages/admin/AdminOrders'
+import { AdminProfile } from './pages/admin/AdminProfile'
 import { tg } from './telegram'
 import { ErrorScreen } from './ui/ErrorScreen'
 import { PageSkeleton } from './ui/PageSkeleton'
@@ -19,7 +20,8 @@ import { PageSkeleton } from './ui/PageSkeleton'
 const TAB_DEFS = [
     { value: '/admin', key: 'tabs.orders', icon: IconReceipt },
     { value: '/admin/methods', key: 'tabs.methods', icon: IconCreditCard },
-    { value: '/admin/general', key: 'tabs.general', icon: IconSettings }
+    { value: '/admin/general', key: 'tabs.general', icon: IconSettings },
+    { value: '/admin/profile', key: 'tabs.profile', icon: IconRobot }
 ]
 
 export function AdminApp() {
@@ -45,6 +47,7 @@ export function AdminApp() {
             <Route element={<AdminOrder />} path="/admin/orders/:id" />
             <Route element={<AdminMethods />} path="/admin/methods" />
             <Route element={<AdminGeneral />} path="/admin/general" />
+            <Route element={<AdminProfile />} path="/admin/profile" />
             <Route element={<AdminOrders />} path="*" />
         </Routes>
     )

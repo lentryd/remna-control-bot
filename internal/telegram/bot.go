@@ -22,6 +22,7 @@ import (
 	"remna-control-bot/internal/profile"
 	"remna-control-bot/internal/refcode"
 	"remna-control-bot/internal/remnactl"
+	"remna-control-bot/internal/settings"
 	"remna-control-bot/internal/telegram/view"
 )
 
@@ -42,11 +43,12 @@ type Deps struct {
 
 	Orders  *orders.Service // nil: payments in the bot are off
 	IsAdmin func(int64) bool
-	Admins  []int64     // receive order cards; ADMIN_IDS in order
-	Notices NoticeStore // where each admin's card for an order lives
-	Langs   LangStore   // nil: everything is English
-	Reach   ReachStore  // nil: nobody's notifications are paused
-	APIBase string      // Bot API base URL; "" is Telegram's own (tests point it at a fake)
+	Admins  []int64                 // receive order cards; ADMIN_IDS in order
+	Notices NoticeStore             // where each admin's card for an order lives
+	Langs   LangStore               // nil: everything is English
+	Reach   ReachStore              // nil: nobody's notifications are paused
+	APIBase string                  // Bot API base URL; "" is Telegram's own (tests point it at a fake)
+	Profile func() settings.Profile // the admin's profile texts; nil: the built-in ones
 }
 
 type Bot struct {
@@ -56,7 +58,10 @@ type Bot struct {
 	links    view.Links
 
 	mu          sync.Mutex
-	unreachable map[int64]bool // admins the last message to failed for
+	unreachable map[int64]bool                   // admins the last message to failed for
+	applied     map[string]settings.ProfileTexts // what Telegram's profile says, by language
+
+	applyMu sync.Mutex // one ApplyProfile at a time
 }
 
 func New(ctx context.Context, token string, d Deps) (*Bot, error) {
@@ -94,6 +99,7 @@ func New(ctx context.Context, token string, d Deps) (*Bot, error) {
 	if err := b.setMenuButton(ctx); err != nil {
 		d.Log.Warn("set menu button", "err", err)
 	}
+	b.syncApplied()
 	b.initIfBlank(ctx)
 	return b, nil
 }

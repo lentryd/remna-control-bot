@@ -6,6 +6,7 @@ package settings
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"regexp"
 	"slices"
@@ -18,6 +19,7 @@ import (
 
 const (
 	KeyGeneral   = "general"
+	KeyProfile   = "profile"
 	KeyManual    = "pay.manual"
 	KeyYooKassa  = "pay.yookassa"
 	KeyCryptoBot = "pay.cryptobot"
@@ -27,7 +29,7 @@ const (
 	KeyStars     = "pay.stars"
 )
 
-var Keys = []string{KeyGeneral, KeyManual, KeyYooKassa, KeyCryptoBot, KeyHeleket, KeyPal24, KeyPlatega, KeyStars}
+var Keys = []string{KeyGeneral, KeyProfile, KeyManual, KeyYooKassa, KeyCryptoBot, KeyHeleket, KeyPal24, KeyPlatega, KeyStars}
 
 var currencyRe = regexp.MustCompile(`^[A-Z]{3}$`)
 
@@ -240,6 +242,8 @@ func newSection(key string) Section {
 	case KeyGeneral:
 		return &General{Mode: config.ModeClosed, PayMode: config.PayMixed, NotifyMinutes: 60, TrafficAlertPct: 80,
 			RemindDays: []int{3, 1}, OrderTTLHours: 48}
+	case KeyProfile:
+		return &Profile{Texts: map[string]ProfileTexts{}}
 	case KeyManual:
 		return &Manual{}
 	case KeyYooKassa:
@@ -282,7 +286,17 @@ func (s Snapshot) With(sec Section) Snapshot {
 
 func (s Snapshot) section(key string) Section { return s.m[key] }
 
-func (s Snapshot) General() General   { return *s.m[KeyGeneral].(*General) }
+func (s Snapshot) General() General { return *s.m[KeyGeneral].(*General) }
+
+// Profile returns a copy that is safe to read and keep: Texts is never nil.
+func (s Snapshot) Profile() Profile {
+	p := *s.m[KeyProfile].(*Profile)
+	p.Texts = maps.Clone(p.Texts)
+	if p.Texts == nil {
+		p.Texts = map[string]ProfileTexts{}
+	}
+	return p
+}
 func (s Snapshot) Manual() Manual     { return *s.m[KeyManual].(*Manual) }
 func (s Snapshot) YooKassa() YooKassa { return *s.m[KeyYooKassa].(*YooKassa) }
 func (s Snapshot) CryptoBot() CryptoBot {

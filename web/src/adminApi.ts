@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { ApiError, authHeaders, call } from './api'
-import type { AdminOrder, AdminSettings, CheckResult, Decision } from './types'
+import type { AdminOrder, AdminSettings, CheckResult, Decision, ProfileSaved, ProfileTexts } from './types'
 
 export interface AdminMe {
     id: number
@@ -33,6 +33,7 @@ export const useAdminSettings = () =>
     useQuery({ queryKey: ['admin', 'settings'], queryFn: () => call<AdminSettings>('GET', 'admin/settings'), retry })
 export const saveSection = (key: string, body: Record<string, unknown>) =>
     call<Record<string, unknown>>('PUT', `admin/settings/${key}`, body)
+export const saveProfile = (texts: Record<string, ProfileTexts>) => call<ProfileSaved>('PUT', 'admin/settings/profile', { texts })
 export const checkSection = (key: string) => call<CheckResult>('POST', `admin/settings/${key}/test`)
 
 // The receipt needs the Authorization header, so it is fetched and shown from a blob URL.

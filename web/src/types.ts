@@ -131,6 +131,23 @@ export interface AdminSettings {
     sections: Record<string, Record<string, unknown>>
     lost: string[]
     webhook_base: string
+    profile_defaults?: Record<string, ProfileTexts> // the built-in bot profile texts, by language
+}
+
+export interface ProfileTexts {
+    name: string
+    description: string
+    about: string
+}
+
+export interface ProfileApply {
+    failed: { lang: string; field: 'name' | 'description' | 'about'; message: string }[]
+    retry_after: number
+}
+
+export interface ProfileSaved {
+    texts: Record<string, ProfileTexts>
+    apply?: ProfileApply
 }
 
 export interface CheckResult {

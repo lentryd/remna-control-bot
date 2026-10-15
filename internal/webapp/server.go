@@ -51,6 +51,13 @@ type Deps struct {
 	Receipts    ReceiptSource  // streams receipts from Telegram; nil: receipts are unavailable
 	Unreachable func() []int64 // admins the bot could not reach; nil: none
 	Langs       LangStore      // remembers the language of people who open the app; nil: not remembered
+	Profile     ProfileApplier // pushes saved profile texts to Telegram; nil: they are only stored
+}
+
+// ProfileApplier sends the bot's saved profile texts to Telegram.
+type ProfileApplier interface {
+	ApplyProfile(ctx context.Context) settings.ProfileApply
+	ProfileDefaults() map[string]settings.ProfileTexts // the built-in texts per language, for the form to show
 }
 
 func New(d Deps) *fiber.App {

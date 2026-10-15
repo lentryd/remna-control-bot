@@ -170,3 +170,30 @@ func TestMask(t *testing.T) {
 		}
 	}
 }
+
+func TestProfileSection(t *testing.T) {
+	s := openStore(t, openDB(t), "s")
+	ctx := context.Background()
+	if p := s.Snapshot().Profile(); p.Texts == nil || len(p.Texts) != 0 {
+		t.Fatalf("default profile: %+v", p)
+	}
+	long := strings.Repeat("я", MaxProfileAbout+1)
+	var ve *ValidationError
+	for name, body := range map[string]string{
+		"bad language":                      `{"texts":{"english":{"name":"x"}}}`,
+		"name too long":                     `{"texts":{"ru":{"name":"` + strings.Repeat("a", MaxProfileName+1) + `"}}}`,
+		"about too long (runes, not bytes)": `{"texts":{"ru":{"about":"` + long + `"}}}`,
+	} {
+		if err := s.Put(ctx, KeyProfile, []byte(body)); !errors.As(err, &ve) {
+			t.Errorf("%s: want ValidationError, got %v", name, err)
+		}
+	}
+	// Exactly the limit, counted in characters, is fine.
+	ok := strings.Repeat("я", MaxProfileAbout)
+	if err := s.Put(ctx, KeyProfile, []byte(`{"texts":{"ru":{"name":"Кабинет","about":"`+ok+`"},"en":{}}}`)); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Snapshot().Profile().Texts["ru"]; got.Name != "Кабинет" || got.About != ok {
+		t.Fatalf("saved profile: %+v", got)
+	}
+}

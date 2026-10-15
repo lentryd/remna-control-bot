@@ -4,11 +4,13 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/go-telegram/bot/models"
 
 	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/settings"
 )
 
 func first(s sentForm, key string) string {
@@ -150,5 +152,119 @@ func TestFirstStartFillsBlankProfile(t *testing.T) {
 	_, ft, _ = newCardBot(t)
 	if ft.count("setMyName") != 0 || ft.count("setMyProfilePhoto") != 0 {
 		t.Errorf("a filled profile is left alone: %v", ft.calls)
+	}
+}
+
+// profileOf returns a Profile func over a texts map the test can change.
+func profileOf(texts map[string]settings.ProfileTexts) func() settings.Profile {
+	return func() settings.Profile { return settings.Profile{Texts: texts} }
+}
+
+func (f *fakeTelegram) limit(method string, retryAfter int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.limited == nil {
+		f.limited = map[string]int{}
+	}
+	if retryAfter == 0 {
+		delete(f.limited, method)
+		return
+	}
+	f.limited[method] = retryAfter
+}
+
+func TestApplyProfileSendsOnlyWhatChanged(t *testing.T) {
+	texts := map[string]settings.ProfileTexts{}
+	b, ft, _ := newBotProfile(t, &fakeTelegram{}, profileOf(texts))
+	ctx := context.Background()
+
+	sentTexts := func() int {
+		return ft.count("setMyName") + ft.count("setMyDescription") + ft.count("setMyShortDescription")
+	}
+	before := sentTexts()
+	if res := b.ApplyProfile(ctx); len(res.Failed) != 0 || sentTexts() != before {
+		t.Fatalf("nothing changed, nothing is sent: %+v, %d new calls", res, sentTexts()-before)
+	}
+
+	texts["ru"] = settings.ProfileTexts{Name: "Мой VPN"}
+	if res := b.ApplyProfile(ctx); len(res.Failed) != 0 || res.RetryAfter != 0 {
+		t.Fatalf("apply: %+v", res)
+	}
+	names := byLangOf(ft, "setMyName", "name")
+	if len(names) != 1 || names["ru"] != "Мой VPN" {
+		t.Fatalf("only the Russian name is sent: %v", names)
+	}
+	if ft.count("setMyDescription") != 0 || ft.count("setMyShortDescription") != 0 {
+		t.Error("untouched texts must not be sent")
+	}
+
+	if b.ApplyProfile(ctx); ft.count("setMyName") != 1 {
+		t.Error("the same save again sends nothing")
+	}
+
+	// Clearing the override puts the built-in text back.
+	delete(texts, "ru")
+	b.ApplyProfile(ctx)
+	if got := byLangOf(ft, "setMyName", "name")["ru"]; got != i18n.Default.For("ru").T("profile.name") {
+		t.Errorf("cleared override restores the built-in name, got %q", got)
+	}
+}
+
+func TestApplyProfileBacksOffOnTooManyRequests(t *testing.T) {
+	texts := map[string]settings.ProfileTexts{}
+	b, ft, _ := newBotProfile(t, &fakeTelegram{}, profileOf(texts))
+	ctx := context.Background()
+	ft.limit("setMyName", 35118)
+	texts["en"] = settings.ProfileTexts{Name: "Cabinet", About: "About"}
+	texts["ru"] = settings.ProfileTexts{Name: "Кабинет"}
+
+	res := b.ApplyProfile(ctx)
+	if res.RetryAfter != 35118 {
+		t.Errorf("retry_after must reach the admin: %+v", res)
+	}
+	if n := ft.count("setMyName"); n != 1 {
+		t.Errorf("after the first 429 no more names are tried in this save: %d calls", n)
+	}
+	if got := byLangOf(ft, "setMyShortDescription", "short_description")[""]; got != "About" {
+		t.Errorf("a limited name must not hold the other texts back, short description %q", got)
+	}
+	if len(res.Failed) != 2 {
+		t.Errorf("both names are reported as not applied: %+v", res.Failed)
+	}
+
+	// Next save, after the limit passed: only the names that are still outstanding go out.
+	ft.limit("setMyName", 0)
+	res = b.ApplyProfile(ctx)
+	if len(res.Failed) != 0 || ft.count("setMyShortDescription") != 1 {
+		t.Fatalf("retry: %+v, short descriptions sent %d", res, ft.count("setMyShortDescription"))
+	}
+	names := byLangOf(ft, "setMyName", "name")
+	if names[""] != "Cabinet" || names["ru"] != "Кабинет" {
+		t.Errorf("names after the retry: %v", names)
+	}
+}
+
+func TestInitUsesAdminTexts(t *testing.T) {
+	texts := map[string]settings.ProfileTexts{"ru": {Description: "Свой текст"}}
+	b, ft, _ := newBotProfile(t, &fakeTelegram{}, profileOf(texts))
+	if err := b.initProfile(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	d := byLangOf(ft, "setMyDescription", "description")
+	if d["ru"] != "Свой текст" || !strings.Contains(d[""], RepoURL) {
+		t.Errorf("descriptions: the Russian one is the admin's, English stays built-in: %v", d)
+	}
+}
+
+func TestReadDescriptionRetriesAnEmptyAnswer(t *testing.T) {
+	descriptionPause = time.Millisecond
+	t.Cleanup(func() { descriptionPause = 2 * time.Second })
+	// The first two answers are empty (as seen on a start); the third works and finds the profile filled.
+	_, ft, _ := newBotWith(t, &fakeTelegram{descFails: 2})
+	if n := ft.count("getMyDescription"); n != 3 {
+		t.Fatalf("getMyDescription is asked until it answers: %d calls", n)
+	}
+	if ft.count("setMyName") != 0 {
+		t.Error("a profile that was read as filled is left alone")
 	}
 }

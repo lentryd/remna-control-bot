@@ -274,3 +274,43 @@ func TestAdminName(t *testing.T) {
 		}
 	}
 }
+
+type fakeProfile struct{ res settings.ProfileApply }
+
+func (f *fakeProfile) ApplyProfile(context.Context) settings.ProfileApply { return f.res }
+func (f *fakeProfile) ProfileDefaults() map[string]settings.ProfileTexts {
+	return map[string]settings.ProfileTexts{"en": {Name: "Default"}}
+}
+
+func TestAdminProfileSaveReportsTelegram(t *testing.T) {
+	d, _ := adminApp(t)
+	put := func(body string) (int, string) {
+		return do(t, d, "PUT", "/bot/api/admin/settings/profile", tma(adminID), body)
+	}
+	if code, body := put(`{"texts":{"ru":{"name":"` + strings.Repeat("a", 65) + `"}}}`); code != 422 {
+		t.Fatalf("a name over Telegram's limit is refused: %d %s", code, body)
+	}
+
+	fp := &fakeProfile{res: settings.ProfileApply{
+		Failed:     []settings.ProfileFail{{Lang: "ru", Field: "name", Message: "Too Many Requests"}},
+		RetryAfter: 3600,
+	}}
+	d.Profile = fp
+
+	code, body := put(`{"texts":{"ru":{"name":"Кабинет"}}}`)
+	if code != 200 || !strings.Contains(body, `"retry_after":3600`) || !strings.Contains(body, "Кабинет") {
+		t.Fatalf("save answers with what Telegram did: %d %s", code, body)
+	}
+	if got := d.Settings.Snapshot().Profile().Texts["ru"].Name; got != "Кабинет" {
+		t.Fatalf("the text is saved even when Telegram refused it: %q", got)
+	}
+	if code, _ := put(`{"texts":{"ru":{"name":" Default ","about":"x"},"en":{"name":"Default"}}}`); code != 200 {
+		t.Fatalf("save: %d", code)
+	}
+	if got := d.Settings.Snapshot().Profile().Texts; got["en"].Name != "" || got["ru"].About != "x" {
+		t.Fatalf("a text equal to the built-in one is no override: %+v", got)
+	}
+	if _, body := do(t, d, "GET", "/bot/api/admin/settings", tma(adminID), ""); !strings.Contains(body, `"profile_defaults":{"en":{"name":"Default"`) {
+		t.Fatalf("the form needs the built-in texts: %s", body)
+	}
+}

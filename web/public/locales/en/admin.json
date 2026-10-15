@@ -1,6 +1,6 @@
 {
     "title": "Manage",
-    "tabs": { "orders": "Orders", "methods": "Payment", "general": "General" },
+    "tabs": { "orders": "Orders", "methods": "Payment", "general": "General", "profile": "Bot profile" },
     "orders": {
         "filters": { "review": "Need a decision", "all": "All", "failed": "Errors" },
         "empty": "No orders",
@@ -58,6 +58,27 @@
         "rejected": "Declined",
         "expired": "Expired",
         "cancelled": "Cancelled"
+    },
+    "profile": {
+        "title": "Bot profile",
+        "intro": "Texts shown in Telegram on the bot’s profile and in an empty chat with it. The fields hold the texts currently shown in Telegram, and the built-in ones can be edited as they are. Saving sends only the changed texts to Telegram right away.",
+        "name": {
+            "label": "Name",
+            "hint": "Up to {{max}} characters. Telegram limits how often a name can be changed"
+        },
+        "about": {
+            "label": "Short description",
+            "hint": "Up to {{max}} characters. On the bot’s profile page and next to a shared link"
+        },
+        "description": {
+            "label": "Description",
+            "hint": "Up to {{max}} characters. Shown in an empty chat with the bot"
+        },
+        "applied": "Saved and updated in Telegram",
+        "hours": "{{n}} h",
+        "minutes": "{{n}} min",
+        "limited": "Saved, but Telegram is limiting changes: try the rest again in {{when}} (just save again)",
+        "failed": "Saved, but Telegram didn’t take: {{what}}. Save again to retry"
     },
     "settings": {
         "save": "Save",

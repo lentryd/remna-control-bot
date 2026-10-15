@@ -1,7 +1,9 @@
 package webapp
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -224,12 +226,20 @@ func (s *server) adminGetSettings(c *fiber.Ctx) error {
 		v, _ := s.Settings.View(k)
 		sections[k] = v
 	}
-	return c.JSON(fiber.Map{"sections": sections, "lost": s.Settings.Lost(), "webhook_base": s.PublicURL})
+	out := fiber.Map{"sections": sections, "lost": s.Settings.Lost(), "webhook_base": s.PublicURL}
+	if s.Profile != nil {
+		out["profile_defaults"] = s.Profile.ProfileDefaults()
+	}
+	return c.JSON(out)
 }
 
 func (s *server) adminPutSettings(c *fiber.Ctx) error {
 	key := c.Params("section")
-	err := s.Settings.Put(c.UserContext(), key, c.Body())
+	body := c.Body()
+	if key == settings.KeyProfile && s.Profile != nil {
+		body = keepOverrides(body, s.Profile.ProfileDefaults())
+	}
+	err := s.Settings.Put(c.UserContext(), key, body)
 	var ve *settings.ValidationError
 	switch {
 	case errors.Is(err, settings.ErrUnknownSection):
@@ -241,7 +251,40 @@ func (s *server) adminPutSettings(c *fiber.Ctx) error {
 		return fail(c, fiber.StatusServiceUnavailable, "unavailable")
 	}
 	v, _ := s.Settings.View(key)
+	if p, ok := v.(*settings.Profile); ok && s.Profile != nil {
+		// The texts are saved whatever Telegram says; the answer tells the admin what it did not take.
+		ctx, cancel := context.WithTimeout(c.UserContext(), 30*time.Second)
+		defer cancel()
+		return c.JSON(fiber.Map{"texts": p.Texts, "apply": s.Profile.ApplyProfile(ctx)})
+	}
 	return c.JSON(v)
+}
+
+// keepOverrides drops the profile texts that equal the built-in ones: the form
+// shows the built-in text in each field, so only a text that differs is an
+// override. A body it can't read is left for Put to refuse.
+func keepOverrides(raw []byte, builtin map[string]settings.ProfileTexts) []byte {
+	var p settings.Profile
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if dec.Decode(&p) != nil {
+		return raw
+	}
+	keep := func(v, def string) string {
+		if v = strings.TrimSpace(v); v == strings.TrimSpace(def) {
+			return ""
+		}
+		return v
+	}
+	for lang, t := range p.Texts {
+		b := builtin[lang]
+		p.Texts[lang] = settings.ProfileTexts{Name: keep(t.Name, b.Name), Description: keep(t.Description, b.Description), About: keep(t.About, b.About)}
+	}
+	out, err := json.Marshal(p)
+	if err != nil {
+		return raw
+	}
+	return out
 }
 
 // adminTestSettings asks the provider of a saved, active payment section to

@@ -16,6 +16,7 @@ import (
 	"remna-control-bot/internal/i18n"
 	"remna-control-bot/internal/orders"
 	"remna-control-bot/internal/remnactl"
+	"remna-control-bot/internal/settings"
 	"remna-control-bot/internal/store"
 )
 
@@ -30,8 +31,10 @@ type fakeTelegram struct {
 
 	editFail map[int64]string // chat -> "code description" for editMessageText
 
-	blank bool       // getMyDescription answers "": the bot's profile was never filled
-	forms []sentForm // every request's form, for the methods tests look into
+	blank     bool           // getMyDescription answers "": the bot's profile was never filled
+	limited   map[string]int // method -> retry_after: answers 429 Too Many Requests
+	descFails int            // getMyDescription answers an empty body this many times first
+	forms     []sentForm     // every request's form, for the methods tests look into
 }
 
 type sentForm struct {
@@ -86,8 +89,18 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Unlock()
 	f.mu.Lock()
 	fail, failing := f.editFail[chat]
+	ra, limited := f.limited[method]
+	emptyBody := method == "getMyDescription" && f.descFails > 0
+	if emptyBody {
+		f.descFails--
+	}
 	f.mu.Unlock()
 	switch {
+	case limited:
+		w.WriteHeader(429)
+		_, _ = io.WriteString(w, `{"ok":false,"error_code":429,"description":"Too Many Requests: retry after `+strconv.Itoa(ra)+`","parameters":{"retry_after":`+strconv.Itoa(ra)+`}}`)
+	case emptyBody:
+		w.WriteHeader(200)
 	case method == "editMessageText" && failing:
 		code, desc, _ := strings.Cut(fail, " ")
 		n, _ := strconv.Atoi(code)
@@ -143,6 +156,12 @@ func newCardBot(t *testing.T) (*Bot, *fakeTelegram, *store.Store) {
 // newBotWith starts a bot against ft; admins are 1, 2 and 3.
 func newBotWith(t *testing.T, ft *fakeTelegram) (*Bot, *fakeTelegram, *store.Store) {
 	t.Helper()
+	return newBotProfile(t, ft, nil)
+}
+
+// newBotProfile is newBotWith with the admin's profile texts coming from profile.
+func newBotProfile(t *testing.T, ft *fakeTelegram, profile func() settings.Profile) (*Bot, *fakeTelegram, *store.Store) {
+	t.Helper()
 	srv := httptest.NewServer(ft)
 	t.Cleanup(srv.Close)
 	st, err := store.Open(filepath.Join(t.TempDir(), "b.db"))
@@ -152,8 +171,8 @@ func newBotWith(t *testing.T, ft *fakeTelegram) (*Bot, *fakeTelegram, *store.Sto
 	t.Cleanup(func() { _ = st.Close() })
 	b, err := New(context.Background(), "123:ABC", Deps{
 		API: remnactl.NewFake(), WebAppURL: "https://x/bot", Admins: []int64{1, 2, 3}, Notices: st, APIBase: srv.URL,
-		IsAdmin: func(id int64) bool { return id >= 1 && id <= 3 },
-		Log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		IsAdmin: func(id int64) bool { return id >= 1 && id <= 3 }, Profile: profile,
+		Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 	if err != nil {
 		t.Fatal(err)

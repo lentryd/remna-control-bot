@@ -15,7 +15,15 @@
     display: flex;
     flex-direction: row;
     gap: 2px;
-    padding-inline: 16px;
+    padding-inline-start: 16px;
+    width: max-content;
+
+    /* A padding on the scrolling box is dropped at its end by WebKit, so the
+       last tab would touch the screen edge; a spacer after it always stays. */
+    &::after {
+        content: '';
+        flex: 0 0 14px;
+    }
 }
 
 .item {
