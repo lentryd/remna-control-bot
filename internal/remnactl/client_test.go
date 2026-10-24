@@ -109,3 +109,35 @@ func TestListsForNotifications(t *testing.T) {
 		t.Fatalf("subscription decode: %+v", s)
 	}
 }
+
+func TestQuoteTariffExchange(t *testing.T) {
+	c := server(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/items/subscription/1/tariff-quote" {
+			t.Errorf("unexpected %s", r.URL)
+		}
+		_, _ = w.Write([]byte(`{"old_monthly":300,"new_monthly":200,"surcharge":0,"exchange_days":45,"exchange_expire_at":"2026-12-01T00:00:00Z","addons":[{"subscription_addon_id":3,"addon_id":4,"addon_name":"lte","tariff_name":"LTE","action":"keep","credit":12.5}]}`))
+	})
+	q, err := c.QuoteTariff(context.Background(), "subscription", 1, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q.ExchangeDays != 45 || q.ExchangeExpireAt == nil || q.ExchangeExpireAt.Year() != 2026 || len(q.Addons) != 1 {
+		t.Fatalf("bad decode: %+v", q)
+	}
+	if a := q.Addons[0]; a.SubscriptionAddonID != 3 || a.AddonID != 4 || a.AddonName != "lte" || a.TariffName != "LTE" || a.Action != "keep" || a.Credit != 12.5 {
+		t.Fatalf("bad addon: %+v", a)
+	}
+}
+
+func TestQuoteTariffOldPanel(t *testing.T) {
+	c := server(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"old_monthly":300,"new_monthly":400,"surcharge":100}`))
+	})
+	q, err := c.QuoteTariff(context.Background(), "subscription", 1, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q.ExchangeDays != 0 || q.ExchangeExpireAt != nil || len(q.Addons) != 0 {
+		t.Fatalf("expected no exchange: %+v", q)
+	}
+}

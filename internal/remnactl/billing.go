@@ -25,6 +25,22 @@ type TariffQuote struct {
 	NewMonthly float64    `json:"new_monthly"`
 	ExpireAt   *time.Time `json:"expire_at"`
 	Surcharge  float64    `json:"surcharge"`
+	// ExchangeDays and ExchangeExpireAt describe the term exchange: switching
+	// to the new tariff for the same money. Zero and nil when it is not offered
+	// (also for a panel that predates the feature).
+	ExchangeDays     int           `json:"exchange_days"`
+	ExchangeExpireAt *time.Time    `json:"exchange_expire_at"`
+	Addons           []AddonChange `json:"addons"`
+}
+
+// AddonChange is what a tariff change does to one add-on of the subscription.
+type AddonChange struct {
+	SubscriptionAddonID int     `json:"subscription_addon_id"`
+	AddonID             int     `json:"addon_id"`
+	AddonName           string  `json:"addon_name"`
+	TariffName          string  `json:"tariff_name"`
+	Action              string  `json:"action"`
+	Credit              float64 `json:"credit"`
 }
 
 // Allocation describes what subscription or addon service the payment covers.
@@ -98,6 +114,10 @@ type ConnectAddonInput struct {
 type ChangeTariffInput struct {
 	TariffID  int     `json:"tariff_id"`
 	Surcharge float64 `json:"surcharge"`
+	// Mode is "surcharge" (default) or "exchange"; ExpectedDays is the quoted
+	// exchange term the panel checks against.
+	Mode         string `json:"mode,omitempty"`
+	ExpectedDays int    `json:"expected_days,omitempty"`
 }
 
 func itemPath(kind string, id int) string {

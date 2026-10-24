@@ -9,6 +9,9 @@ export interface Addon {
     unlimited: boolean
     used_bytes: number
     limit_bytes: number
+    tariff_id: number | null
+    reset_at: string | null
+    reset_strategy: string
 }
 export interface Subscription {
     id: number
@@ -24,6 +27,8 @@ export interface Subscription {
     device_limit: number | null
     url: string
     addons: Addon[]
+    reset_at: string | null
+    reset_strategy: string
     renewal: Payment
 }
 export interface Payment {

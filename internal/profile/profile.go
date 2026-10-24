@@ -43,22 +43,29 @@ type Subscription struct {
 	DeviceLimit *int       `json:"device_limit"`
 	URL         string     `json:"url"`
 	Addons      []Addon    `json:"addons"`
+	// ResetAt is the next traffic reset; ResetStrategy is NO_RESET, DAY, WEEK,
+	// MONTH or MONTH_ROLLING.
+	ResetAt       *time.Time `json:"reset_at"`
+	ResetStrategy string     `json:"reset_strategy"`
 	// Renewal is a month of the subscription with its paid add-ons, split
 	// between the balance and what is left to pay (BALANCE_PAY_MODE).
 	Renewal billing.Payment `json:"renewal"`
 }
 
 type Addon struct {
-	ID         int        `json:"id"`
-	Name       string     `json:"name"`
-	Tariff     string     `json:"tariff"`
-	Price      float64    `json:"price"`
-	Included   bool       `json:"included"`
-	Status     string     `json:"status"`
-	ExpireAt   *time.Time `json:"expire_at"`
-	Unlimited  bool       `json:"unlimited"`
-	UsedBytes  int64      `json:"used_bytes"`
-	LimitBytes int64      `json:"limit_bytes"`
+	ID            int        `json:"id"`
+	Name          string     `json:"name"`
+	Tariff        string     `json:"tariff"`
+	Price         float64    `json:"price"`
+	Included      bool       `json:"included"`
+	Status        string     `json:"status"`
+	ExpireAt      *time.Time `json:"expire_at"`
+	Unlimited     bool       `json:"unlimited"`
+	UsedBytes     int64      `json:"used_bytes"`
+	LimitBytes    int64      `json:"limit_bytes"`
+	TariffID      *int       `json:"tariff_id"`
+	ResetAt       *time.Time `json:"reset_at"`
+	ResetStrategy string     `json:"reset_strategy"`
 }
 
 type LedgerEntry struct {
@@ -88,15 +95,17 @@ func Build(c *remnactl.Customer, refLink string, mode config.PayMode) Profile {
 		if u := s.RwUser; u != nil {
 			v.Status, v.ExpireAt, v.Unlimited = u.Status, u.ExpireAt, u.Unlimited
 			v.UsedBytes, v.LimitBytes, v.DeviceLimit, v.URL = u.UsedTrafficBytes, u.TrafficLimitBytes, u.HwidDeviceLimit, u.SubscriptionURL
+			v.ResetAt, v.ResetStrategy = u.NextTrafficResetAt, u.TrafficLimitStrategy
 		}
 		for _, a := range s.Addons {
 			if a.RwUser != nil && a.RwUser.Deleted {
 				continue
 			}
-			av := Addon{ID: a.ID, Name: a.AddonName, Tariff: a.TariffName, Price: a.Price, Included: a.Included, Status: "PENDING"}
+			av := Addon{ID: a.ID, Name: a.AddonName, Tariff: a.TariffName, TariffID: a.TariffID, Price: a.Price, Included: a.Included, Status: "PENDING"}
 			if u := a.RwUser; u != nil {
 				av.Status, av.ExpireAt, av.Unlimited = u.Status, u.ExpireAt, u.Unlimited
 				av.UsedBytes, av.LimitBytes = u.UsedTrafficBytes, u.TrafficLimitBytes
+				av.ResetAt, av.ResetStrategy = u.NextTrafficResetAt, u.TrafficLimitStrategy
 			}
 			v.Addons = append(v.Addons, av)
 		}

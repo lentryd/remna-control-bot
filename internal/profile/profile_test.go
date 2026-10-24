@@ -14,6 +14,22 @@ import (
 
 func ptr[T any](v T) *T { return &v }
 
+func TestBuildResetFields(t *testing.T) {
+	reset := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	c := &remnactl.Customer{ID: 1, Subscriptions: []remnactl.Subscription{{
+		ID: 1, RwUser: &remnactl.RwUser{NextTrafficResetAt: &reset, TrafficLimitStrategy: "MONTH"},
+		Addons: []remnactl.Addon{{ID: 3, TariffID: ptr(7), RwUser: &remnactl.RwUser{NextTrafficResetAt: &reset, TrafficLimitStrategy: "NO_RESET"}}},
+	}}}
+	s := Build(c, "", config.PayMixed).Subscriptions[0]
+	if s.ResetAt == nil || !s.ResetAt.Equal(reset) || s.ResetStrategy != "MONTH" {
+		t.Fatalf("subscription reset: %+v", s)
+	}
+	a := s.Addons[0]
+	if a.ResetAt == nil || !a.ResetAt.Equal(reset) || a.ResetStrategy != "NO_RESET" || a.TariffID == nil || *a.TariffID != 7 {
+		t.Fatalf("addon: %+v", a)
+	}
+}
+
 func TestBuild(t *testing.T) {
 	d1 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	c := &remnactl.Customer{
