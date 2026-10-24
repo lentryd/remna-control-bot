@@ -12,7 +12,7 @@ export type InfoVariant = 'compact' | 'tile'
 // Panel strategy meaning "the counter only resets when the subscription renews".
 const NO_RESET = 'NO_RESET'
 
-function Line({ icon, label, value, variant }: { icon: ReactNode; label: string; value: string; variant: InfoVariant }) {
+function Line({ icon, label, value, sub, variant }: { icon: ReactNode; label: string; value: string; sub?: string; variant: InfoVariant }) {
     if (variant === 'tile') {
         return (
             <Paper p="sm" radius="md" withBorder>
@@ -21,7 +21,8 @@ function Line({ icon, label, value, variant }: { icon: ReactNode; label: string;
                         {icon}
                         <Text c="dimmed" size="xs">{label}</Text>
                     </Group>
-                    <Text fw={600} size="sm">{value}</Text>
+                    <Text fw={700} size="lg">{value}</Text>
+                    {sub && <Text c="dimmed" size="xs">{sub}</Text>}
                 </Stack>
             </Paper>
         )
@@ -29,7 +30,7 @@ function Line({ icon, label, value, variant }: { icon: ReactNode; label: string;
     return (
         <Group c="dimmed" gap={6} wrap="nowrap">
             {icon}
-            <Text c="dimmed" size="xs">{label}: {value}</Text>
+            <Text c="dimmed" size="xs">{label}: {sub ? `${value} · ${sub}` : value}</Text>
         </Group>
     )
 }
@@ -48,16 +49,20 @@ export interface ResetInfoProps {
 export function ResetInfo({ resetAt, strategy, limitBytes, unlimited, variant }: ResetInfoProps) {
     const { t } = useTranslation()
     let value: string | null = null
+    let sub: string | undefined
     if (unlimited || limitBytes <= 0) {
         value = t('info.reset_none')
     } else if (strategy === NO_RESET) {
         value = t('info.reset_after_renewal')
     } else if (strategy) {
         const days = daysUntil(resetAt)
-        if (days !== null) value = days < 1 ? t('info.reset_today') : t('info.reset_in_days', { count: days })
+        if (days !== null) {
+            value = days < 1 ? t('info.reset_today') : t('info.reset_in_days', { count: days })
+            if (days >= 1) sub = fmtDate(resetAt)
+        }
     }
     if (value === null) return null
-    return <Line icon={<IconRefresh size={14} />} label={t('info.reset_label')} value={value} variant={variant} />
+    return <Line icon={<IconRefresh size={14} />} label={t('info.reset_label')} value={value} sub={sub} variant={variant} />
 }
 
 export interface RemainingInfoProps {
@@ -71,6 +76,7 @@ export interface RemainingInfoProps {
 export function RemainingInfo({ expireAt, unlimited, variant }: RemainingInfoProps) {
     const { t } = useTranslation()
     let value: string
+    let sub: string | undefined
     if (unlimited) {
         value = t('info.remaining_forever')
     } else {
@@ -78,7 +84,10 @@ export function RemainingInfo({ expireAt, unlimited, variant }: RemainingInfoPro
         if (days === null) return null
         if (days < 0) value = t('info.remaining_expired')
         else if (days < 1) value = t('info.remaining_today')
-        else value = `${t('info.remaining_days', { count: days })} · ${t('info.remaining_until', { date: fmtDate(expireAt) })}`
+        else {
+            value = t('info.remaining_days', { count: days })
+            sub = t('info.remaining_until', { date: fmtDate(expireAt) })
+        }
     }
-    return <Line icon={<IconCalendar size={14} />} label={t('info.remaining_label')} value={value} variant={variant} />
+    return <Line icon={<IconCalendar size={14} />} label={t('info.remaining_label')} value={value} sub={sub} variant={variant} />
 }

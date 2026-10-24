@@ -1,28 +1,54 @@
-// SubscriptionRow — tappable card: title, until when, status.
-import { Card, Group, Stack, Text, UnstyledButton } from '@mantine/core'
+// SubscriptionRow — tappable card: title and status, remaining time and limit
+// reset, traffic used / limit with a thin bar, tariff and add-on count.
+import { Card, Group, Progress, Stack, Text, UnstyledButton } from '@mantine/core'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
-import { fmtDate } from '@shared/format'
+import { fmtBytes } from '@shared/format'
 import type { Subscription } from '../types'
+import { RemainingInfo, ResetInfo } from './ResetInfo'
 import { StateBadge } from './StateBadge'
+
+export const trafficPct = (used: number, limit: number) => (limit > 0 ? Math.min(100, (used / limit) * 100) : 0)
+
+// Default colour normally, amber from 80%, red when the limit is used up.
+export const trafficColor = (pct: number) => (pct >= 100 ? 'red' : pct >= 80 ? 'yellow' : undefined)
 
 export function SubscriptionRow({ s }: { s: Subscription }) {
     const { t } = useTranslation()
     const navigate = useNavigate()
+    const showBar = !s.unlimited && s.limit_bytes > 0
+    const pct = trafficPct(s.used_bytes, s.limit_bytes)
     return (
         <UnstyledButton onClick={() => navigate(`/subscriptions/${s.id}`)}>
             <Card padding="md" radius="lg" withBorder>
-                <Group justify="space-between" wrap="nowrap">
-                    <Stack gap={2}>
+                <Stack gap="xs">
+                    <Group justify="space-between" wrap="nowrap">
                         <Text fw={600}>{s.title}</Text>
-                        <Text c="dimmed" size="sm">
-                            {s.unlimited ? t('sub.forever') : t('sub.until', { date: fmtDate(s.expire_at) })}
+                        <StateBadge expireAt={s.expire_at} status={s.status} unlimited={s.unlimited} />
+                    </Group>
+                    <Stack gap={2}>
+                        <RemainingInfo expireAt={s.expire_at} unlimited={s.unlimited} variant="compact" />
+                        <ResetInfo
+                            expireAt={s.expire_at}
+                            limitBytes={s.limit_bytes}
+                            resetAt={s.reset_at}
+                            strategy={s.reset_strategy}
+                            unlimited={s.unlimited}
+                            variant="compact"
+                        />
+                    </Stack>
+                    <Group justify="space-between" wrap="nowrap">
+                        <Text c="dimmed" size="xs">
+                            {fmtBytes(s.used_bytes)} / {showBar ? fmtBytes(s.limit_bytes) : '∞'}
+                        </Text>
+                        <Text c="dimmed" size="xs">
+                            {s.tariff}
                             {s.addons.length > 0 && ` · ${t('sub.addons_count', { count: s.addons.length })}`}
                         </Text>
-                    </Stack>
-                    <StateBadge expireAt={s.expire_at} status={s.status} unlimited={s.unlimited} />
-                </Group>
+                    </Group>
+                    {showBar && <Progress color={trafficColor(pct)} radius="xl" size="xs" value={pct} />}
+                </Stack>
             </Card>
         </UnstyledButton>
     )

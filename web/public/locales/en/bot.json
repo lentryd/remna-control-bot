@@ -52,6 +52,7 @@
         "connect_more": "Connect another",
         "open_page": "Open the subscription page",
         "open_hint": "It has the link for the app and setup instructions",
+        "unlimited_note": "This subscription has no expiry, so there is nothing to renew or change.",
         "change_tariff": "Change plan"
     },
     "info": {
