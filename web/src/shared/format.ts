@@ -66,3 +66,11 @@ export function daysLeft(d: string | null | undefined): number | null {
     if (isUnlimited(d)) return Infinity
     return Math.floor(dayjs(d).diff(dayjs(), 'hour') / 24)
 }
+
+// Whole days until d, rounded down; null for no date or "forever". Negative when
+// the date has passed, so callers decide how to word an expired state.
+export function daysUntil(d: string | null): number | null {
+    if (!d || isUnlimited(d)) return null
+    const v = Math.floor(dayjs(d).diff(dayjs(), 'hour') / 24)
+    return Number.isFinite(v) ? v : null
+}

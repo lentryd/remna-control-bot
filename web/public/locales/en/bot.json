@@ -54,6 +54,29 @@
         "open_hint": "It has the link for the app and setup instructions",
         "change_tariff": "Change plan"
     },
+    "info": {
+        "reset_label": "Limit reset",
+        "reset_today": "today",
+        "reset_in_days_one": "in {{count}} day",
+        "reset_in_days_other": "in {{count}} days",
+        "reset_after_renewal": "after renewal",
+        "reset_none": "no limit",
+        "remaining_label": "Remaining",
+        "remaining_days_one": "{{count}} day",
+        "remaining_days_other": "{{count}} days",
+        "remaining_today": "less than a day",
+        "remaining_forever": "forever",
+        "remaining_expired": "expired",
+        "remaining_until": "until {{date}}"
+    },
+    "addon_groups": {
+        "included": "Included in your tariff",
+        "separate": "Connected separately",
+        "renew": "Renew add-on",
+        "connect": "Connect an add-on",
+        "ends_before": "Ends before the subscription: {{date}}",
+        "traffic": "Traffic"
+    },
     "balance": {
         "title": "Balance",
         "own": "Own funds",

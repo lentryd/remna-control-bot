@@ -55,6 +55,31 @@
         "open_hint": "Там ссылка для приложения и инструкция по подключению",
         "change_tariff": "Сменить тариф"
     },
+    "info": {
+        "reset_label": "Сброс лимита",
+        "reset_today": "сегодня",
+        "reset_in_days_one": "через {{count}} день",
+        "reset_in_days_few": "через {{count}} дня",
+        "reset_in_days_many": "через {{count}} дней",
+        "reset_after_renewal": "после продления",
+        "reset_none": "без лимита",
+        "remaining_label": "Осталось",
+        "remaining_days_one": "{{count}} день",
+        "remaining_days_few": "{{count}} дня",
+        "remaining_days_many": "{{count}} дней",
+        "remaining_today": "менее суток",
+        "remaining_forever": "навсегда",
+        "remaining_expired": "истекла",
+        "remaining_until": "до {{date}}"
+    },
+    "addon_groups": {
+        "included": "Входит в тариф",
+        "separate": "Подключено отдельно",
+        "renew": "Продлить дополнение",
+        "connect": "Подключить дополнение",
+        "ends_before": "Закончится раньше подписки: {{date}}",
+        "traffic": "Трафик"
+    },
     "balance": {
         "title": "Баланс",
         "own": "Свои средства",
