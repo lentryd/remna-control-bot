@@ -25,7 +25,8 @@ export function SubscriptionDetails({ p }: { p: Profile }) {
     const { data: tariffs } = useTariffs()
     const s = p.subscriptions.find((x) => x.id === Number(id))
     if (!s) return <Navigate replace to="/subscriptions" />
-    const showBar = !s.unlimited && s.limit_bytes > 0
+    // the bar and limit follow the traffic limit, not the term: a forever subscription can still be limited
+    const showBar = s.limit_bytes > 0
     const pct = trafficPct(s.used_bytes, s.limit_bytes)
     return (
         <Stack gap="lg">
@@ -41,7 +42,6 @@ export function SubscriptionDetails({ p }: { p: Profile }) {
                     limitBytes={s.limit_bytes}
                     resetAt={s.reset_at}
                     strategy={s.reset_strategy}
-                    unlimited={s.unlimited}
                     variant="tile"
                 />
                 )}
@@ -69,7 +69,7 @@ export function SubscriptionDetails({ p }: { p: Profile }) {
                     {isExpired(s) ? t('renew.button_expired') : t('renew.button')}
                 </CtaButton>
             )}
-            {!s.unlimited && (
+            {!s.unlimited && !isExpired(s) && (
                 <Button
                     fullWidth
                     leftSection={<IconArrowsExchange size={20} />}

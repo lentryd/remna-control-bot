@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
 import { fmtBytes, fmtDate, fmtMoney } from '@shared/format'
+import { isExpired } from '../renew'
 import type { Addon, Tariff } from '../types'
 import { addonName } from './addonName'
 import { RemainingInfo, ResetInfo } from './ResetInfo'
@@ -57,7 +58,7 @@ function AddonCard({ a, tariffs, subscriptionExpireAt }: { a: Addon; tariffs: Ta
                     </Group>
                     {a.limit_bytes > 0 && <Progress radius="xl" value={pct(a.used_bytes, a.limit_bytes)} />}
                 </Stack>
-                <ResetInfo expireAt={a.expire_at} limitBytes={a.limit_bytes} resetAt={a.reset_at} strategy={a.reset_strategy} unlimited={a.unlimited} variant="compact" />
+                {!isExpired(a) && <ResetInfo expireAt={a.expire_at} limitBytes={a.limit_bytes} resetAt={a.reset_at} strategy={a.reset_strategy} variant="compact" />}
                 {!a.included && !a.unlimited && (
                     <>
                         <RemainingInfo expireAt={a.expire_at} unlimited={a.unlimited} variant="compact" />

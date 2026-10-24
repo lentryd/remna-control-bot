@@ -18,7 +18,8 @@ export const trafficColor = (pct: number) => (pct >= 100 ? 'red' : pct >= 80 ? '
 export function SubscriptionRow({ s }: { s: Subscription }) {
     const { t } = useTranslation()
     const navigate = useNavigate()
-    const showBar = !s.unlimited && s.limit_bytes > 0
+    // the bar and limit follow the traffic limit, not the term: a forever subscription can still be limited
+    const showBar = s.limit_bytes > 0
     const expired = isExpired(s)
     const pct = trafficPct(s.used_bytes, s.limit_bytes)
     return (
@@ -37,7 +38,6 @@ export function SubscriptionRow({ s }: { s: Subscription }) {
                             limitBytes={s.limit_bytes}
                             resetAt={s.reset_at}
                             strategy={s.reset_strategy}
-                            unlimited={s.unlimited}
                             variant="stack"
                             />
                         )}

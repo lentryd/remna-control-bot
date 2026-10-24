@@ -7,7 +7,7 @@ const WINDOW_MS = 7 * 24 * 3600 * 1000
 
 export const needsRenewal = (s: Subscription) => !s.unlimited && !!s.expire_at && new Date(s.expire_at).getTime() - Date.now() < WINDOW_MS
 
-export const isExpired = (s: Subscription) => !!s.expire_at && new Date(s.expire_at).getTime() <= Date.now()
+export const isExpired = (s: Pick<Subscription, 'expire_at'>) => !!s.expire_at && new Date(s.expire_at).getTime() <= Date.now()
 
 // daysLeftText: "today" / "in 2 days"
 export function daysLeftText(s: Subscription) {

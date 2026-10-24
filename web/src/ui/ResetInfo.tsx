@@ -51,17 +51,17 @@ export interface ResetInfoProps {
     resetAt: string | null
     strategy: string
     limitBytes: number
-    unlimited: boolean
     variant: InfoVariant
 }
 
-// Renders nothing when the reset moment is unknown (no date, or an empty
+// "No limit" only when there is no traffic limit: a forever term with a real
+// limit still resets it. Renders nothing when the reset moment is unknown (no date, or an empty
 // strategy from an old panel): better no line than an invented one.
-export function ResetInfo({ resetAt, strategy, limitBytes, unlimited, variant }: ResetInfoProps) {
+export function ResetInfo({ resetAt, strategy, limitBytes, variant }: ResetInfoProps) {
     const { t } = useTranslation()
     let value: string | null = null
     let sub: string | undefined
-    if (unlimited || limitBytes <= 0) {
+    if (limitBytes <= 0) {
         value = t('info.reset_none')
     } else if (strategy === NO_RESET) {
         value = t('info.reset_after_renewal')

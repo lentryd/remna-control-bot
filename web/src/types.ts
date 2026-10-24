@@ -134,6 +134,8 @@ export interface Order {
     pay_url?: string
     status: 'new' | 'awaiting_payment' | 'awaiting_receipt' | 'pending_review' | 'approving' | 'approved' | 'credited' | 'failed' | 'rejected' | 'expired' | 'cancelled'
     reason?: string
+    // a definite exchange failure: nothing changed and the plan change can be started again
+    fail_reason?: 'exchange_stale' | 'exchange_unavailable'
     until?: string
     created_at: string
 }

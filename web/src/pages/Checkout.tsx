@@ -5,7 +5,7 @@ import { useDebouncedValue } from '@mantine/hooks'
 import { IconAlertTriangle, IconBuildingBank, IconCheck, IconClockHour4, IconCopy, IconCreditCard, IconDiscount2, IconInfoCircle, IconPaperclip, IconReceipt, IconWallet } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
 
@@ -80,7 +80,8 @@ const ACTION_KEYS: Record<string, string> = { include: 'checkout.addon_include',
 
 // ChangeDetails — what a tariff change does besides the price: the old and new
 // plan's limit reset and the add-ons that become included or are removed.
-function ChangeDetails({ sub, target, change }: { sub?: Subscription; target?: Tariff; change: TariffChange }) {
+// In exchange mode no add-on credit is applied, so none is shown.
+function ChangeDetails({ sub, target, change, exchange }: { sub?: Subscription; target?: Tariff; change: TariffChange; exchange: boolean }) {
     const { t } = useTranslation()
     const addons = change.addons ?? []
     return (
@@ -89,14 +90,14 @@ function ChangeDetails({ sub, target, change }: { sub?: Subscription; target?: T
                 {sub && (
                     <Stack gap={4}>
                         <Text fw={600} size="sm">{t('checkout.current_plan')}: {sub.tariff}</Text>
-                        <ResetInfo expireAt={sub.expire_at} limitBytes={sub.limit_bytes} resetAt={sub.reset_at} strategy={sub.reset_strategy} unlimited={sub.unlimited} variant="compact" />
+                        <ResetInfo expireAt={sub.expire_at} limitBytes={sub.limit_bytes} resetAt={sub.reset_at} strategy={sub.reset_strategy} variant="compact" />
                         <RemainingInfo expireAt={sub.expire_at} unlimited={sub.unlimited} variant="compact" />
                     </Stack>
                 )}
                 {target && (
                     <Stack gap={4}>
                         <Text fw={600} size="sm">{t('checkout.new_plan')}: {target.name}</Text>
-                        <ResetInfo expireAt={null} limitBytes={target.traffic_limit_bytes} resetAt={null} strategy="" unlimited={false} variant="compact" />
+                        <ResetInfo expireAt={null} limitBytes={target.traffic_limit_bytes} resetAt={null} strategy="" variant="compact" />
                     </Stack>
                 )}
                 {addons.length > 0 && (
@@ -108,7 +109,7 @@ function ChangeDetails({ sub, target, change }: { sub?: Subscription; target?: T
                             return (
                                 <Text c="dimmed" key={`${a.addon_id}:${i}`} size="sm">
                                     {name}{what ? ` — ${t(what).toLowerCase()}` : ''}
-                                    {a.action === 'include' && a.credit > 0 ? ` (${t('checkout.addon_credit', { sum: fmtMoney(a.credit) })})` : ''}
+                                    {a.action === 'include' && a.credit > 0 && !exchange ? ` (${t('checkout.addon_credit', { sum: fmtMoney(a.credit) })})` : ''}
                                 </Text>
                             )
                         })}
@@ -195,6 +196,10 @@ export function Checkout({ p }: { p: Profile }) {
     const change = kind === 'change_tariff' ? baseQuote.data?.change : undefined
     const exchangeDays = change?.exchange_days ?? 0
     const exchange = mode === 'exchange' && exchangeDays >= 1
+    // a (re-)quote that no longer offers the exchange puts the choice back on the surcharge
+    useEffect(() => {
+        if (change && exchangeDays < 1) setMode('surcharge')
+    }, [change, exchangeDays])
     const exchangeRequest: OrderRequest | null = exchange && baseRequest ? { ...baseRequest, mode: 'exchange', expected_days: exchangeDays } : null
     const exchangeQuote = useOrderQuote(manual ? null : exchangeRequest)
     const request = exchange ? exchangeRequest : baseRequest
@@ -232,12 +237,19 @@ export function Checkout({ p }: { p: Profile }) {
             qc.invalidateQueries({ queryKey: ['me'] })
             qc.invalidateQueries({ queryKey: ['orders'] })
             if (done.status === 'failed') {
-                if (exchange) {
+                if (done.fail_reason === 'exchange_stale') {
                     // the term shrank since it was shown: nothing was charged, ask to re-confirm on a fresh quote
                     setStale(true)
                     baseQuote.refetch()
                     return
                 }
+                if (done.fail_reason === 'exchange_unavailable') {
+                    // nothing was charged; the fresh quote no longer offers the exchange
+                    setFailed(t('checkout.unavailable'))
+                    baseQuote.refetch()
+                    return
+                }
+                // any other failure may have an unknown outcome: support checks it
                 setFailed(t('checkout.failed'))
                 return
             }
@@ -420,7 +432,7 @@ export function Checkout({ p }: { p: Profile }) {
                         <>
                             {label(t('checkout.change_mode'))}
                             {(['surcharge', 'exchange'] as const).map((m) => (
-                                <UnstyledButton className={classes.term} data-active={mode === m || undefined} disabled={locked || busy} key={m} onClick={() => { setMode(m); setStale(false) }}>
+                                <UnstyledButton aria-pressed={mode === m} className={classes.term} data-active={mode === m || undefined} disabled={locked || busy} key={m} onClick={() => { setMode(m); setStale(false) }}>
                                     <Text fw={600} size="sm">
                                         {m === 'exchange'
                                             ? t('checkout.mode_exchange', { date: fmtDate(change.exchange_expire_at ?? null) })
@@ -432,7 +444,7 @@ export function Checkout({ p }: { p: Profile }) {
                             ))}
                         </>
                     )}
-                    <ChangeDetails change={change} sub={sub} target={target} />
+                    <ChangeDetails change={change} exchange={exchange} sub={sub} target={target} />
                 </Stack>
             )}
             {stale && (
