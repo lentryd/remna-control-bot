@@ -227,3 +227,51 @@ func TestProviderColumnsRoundTrip(t *testing.T) {
 		t.Error("manual, balance and empty are not providers")
 	}
 }
+
+func exchangeQuote(f *remnactl.Fake) {
+	exp := now.AddDate(0, 0, 40)
+	f.TariffQuotes["subscription:3:2"] = remnactl.TariffQuote{Surcharge: 13.33, ExchangeDays: 18, ExchangeExpireAt: &exp,
+		Addons: []remnactl.AddonChange{{SubscriptionAddonID: 8, AddonName: "Доп. устройства", Action: "keep"}}}
+}
+
+func TestQuoteChangeTariffModes(t *testing.T) {
+	s, f, _, c := setup(t)
+	exchangeQuote(f)
+	ctx := context.Background()
+	base := Request{Kind: KindChangeTariff, ItemKind: "subscription", ItemID: 3, TariffID: 2}
+
+	q, err := s.Quote(ctx, c, base)
+	if err != nil || q.Price != 13.33 || q.Change == nil || q.Change.Surcharge != 13.33 || q.Change.ExchangeDays != 18 ||
+		q.Change.ExchangeExpireAt == nil || len(q.Change.Addons) != 1 {
+		t.Fatalf("surcharge: %+v %v", q, err)
+	}
+	f.TariffQuotes["subscription:3:2"] = remnactl.TariffQuote{Surcharge: -5}
+	if q, err = s.Quote(ctx, c, base); err != nil || q.Price != 0 || q.Change.Surcharge != -5 {
+		t.Fatalf("downgrade is clamped in Price only: %+v %v", q, err)
+	}
+	exchangeQuote(f)
+
+	ex := base
+	ex.Mode, ex.ExpectedDays = ModeExchange, 18
+	if q, err = s.Quote(ctx, c, ex); err != nil || q.Price != 0 || q.ToPay != 0 || q.FromBalance != 0 ||
+		len(q.Methods) != 1 || q.Methods[0] != MethodBalance || q.Change.Surcharge != 13.33 {
+		t.Fatalf("exchange: %+v %v", q, err)
+	}
+
+	f.TariffQuotes["subscription:3:2"] = remnactl.TariffQuote{Surcharge: 13.33} // a panel without the exchange
+	if _, err = s.Quote(ctx, c, ex); !errors.Is(err, ErrBadRequest) {
+		t.Fatalf("exchange not offered: %v", err)
+	}
+	exchangeQuote(f)
+	for name, r := range map[string]Request{
+		"unknown mode":          {Kind: KindChangeTariff, ItemKind: "subscription", ItemID: 3, TariffID: 2, Mode: "barter"},
+		"exchange, no days":     {Kind: KindChangeTariff, ItemKind: "subscription", ItemID: 3, TariffID: 2, Mode: ModeExchange},
+		"exchange, negative":    {Kind: KindChangeTariff, ItemKind: "subscription", ItemID: 3, TariffID: 2, Mode: ModeExchange, ExpectedDays: -1},
+		"days without exchange": {Kind: KindChangeTariff, ItemKind: "subscription", ItemID: 3, TariffID: 2, ExpectedDays: 5},
+		"mode on renew":         {Kind: KindRenew, ItemKind: "subscription", ItemID: 3, Months: 1, Mode: ModeExchange, ExpectedDays: 5},
+	} {
+		if _, err := s.Quote(ctx, c, r); !errors.Is(err, ErrBadRequest) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}

@@ -417,3 +417,46 @@ func TestStaleApprovingRecovers(t *testing.T) {
 		t.Fatalf("customer notice: %+v", sp.sent)
 	}
 }
+
+func TestExchangeOrder(t *testing.T) {
+	ctx := context.Background()
+	r := Request{Kind: KindChangeTariff, ItemKind: "subscription", ItemID: 3, TariffID: 2, Mode: ModeExchange, ExpectedDays: 18}
+
+	t.Run("runs from the balance", func(t *testing.T) {
+		s, f, _, c := setup(t)
+		exchangeQuote(f)
+		o, err := s.Create(ctx, c, 77, r)
+		if err != nil || o.Method != MethodBalance || o.ToPay != 0 || o.FromBalance != 0 || o.Price != 0 || o.Status != StatusNew {
+			t.Fatalf("%+v %v", o, err)
+		}
+		got, err := s.PayFromBalance(ctx, c.ID, o.ID)
+		if err != nil || got.Status != StatusApproved || got.Mode != ModeExchange || got.ExpectedDays != 18 {
+			t.Fatalf("%+v %v", got, err)
+		}
+		if len(f.Payments) != 0 || len(f.TariffChanges) != 1 {
+			t.Fatalf("payments %+v changes %+v", f.Payments, f.TariffChanges)
+		}
+		want := remnactl.ChangeTariffInput{TariffID: 2, Surcharge: 0, Mode: "exchange", ExpectedDays: 18}
+		if tc := f.TariffChanges[0]; tc.ID != 3 || tc.In != want {
+			t.Fatalf("%+v", tc)
+		}
+	})
+
+	t.Run("stale exchange fails with a retry message", func(t *testing.T) {
+		s, f, _, c := setup(t)
+		exchangeQuote(f)
+		o, err := s.Create(ctx, c, 77, r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.FailStep = &remnactl.APIError{Status: 409, Code: "billing.exchange_stale", Message: "term got shorter"}
+		got, err := s.PayFromBalance(ctx, c.ID, o.ID)
+		if err != nil || got.Status != StatusFailed {
+			t.Fatalf("%+v %v", got, err)
+		}
+		m := i18n.Default.For("en").Text(got.Error)
+		if got.Error != i18n.M("alert.exchange_stale").String() || m == got.Error || len(f.Payments) != 0 {
+			t.Fatalf("error %q rendered %q", got.Error, m)
+		}
+	})
+}

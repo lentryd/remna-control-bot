@@ -88,6 +88,12 @@ func Open(path string) (*Store, error) {
 		_ = db.Close()
 		return nil, err
 	}
+	for col, def := range map[string]string{"mode": `TEXT NOT NULL DEFAULT ''`, "expected_days": `INTEGER NOT NULL DEFAULT 0`} {
+		if err := addColumn(db, "orders", col, def); err != nil {
+			_ = db.Close()
+			return nil, err
+		}
+	}
 	return &Store{db: db}, nil
 }
 

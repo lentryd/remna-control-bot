@@ -156,6 +156,15 @@ func (e definite) Error() string { return e.msg }
 func failText(o *Order, err error) string {
 	var ae *remnactl.APIError
 	var de definite
+	if errors.As(err, &ae) && o.Kind == KindChangeTariff {
+		// The exchange changed nothing in the panel, so a new order is safe.
+		switch ae.Code {
+		case "billing.exchange_stale":
+			return i18n.M("alert.exchange_stale").String()
+		case "billing.exchange_unavailable":
+			return i18n.M("alert.exchange_unavailable").String()
+		}
+	}
 	if errors.As(err, &de) || (errors.As(err, &ae) && ae.Status >= 400 && ae.Status < 500) {
 		return errText(err)
 	}
@@ -304,7 +313,11 @@ func (s *Service) fulfill(ctx context.Context, o *Order, d Decision) (Status, *t
 	case KindAddon:
 		_, err = s.API.ConnectAddon(ctx, o.ItemID, remnactl.ConnectAddonInput{TariffID: o.TariffID, Months: o.Months, Days: o.Days, Amount: o.Price})
 	case KindChangeTariff:
-		err = s.API.ChangeTariff(ctx, o.ItemKind, o.ItemID, remnactl.ChangeTariffInput{TariffID: o.TariffID, Surcharge: o.Price})
+		in := remnactl.ChangeTariffInput{TariffID: o.TariffID, Surcharge: o.Price}
+		if o.Mode == ModeExchange {
+			in = remnactl.ChangeTariffInput{TariffID: o.TariffID, Mode: ModeExchange, ExpectedDays: o.ExpectedDays}
+		}
+		err = s.API.ChangeTariff(ctx, o.ItemKind, o.ItemID, in)
 	default:
 		err = bad("kind %q", o.Kind)
 	}

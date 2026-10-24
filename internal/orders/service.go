@@ -98,6 +98,17 @@ func term(months, days int) i18n.Msg {
 }
 
 func (s *Service) price(ctx context.Context, c *remnactl.Customer, r Request) (Quote, error) {
+	switch r.Mode {
+	case "", ModeSurcharge, ModeExchange:
+	default:
+		return Quote{}, bad("mode %q", r.Mode)
+	}
+	if r.Kind != KindChangeTariff && (r.Mode != "" || r.ExpectedDays != 0) {
+		return Quote{}, bad("mode")
+	}
+	if r.Kind == KindChangeTariff && (r.Mode == ModeExchange) != (r.ExpectedDays != 0) || r.ExpectedDays < 0 {
+		return Quote{}, bad("expected days")
+	}
 	if r.Kind != KindTopup && r.Kind != KindChangeTariff && (r.Months < 0 || r.Days < 0 || r.Months+r.Days == 0 || r.Months > 36) {
 		return Quote{}, bad("term")
 	}
@@ -151,7 +162,16 @@ func (s *Service) price(ctx context.Context, c *remnactl.Customer, r Request) (Q
 		if err != nil {
 			return Quote{}, apiErr(err)
 		}
-		return Quote{Title: i18n.M("title.change_tariff", title, t.Name).String(), Price: math.Max(tq.Surcharge, 0)}, nil
+		cq := &ChangeQuote{Surcharge: tq.Surcharge, ExpireAt: tq.ExpireAt, ExchangeDays: tq.ExchangeDays,
+			ExchangeExpireAt: tq.ExchangeExpireAt, Addons: tq.Addons}
+		q := Quote{Title: i18n.M("title.change_tariff", title, t.Name).String(), Price: math.Max(tq.Surcharge, 0), Change: cq}
+		if r.Mode == ModeExchange {
+			if tq.ExchangeDays < 1 { // not offered: expired, unlimited, free target, too short, or an older panel
+				return Quote{}, bad("exchange")
+			}
+			q.Price = 0 // paid with the remaining term, nothing to charge
+		}
+		return q, nil
 	}
 	return Quote{}, bad("kind %q", r.Kind)
 }

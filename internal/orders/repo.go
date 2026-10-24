@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const cols = `id, customer_id, chat_id, kind, item_kind, item_id, tariff_id, months, days, title, price, from_balance, to_pay,
+const cols = `id, customer_id, chat_id, kind, item_kind, item_id, tariff_id, months, days, mode, expected_days, title, price, from_balance, to_pay,
 	received, method, status, receipt_kind, receipt_file_id, comment, reject_reason, admin, decision, panel_payment_id,
 	result_until, error, external_id, pay_url, pay_amount, pay_currency, created_at, updated_at`
 
@@ -21,7 +21,7 @@ func scan(r scanner) (*Order, error) {
 	var o Order
 	var received sql.NullFloat64
 	var until sql.NullTime
-	err := r.Scan(&o.ID, &o.CustomerID, &o.ChatID, &o.Kind, &o.ItemKind, &o.ItemID, &o.TariffID, &o.Months, &o.Days,
+	err := r.Scan(&o.ID, &o.CustomerID, &o.ChatID, &o.Kind, &o.ItemKind, &o.ItemID, &o.TariffID, &o.Months, &o.Days, &o.Mode, &o.ExpectedDays,
 		&o.Title, &o.Price, &o.FromBalance, &o.ToPay, &received, &o.Method, &o.Status, &o.ReceiptKind, &o.ReceiptFileID,
 		&o.Comment, &o.RejectReason, &o.Admin, &o.Decision, &o.PanelPaymentID, &until, &o.Error,
 		&o.ExternalID, &o.PayURL, &o.PayAmount, &o.PayCurrency, &o.CreatedAt, &o.UpdatedAt)
@@ -41,8 +41,8 @@ func (s *Service) insert(ctx context.Context, o *Order) error {
 	now := s.Now()
 	o.ID, o.CreatedAt, o.UpdatedAt = s.newID(), now, now
 	_, err := s.DB.ExecContext(ctx, `INSERT INTO orders (id, customer_id, chat_id, kind, item_kind, item_id, tariff_id, months, days,
-		title, price, from_balance, to_pay, method, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		o.ID, o.CustomerID, o.ChatID, o.Kind, o.ItemKind, o.ItemID, o.TariffID, o.Months, o.Days,
+		mode, expected_days, title, price, from_balance, to_pay, method, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		o.ID, o.CustomerID, o.ChatID, o.Kind, o.ItemKind, o.ItemID, o.TariffID, o.Months, o.Days, o.Mode, o.ExpectedDays,
 		o.Title, o.Price, o.FromBalance, o.ToPay, o.Method, o.Status, now, now)
 	return err
 }

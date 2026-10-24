@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"remna-control-bot/internal/i18n"
+	"remna-control-bot/internal/remnactl"
 	"remna-control-bot/internal/store"
 )
 
@@ -68,6 +69,26 @@ type Request struct {
 	Months   int     `json:"months"`
 	Days     int     `json:"days"`
 	Amount   float64 `json:"amount"` // topup only
+	// Mode, change_tariff only: ModeSurcharge ("" is the same) pays the difference, ModeExchange switches tariff
+	// for the same money and shortens or lengthens the term instead.
+	Mode string `json:"mode,omitempty"`
+	// ExpectedDays is the exchange term the customer was shown; the panel refuses the exchange if it got worse.
+	ExpectedDays int `json:"expected_days,omitempty"`
+}
+
+// Tariff change modes.
+const (
+	ModeSurcharge = "surcharge"
+	ModeExchange  = "exchange"
+)
+
+// ChangeQuote is what the panel offers for a tariff change, so one quote call can show both outcomes.
+type ChangeQuote struct {
+	Surcharge        float64                `json:"surcharge"`
+	ExpireAt         *time.Time             `json:"expire_at,omitempty"`
+	ExchangeDays     int                    `json:"exchange_days"`
+	ExchangeExpireAt *time.Time             `json:"exchange_expire_at,omitempty"`
+	Addons           []remnactl.AddonChange `json:"addons,omitempty"`
 }
 
 type Quote struct {
@@ -77,6 +98,7 @@ type Quote struct {
 	ToPay       float64           `json:"to_pay"`
 	Methods     []Method          `json:"methods"`
 	Titles      map[string]string `json:"titles,omitempty"` // provider id → button label
+	Change      *ChangeQuote      `json:"change,omitempty"` // change_tariff only
 }
 
 type Order struct {
