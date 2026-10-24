@@ -146,10 +146,10 @@ func OrderNotice(loc i18n.Localizer, o orders.Order, l Links) Screen {
 		}
 	case orders.StatusFailed:
 		if o.Mode == orders.ModeExchange { // free exchange: nothing was paid, so don't talk about a received payment
-			if safe := customerSafeExchangeError(o.Error); safe {
+			if o.FailReason() != "" { // definite: the panel changed nothing, repeating is safe
 				text = loc.T("order.failed_exchange", o.Short(), Esc(loc.Text(o.Error)))
-			} else { // other stored errors are admin-oriented: don't show them to the customer
-				text = loc.T("order.failed_exchange_bare", o.Short())
+			} else { // the result is unknown (and the stored error admin-oriented): don't invite a repeat
+				text = loc.T("order.failed_exchange_unknown", o.Short())
 			}
 		} else {
 			text = loc.T("order.failed", o.Short())
@@ -161,9 +161,4 @@ func OrderNotice(loc i18n.Localizer, o orders.Order, l Links) Screen {
 		text += "\n" + loc.T("order.received", Money(loc, *o.Received))
 	}
 	return Screen{Text: text, Keyboard: kb([]btn{{Text: loc.T("btn.orders"), WebApp: l.Page("/orders")}})}
-}
-
-// customerSafeExchangeError reports whether a stored failure is one of the exchange alerts written for customers.
-func customerSafeExchangeError(stored string) bool {
-	return stored == i18n.M("alert.exchange_stale").String() || stored == i18n.M("alert.exchange_unavailable").String()
 }

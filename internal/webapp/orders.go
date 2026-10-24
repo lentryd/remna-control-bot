@@ -13,25 +13,27 @@ import (
 )
 
 type orderView struct {
-	ID          string     `json:"id"`
-	Number      string     `json:"number"` // short form to show people
-	Kind        string     `json:"kind"`
-	Title       string     `json:"title"`
-	Price       float64    `json:"price"`
-	FromBalance float64    `json:"from_balance"`
-	ToPay       float64    `json:"to_pay"`
-	Paid        float64    `json:"paid"`
-	Method      string     `json:"method"`
-	Status      string     `json:"status"`
-	Reason      string     `json:"reason,omitempty"`
-	Until       *time.Time `json:"until,omitempty"`
-	PayURL      string     `json:"pay_url,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
+	ID          string  `json:"id"`
+	Number      string  `json:"number"` // short form to show people
+	Kind        string  `json:"kind"`
+	Title       string  `json:"title"`
+	Price       float64 `json:"price"`
+	FromBalance float64 `json:"from_balance"`
+	ToPay       float64 `json:"to_pay"`
+	Paid        float64 `json:"paid"`
+	Method      string  `json:"method"`
+	Status      string  `json:"status"`
+	Reason      string  `json:"reason,omitempty"`
+	// FailReason is set for a definite exchange failure (orders.FailExchange*): nothing changed, a new try is safe.
+	FailReason string     `json:"fail_reason,omitempty"`
+	Until      *time.Time `json:"until,omitempty"`
+	PayURL     string     `json:"pay_url,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
 }
 
 func orderJSON(l i18n.Localizer, o orders.Order) orderView {
 	return orderView{ID: o.ID, Number: o.Short(), Kind: string(o.Kind), Title: l.Text(o.Title), Price: o.Price, FromBalance: o.FromBalance, ToPay: o.ToPay,
-		Paid: o.Paid(), Method: string(o.Method), Status: string(o.Status), Reason: o.RejectReason,
+		Paid: o.Paid(), Method: string(o.Method), Status: string(o.Status), Reason: o.RejectReason, FailReason: o.FailReason(),
 		Until: o.ResultUntil, PayURL: o.PayURL, CreatedAt: o.CreatedAt}
 }
 

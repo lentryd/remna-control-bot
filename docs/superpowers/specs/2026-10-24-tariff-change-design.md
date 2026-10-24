@@ -37,13 +37,15 @@ Also, nowhere in the WebApp does a customer see when a traffic limit resets, and
 Math, owned by the panel next to `ProrateSurcharge`:
 
     credit    = oldMonthly * daysLeft / 30
-    newDays   = round(credit / newMonthly * 30)      (newMonthly > 0)
+    newDays   = floor(credit / newMonthly * 30)      (newMonthly > 0)
     newExpire = now + newDays
+
+The result is rounded down to whole days, so exchanging there and straight back never gains term.
 
 Examples: 60 days left at 100 ₽/mo and a 200 ₽/mo target gives 30 days; the same 60 days to a 50 ₽/mo target gives 120 days.
 
 - A new quote field (`exchange_expire_at`, `exchange_days`) is returned next to the existing surcharge in `QuoteTariffChange`; `ChangeTariff` gets a `mode` (`surcharge` default, `exchange`). In `exchange` mode it sets the new `expire_at` on the Remnawave user and records a `tariff_change` extension with surcharge 0.
-- Included add-ons: the exchange applies the same included-add-on handling as a normal change; their credit is not folded into the term math (they keep their own terms).
+- Included add-ons: the exchange applies the same included-add-on handling as a normal change; their credit is not folded into the term math. Included add-ons live and end with the subscription, so they follow the exchanged expiry; a paid add-on that becomes included keeps the later of its own expiry and the new one.
 - Traffic counter behaviour is unchanged from the current change (used traffic is not reset; new limit applies).
 - Free target tariff (`newMonthly <= 0`) is not offered an exchange.
 
@@ -84,15 +86,16 @@ Add-ons get their own "Add-ons" section under the connection link, split into tw
 
 ## My calls (owner to check)
 
-- Exchange math is linear by monthly price, rounded to whole days.
+- Exchange math is linear by monthly price, rounded down to whole days.
 - Exchange is available for downgrades too (term grows), not only upgrades.
+- Add-ons in an exchange: included add-ons live and end with the subscription and follow the exchanged expiry; a paid add-on turned included keeps max(own expiry, new expiry), and its credit is not shown or applied in exchange mode.
 - Hide the exchange option when the panel does not return the new quote fields.
 - Downgrade surcharge stays clamped to 0 as today (no balance credit) for the pay mode; the exchange mode is the way to get value back from a downgrade.
 
 - Price basis: `oldMonthly` is the subscription's effective price (price override if set, else the old tariff's current monthly price) and `newMonthly` is the target tariff's list monthly price, exactly as `QuoteTariffChange` uses today. Term discounts and the price actually paid are not tracked; the panel stores no paid price.
 - Stable quote: the bot sends the quoted `exchange_days` with the order; the panel recomputes at apply time and rejects the change if the result is more than 1 day shorter than quoted. The checkout then asks the customer to re-confirm with a fresh quote.
 - Edge rules for exchange: not offered for expired subscriptions, unlimited ones, the current tariff, free targets, or when the result would be under 1 day; the result is capped at 2 years. Whether current usage fits the new limits is not checked (same as the surcharge mode today).
-- Zero-price order: created with the balance method and fulfilled immediately through the existing run path, no provider. If the panel call fails the order ends `failed`, nothing was charged, and the customer retries with a new order.
+- Zero-price order: created with the balance method and fulfilled immediately through the existing run path, no provider. If the panel call fails the order ends `failed` and nothing was charged. When the panel definitely refused (stale or unavailable exchange) the customer retries with a new order; when the result is unknown the customer is told not to repeat it and support checks. If the panel accepted the new expiry but the local switch failed, the panel puts the old expiry back (best effort).
 - Storefront "update existing": eligible are the customer's non-unlimited, non-expired base subscriptions whose tariff differs from the chosen one; applies to base tariffs only. With exactly one eligible subscription the switch still shows, preselected to "update".
 
 ## Left to the builder

@@ -154,6 +154,29 @@ func (o Order) Short() string { return ShortID(o.ID) }
 
 func ShortID(id string) string { return id[:min(len(id), 8)] }
 
+// Definite exchange failures: the panel refused the exchange and changed
+// nothing, so starting the plan change again is safe.
+const (
+	FailExchangeStale       = "exchange_stale"
+	FailExchangeUnavailable = "exchange_unavailable"
+)
+
+// FailReason names a definite failure of a free exchange (FailExchangeStale
+// or FailExchangeUnavailable), read from the stored error; "" for any other
+// order or failure, whose outcome may be unknown.
+func (o Order) FailReason() string {
+	if o.Status != StatusFailed || o.Mode != ModeExchange {
+		return ""
+	}
+	switch o.Error {
+	case i18n.M("alert.exchange_stale").String():
+		return FailExchangeStale
+	case i18n.M("alert.exchange_unavailable").String():
+		return FailExchangeUnavailable
+	}
+	return ""
+}
+
 type Notifier interface {
 	PayScreen(ctx context.Context, o Order, details string) error // customer chat: amount + details + buttons
 	// Card tells the admins where the order stands: a new card when it needs a decision, an edit of the cards already

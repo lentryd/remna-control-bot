@@ -458,3 +458,32 @@ func TestInvoiceTitleFollowsPayerLanguage(t *testing.T) {
 		}
 	}
 }
+
+// The web shows the "term changed, confirm again" hint only for a definite
+// exchange failure, so the order JSON says which one it was.
+func TestOrderJSONFailReason(t *testing.T) {
+	l := i18n.Default.For("en")
+	base := orders.Order{ID: "0c6f2b3a-5d4e-4f1a-9b7c-8e2d1a3f4b5c", Status: orders.StatusFailed}
+	base.Mode = orders.ModeExchange
+	for _, c := range []struct {
+		name, err, want string
+	}{
+		{"stale", i18n.M("alert.exchange_stale").String(), `"fail_reason":"exchange_stale"`},
+		{"unavailable", i18n.M("alert.exchange_unavailable").String(), `"fail_reason":"exchange_unavailable"`},
+		{"unknown", i18n.M("alert.result_unknown", "bot order #1", "timeout").String(), ""},
+	} {
+		o := base
+		o.Error = c.err
+		b, err := json.Marshal(orderJSON(l, o))
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := string(b)
+		if c.want == "" && strings.Contains(out, "fail_reason") || c.want != "" && !strings.Contains(out, c.want) {
+			t.Errorf("%s: %s", c.name, out)
+		}
+		if strings.Contains(out, "timeout") {
+			t.Errorf("%s: stored error leaked: %s", c.name, out)
+		}
+	}
+}

@@ -458,5 +458,49 @@ func TestExchangeOrder(t *testing.T) {
 		if got.Error != i18n.M("alert.exchange_stale").String() || m == got.Error || len(f.Payments) != 0 {
 			t.Fatalf("error %q rendered %q", got.Error, m)
 		}
+		if r := got.FailReason(); r != FailExchangeStale {
+			t.Errorf("fail reason = %q", r)
+		}
 	})
+
+	t.Run("a panel error leaves the result unknown", func(t *testing.T) {
+		s, f, _, c := setup(t)
+		exchangeQuote(f)
+		o, err := s.Create(ctx, c, 77, r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.FailStep = &remnactl.APIError{Status: 502, Message: "bad gateway"}
+		got, err := s.PayFromBalance(ctx, c.ID, o.ID)
+		if err != nil || got.Status != StatusFailed {
+			t.Fatalf("%+v %v", got, err)
+		}
+		if r := got.FailReason(); r != "" {
+			t.Errorf("fail reason = %q for an unknown result", r)
+		}
+	})
+}
+
+func TestOrderFailReason(t *testing.T) {
+	stale, unavailable := i18n.M("alert.exchange_stale").String(), i18n.M("alert.exchange_unavailable").String()
+	for _, c := range []struct {
+		name   string
+		status Status
+		mode   string
+		err    string
+		want   string
+	}{
+		{"stale exchange", StatusFailed, ModeExchange, stale, FailExchangeStale},
+		{"unavailable exchange", StatusFailed, ModeExchange, unavailable, FailExchangeUnavailable},
+		{"unknown exchange result", StatusFailed, ModeExchange, i18n.M("alert.result_unknown", "bot order #1", "timeout").String(), ""},
+		{"4xx without a known code", StatusFailed, ModeExchange, "tariff not found", ""},
+		{"surcharge change", StatusFailed, "", stale, ""},
+		{"not failed", StatusApproved, ModeExchange, stale, ""},
+	} {
+		o := Order{Status: c.status, Error: c.err}
+		o.Mode = c.mode
+		if got := o.FailReason(); got != c.want {
+			t.Errorf("%s: %q, want %q", c.name, got, c.want)
+		}
+	}
 }

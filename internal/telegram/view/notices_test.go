@@ -36,6 +36,10 @@ func TestNoticeScreens(t *testing.T) {
 		if strings.Contains(other.Text, "bad gateway") || strings.Contains(other.Text, "#1") {
 			t.Errorf("%s: admin-oriented error leaked:\n%s", lang, other.Text)
 		}
+		// the result is unknown: no "nothing was charged, repeat it"
+		if want := loc.T("order.failed_exchange_unknown", ex.Short()); other.Text != want {
+			t.Errorf("%s: unknown exchange failure = %q, want %q", lang, other.Text, want)
+		}
 		golden(t, lang, "notice_exchange_failed_other", other)
 	}
 }
