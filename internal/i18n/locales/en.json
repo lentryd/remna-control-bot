@@ -87,6 +87,7 @@
   "order.valid_until": ", valid until <b>%s</b>",
   "order.credited": "💰 Received %s of %s for order #%s — credited to your balance. Pay the difference to complete the purchase.",
   "order.rejected": "❌ Payment #%s was declined",
+  "order.failed_exchange": "⚠️ Order #%s was not applied. Nothing was charged.\n%s\nOpen the app and repeat the plan change.",
   "order.failed": "⚠️ Payment #%s received, but the order couldn’t be applied. Support will look into it and get in touch.",
   "order.status_line": "%s Order #%s: %s",
   "order.received": "Received: %s",

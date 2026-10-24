@@ -145,7 +145,11 @@ func OrderNotice(loc i18n.Localizer, o orders.Order, l Links) Screen {
 			text += ": " + Esc(clip(o.RejectReason, 200))
 		}
 	case orders.StatusFailed:
-		text = loc.T("order.failed", o.Short())
+		if o.Mode == orders.ModeExchange { // free exchange: nothing was paid, so don't talk about a received payment
+			text = loc.T("order.failed_exchange", o.Short(), Esc(clip(loc.Text(o.Error), 300)))
+		} else {
+			text = loc.T("order.failed", o.Short())
+		}
 	default:
 		text = loc.T("order.status_line", statusIcon[o.Status], o.Short(), statusText(loc, o.Status))
 	}

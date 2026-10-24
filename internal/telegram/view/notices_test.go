@@ -6,6 +6,7 @@ import (
 
 	"remna-control-bot/internal/i18n"
 	"remna-control-bot/internal/notify"
+	"remna-control-bot/internal/orders"
 	"remna-control-bot/internal/remnactl"
 )
 
@@ -23,5 +24,9 @@ func TestNoticeScreens(t *testing.T) {
 		}, links, now))
 		golden(t, lang, "notice_remind", PaymentReminder(loc, notify.Notice{Kind: notify.Reminder, SubID: 3, Title: "Родители", ExpireAt: now.Add(50 * time.Hour)}, links, now))
 		golden(t, lang, "notice_expired", PaymentReminder(loc, notify.Notice{Kind: notify.Reminder, SubID: 3, Title: "Родители", ExpireAt: now.Add(-2 * time.Hour), Expired: true}, links, now))
+		ex := order()
+		ex.Status, ex.Mode, ex.ToPay = orders.StatusFailed, orders.ModeExchange, 0
+		ex.Error = i18n.M("alert.exchange_stale").String()
+		golden(t, lang, "notice_exchange_failed", OrderNotice(loc, ex, links))
 	}
 }

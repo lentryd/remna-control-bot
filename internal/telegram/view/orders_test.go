@@ -73,6 +73,20 @@ func TestOrderNotice(t *testing.T) {
 	}
 }
 
+// A failed ordinary order keeps the "payment received" wording; only a free exchange says nothing was charged.
+func TestOrderNoticeFailedWording(t *testing.T) {
+	o := order()
+	o.Status, o.Error = orders.StatusFailed, i18n.M("alert.exchange_stale").String()
+	s := OrderNotice(ru, o, links).Text
+	if !strings.Contains(s, "Оплата") || !strings.Contains(s, "Поддержка проверит") || strings.Contains(s, "Ничего не списано") {
+		t.Errorf("normal failed order changed:\n%s", s)
+	}
+	o.Mode = orders.ModeExchange
+	if s := OrderNotice(ru, o, links).Text; !strings.Contains(s, "Ничего не списано") || strings.Contains(s, "Оплата") {
+		t.Errorf("exchange:\n%s", s)
+	}
+}
+
 func TestAdminCardCurrency(t *testing.T) {
 	t.Cleanup(func() { SetCurrency("RUB") })
 	SetCurrency("USD")
