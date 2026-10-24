@@ -35,6 +35,7 @@ export function SubscriptionDetails({ p }: { p: Profile }) {
             </Group>
             <SimpleGrid cols={2} spacing="sm">
                 <RemainingInfo expireAt={s.expire_at} unlimited={s.unlimited} variant="tile" />
+                {!isExpired(s) && (
                 <ResetInfo
                     expireAt={s.expire_at}
                     limitBytes={s.limit_bytes}
@@ -43,6 +44,7 @@ export function SubscriptionDetails({ p }: { p: Profile }) {
                     unlimited={s.unlimited}
                     variant="tile"
                 />
+                )}
             </SimpleGrid>
             <SectionCard.Root>
                 <Stack gap={6}>

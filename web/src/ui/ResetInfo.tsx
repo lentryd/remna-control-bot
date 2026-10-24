@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 
 import { daysUntil, fmtDate } from '@shared/format'
 
-export type InfoVariant = 'compact' | 'tile'
+export type InfoVariant = 'compact' | 'stack' | 'tile'
 
 // Panel strategy meaning "the counter only resets when the subscription renews".
 const NO_RESET = 'NO_RESET'
@@ -21,10 +21,21 @@ function Line({ icon, label, value, sub, variant }: { icon: ReactNode; label: st
                         {icon}
                         <Text c="dimmed" size="xs">{label}</Text>
                     </Group>
-                    <Text fw={700} size="lg">{value}</Text>
+                    <Text fw={700} lh={1.25} size="md" style={{ overflowWrap: 'anywhere' }}>{value}</Text>
                     {sub && <Text c="dimmed" size="xs">{sub}</Text>}
                 </Stack>
             </Paper>
+        )
+    }
+    if (variant === 'stack') {
+        return (
+            <Stack gap={2} miw={0}>
+                <Group c="dimmed" gap={6} wrap="nowrap">
+                    {icon}
+                    <Text c="dimmed" size="xs">{label}</Text>
+                </Group>
+                <Text fw={600} size="sm" style={{ overflowWrap: 'anywhere' }}>{sub ? `${value} · ${sub}` : value}</Text>
+            </Stack>
         )
     }
     return (
