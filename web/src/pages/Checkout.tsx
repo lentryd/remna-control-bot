@@ -9,13 +9,15 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
 
-import { currencySymbol, fmtMoney } from '@shared/format'
+import { currencySymbol, fmtDate, fmtMoney } from '@shared/format'
 import { ApiError, cancelOrder, createOrder, payFromBalance, requestReceipt, useOrderQuote, useTariffs } from '../api'
 import { haptic, openExternal, tg } from '../telegram'
-import type { Order, OrderKind, OrderRequest, Period, Profile } from '../types'
+import type { Order, OrderKind, OrderRequest, Period, Profile, Subscription, Tariff, TariffChange } from '../types'
 import { CtaButton } from '../ui/CtaButton'
 import { ErrorScreen } from '../ui/ErrorScreen'
 import { OldPrice } from '../ui/OldPrice'
+import { addonName } from '../ui/addonName'
+import { RemainingInfo, ResetInfo } from '../ui/ResetInfo'
 import { regularCost, savingPct, termCost, termKey } from '../pricing'
 import { term } from '../term'
 import classes from './checkout.module.css'
@@ -74,6 +76,49 @@ function Note({ color, icon, children }: { color: string; icon: ReactNode; child
     )
 }
 
+const ACTION_KEYS: Record<string, string> = { include: 'checkout.addon_include', remove: 'checkout.addon_remove', connect: 'checkout.addon_connect' }
+
+// ChangeDetails — what a tariff change does besides the price: the old and new
+// plan's limit reset and the add-ons that become included or are removed.
+function ChangeDetails({ sub, target, change }: { sub?: Subscription; target?: Tariff; change: TariffChange }) {
+    const { t } = useTranslation()
+    const addons = change.addons ?? []
+    return (
+        <Card padding="md" radius="lg" withBorder>
+            <Stack gap="sm">
+                {sub && (
+                    <Stack gap={4}>
+                        <Text fw={600} size="sm">{t('checkout.current_plan')}: {sub.tariff}</Text>
+                        <ResetInfo expireAt={sub.expire_at} limitBytes={sub.limit_bytes} resetAt={sub.reset_at} strategy={sub.reset_strategy} unlimited={sub.unlimited} variant="compact" />
+                        <RemainingInfo expireAt={sub.expire_at} unlimited={sub.unlimited} variant="compact" />
+                    </Stack>
+                )}
+                {target && (
+                    <Stack gap={4}>
+                        <Text fw={600} size="sm">{t('checkout.new_plan')}: {target.name}</Text>
+                        <ResetInfo expireAt={null} limitBytes={target.traffic_limit_bytes} resetAt={null} strategy="" unlimited={false} variant="compact" />
+                    </Stack>
+                )}
+                {addons.length > 0 && (
+                    <Stack gap={4}>
+                        <Text fw={600} size="sm">{t('checkout.addons_title')}</Text>
+                        {addons.map((a, i) => {
+                            const name = addonName(a.tariff_name, a.addon_name)
+                            const what = ACTION_KEYS[a.action]
+                            return (
+                                <Text c="dimmed" key={`${a.addon_id}:${i}`} size="sm">
+                                    {name}{what ? ` — ${t(what).toLowerCase()}` : ''}
+                                    {a.action === 'include' && a.credit > 0 ? ` (${t('checkout.addon_credit', { sum: fmtMoney(a.credit) })})` : ''}
+                                </Text>
+                            )
+                        })}
+                    </Stack>
+                )}
+            </Stack>
+        </Card>
+    )
+}
+
 export function Checkout({ p }: { p: Profile }) {
     const { t } = useTranslation()
     const navigate = useNavigate()
@@ -95,11 +140,19 @@ export function Checkout({ p }: { p: Profile }) {
     const [failed, setFailed] = useState<string | null>(null)
     const [pendingId, setPendingId] = useState<string | null>(null) // created, balance payment not done yet
     const [down, setDown] = useState(false)
+    const [mode, setMode] = useState<'surcharge' | 'exchange'>('surcharge')
+    const [stale, setStale] = useState(false)
     const [manual, setManual] = useState<{ order: Order; details: string } | null>(null)
 
     // the tariff whose periods define the term options
     const sub = p.subscriptions.find((s) => s.id === itemId)
-    const tariff = tariffs.data?.find((tf) => (kind === 'renew' ? tf.kind === 'base' && (sub?.tariff_id != null ? tf.id === sub.tariff_id : tf.name === sub?.tariff) : tf.id === tariffId))
+    // an add-on renewal resolves the add-on's own tariff, not the base one
+    const addonItem = kind === 'renew' && itemKind === 'addon' ? p.subscriptions.flatMap((s) => s.addons).find((a) => a.id === itemId) : undefined
+    const tariff = tariffs.data?.find((tf) => {
+        if (kind !== 'renew') return tf.id === tariffId
+        if (itemKind === 'addon') return tf.kind === 'addon' && (addonItem?.tariff_id != null ? tf.id === addonItem.tariff_id : tf.name === addonItem?.tariff)
+        return tf.kind === 'base' && (sub?.tariff_id != null ? tf.id === sub.tariff_id : tf.name === sub?.tariff)
+    })
     const periods: Period[] = [
         ...BASE_MONTHS.map((months) => ({ months, days: 0, price: 0 })),
         ...(tariff?.periods ?? []).filter((x) => x.months > 0 || x.days > 0),
@@ -110,25 +163,34 @@ export function Checkout({ p }: { p: Profile }) {
     const curTerm = chosen ?? (wanted && terms.some((x) => key(x) === wanted) ? wanted : '1:0')
     const [months, days] = curTerm.split(':').map(Number)
 
-    let request: OrderRequest | null = null
+    let baseRequest: OrderRequest | null = null
     switch (kind) {
         case 'renew':
-            if (itemId) request = { kind, item_kind: itemKind, item_id: itemId, months, days }
+            if (itemId) baseRequest = { kind, item_kind: itemKind, item_id: itemId, months, days }
             break
         case 'subscribe':
-            if (tariffId) request = { kind, tariff_id: tariffId, months, days }
+            if (tariffId) baseRequest = { kind, tariff_id: tariffId, months, days }
             break
         case 'addon':
-            if (tariffId && subId) request = { kind, tariff_id: tariffId, item_id: subId, months, days }
+            if (tariffId && subId) baseRequest = { kind, tariff_id: tariffId, item_id: subId, months, days }
             break
         case 'change_tariff':
-            if (itemId && tariffId) request = { kind, item_kind: itemKind, item_id: itemId, tariff_id: tariffId }
+            if (itemId && tariffId) baseRequest = { kind, item_kind: itemKind, item_id: itemId, tariff_id: tariffId }
             break
         case 'topup':
-            if (Number(debouncedAmount) >= 1) request = { kind, amount: Number(debouncedAmount) }
+            if (Number(debouncedAmount) >= 1) baseRequest = { kind, amount: Number(debouncedAmount) }
             break
     }
-    const quote = useOrderQuote(manual ? null : request)
+    // change_tariff is quoted without a mode first; the exchange is a second
+    // quote with the shown term pinned
+    const baseQuote = useOrderQuote(manual ? null : baseRequest)
+    const change = kind === 'change_tariff' ? baseQuote.data?.change : undefined
+    const exchangeDays = change?.exchange_days ?? 0
+    const exchange = mode === 'exchange' && exchangeDays >= 1
+    const exchangeRequest: OrderRequest | null = exchange && baseRequest ? { ...baseRequest, mode: 'exchange', expected_days: exchangeDays } : null
+    const exchangeQuote = useOrderQuote(manual ? null : exchangeRequest)
+    const request = exchange ? exchangeRequest : baseRequest
+    const quote = exchange ? exchangeQuote : baseQuote
     const qErr = quote.error instanceof ApiError ? quote.error : null
 
     if (down) return <ErrorScreen code="unavailable" onRetry={() => setDown(false)} />
@@ -137,6 +199,7 @@ export function Checkout({ p }: { p: Profile }) {
     const run = async (fn: () => Promise<void>) => {
         setBusy(true)
         setFailed(null)
+        setStale(false)
         try {
             await fn()
         } catch (e) {
@@ -161,6 +224,12 @@ export function Checkout({ p }: { p: Profile }) {
             qc.invalidateQueries({ queryKey: ['me'] })
             qc.invalidateQueries({ queryKey: ['orders'] })
             if (done.status === 'failed') {
+                if (exchange) {
+                    // the term shrank since it was shown: nothing was charged, ask to re-confirm on a fresh quote
+                    setStale(true)
+                    baseQuote.refetch()
+                    return
+                }
                 setFailed(t('checkout.failed'))
                 return
             }
@@ -266,6 +335,8 @@ export function Checkout({ p }: { p: Profile }) {
         ? Math.max(0, regularCost(tariff.monthly_price, months, days) - termCost(tariff.monthly_price, tariff.periods ?? [], months, days))
         : 0
     const locked = pendingId !== null
+    const freeChange = kind === 'change_tariff' && !!q && q.price <= 0
+    const target = tariffs.data?.find((tf) => tf.id === tariffId)
     const baseTariffs = (tariffs.data ?? []).filter((tf) => tf.kind === 'base')
     const label = (text: string) => <Text fw={600} size="sm">{text}</Text>
     return (
@@ -287,7 +358,11 @@ export function Checkout({ p }: { p: Profile }) {
                     data={baseTariffs.filter((tf) => (sub?.tariff_id != null ? tf.id !== sub.tariff_id : tf.name !== sub?.tariff)).map((tf) => ({ value: String(tf.id), label: tf.name }))}
                     disabled={locked}
                     label={label(t('checkout.tariff'))}
-                    onChange={(v) => setTariffId(num(v))}
+                    onChange={(v) => {
+                        setTariffId(num(v))
+                        setMode('surcharge')
+                        setStale(false)
+                    }}
                     radius="md"
                     size="md"
                     value={tariffId ? String(tariffId) : null}
@@ -331,6 +406,32 @@ export function Checkout({ p }: { p: Profile }) {
                     {qErr.code === 'manual_off' ? t('checkout.manual_off') : t('checkout.unavailable')}
                 </Note>
             )}
+            {kind === 'change_tariff' && change && (
+                <Stack gap="sm">
+                    {exchangeDays >= 1 && (
+                        <>
+                            {label(t('checkout.change_mode'))}
+                            {(['surcharge', 'exchange'] as const).map((m) => (
+                                <UnstyledButton className={classes.term} data-active={mode === m || undefined} disabled={locked || busy} key={m} onClick={() => { setMode(m); setStale(false) }}>
+                                    <Text fw={600} size="sm">
+                                        {m === 'exchange'
+                                            ? t('checkout.mode_exchange', { date: fmtDate(change.exchange_expire_at ?? null) })
+                                            : change.surcharge > 0
+                                              ? t('checkout.mode_surcharge', { sum: fmtMoney(change.surcharge), date: fmtDate(change.expire_at ?? null) })
+                                              : t('checkout.mode_surcharge_free', { date: fmtDate(change.expire_at ?? null) })}
+                                    </Text>
+                                </UnstyledButton>
+                            ))}
+                        </>
+                    )}
+                    <ChangeDetails change={change} sub={sub} target={target} />
+                </Stack>
+            )}
+            {stale && (
+                <Note color="yellow" icon={<IconInfoCircle size={18} />}>
+                    {t('checkout.stale_quote')}
+                </Note>
+            )}
             {!q && request && quote.isPending && <Skeleton height={190} radius="lg" />}
             {q && (
                 <>
@@ -358,13 +459,13 @@ export function Checkout({ p }: { p: Profile }) {
                     )}
                     {q.methods.length > 0 && (
                         <Stack gap="sm">
-                            {label(t('checkout.method'))}
+                            {!freeChange && label(t('checkout.method'))}
                             {q.methods.includes('balance') && (
                                 <CtaButton fullWidth leftSection={<IconWallet size={20} />} disabled={settling} loading={busy} onClick={payBalance} size="lg">
-                                    {t('checkout.pay_balance')}
+                                    {freeChange ? t('checkout.change_plan') : t('checkout.pay_balance')}
                                 </CtaButton>
                             )}
-                            {q.methods.includes('manual') && !locked && (
+                            {q.methods.includes('manual') && !locked && !(freeChange && q.methods.includes('balance')) && (
                                 <Button
                                     disabled={settling || (busy && q.methods.includes('balance'))}
                                     loading={busy && !q.methods.includes('balance')}
@@ -379,7 +480,7 @@ export function Checkout({ p }: { p: Profile }) {
                                 </Button>
                             )}
                             {q.methods
-                                .filter((m) => m !== 'balance' && m !== 'manual')
+                                .filter((m) => m !== 'balance' && m !== 'manual' && !(freeChange && q.methods.includes('balance')))
                                 .map((m) => (
                                     <Button
                                         disabled={settling || locked}

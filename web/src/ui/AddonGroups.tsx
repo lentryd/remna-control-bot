@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router'
 
 import { fmtBytes, fmtDate, fmtMoney } from '@shared/format'
 import type { Addon, Tariff } from '../types'
+import { addonName } from './addonName'
 import { RemainingInfo, ResetInfo } from './ResetInfo'
 import { StateBadge } from './StateBadge'
 
@@ -18,7 +19,7 @@ const ts = (d: string | null) => (d ? new Date(d).getTime() : NaN)
 // falls back to the add-on's own name so a card is never blank.
 function cardTexts(a: Addon, tariffs: Tariff[]) {
     const tf = a.tariff_id != null ? tariffs.find((x) => x.id === a.tariff_id) : undefined
-    const name = tf?.name?.trim() || a.name
+    const name = addonName(tf?.name, a.name)
     const description = tf?.description?.trim() || ''
     return { name, description }
 }

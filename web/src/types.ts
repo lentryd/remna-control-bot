@@ -94,8 +94,26 @@ export interface OrderRequest {
     days?: number
     amount?: number
     method?: string
+    mode?: 'surcharge' | 'exchange' // change_tariff only; surcharge is the default and omitted
+    expected_days?: number // exchange only: the quoted term the panel re-checks
+}
+export interface AddonChange {
+    subscription_addon_id?: number | null
+    addon_id: number
+    addon_name: string
+    tariff_name: string
+    action: string // connect | include | remove, anything else is shown by name only
+    credit: number
+}
+export interface TariffChange {
+    surcharge: number
+    expire_at?: string
+    exchange_days: number // < 1 or absent: exchange is not offered
+    exchange_expire_at?: string
+    addons?: AddonChange[]
 }
 export interface OrderQuote {
+    change?: TariffChange
     title: string
     price: number
     from_balance: number
