@@ -1,6 +1,7 @@
 package view
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -28,5 +29,13 @@ func TestNoticeScreens(t *testing.T) {
 		ex.Status, ex.Mode, ex.ToPay = orders.StatusFailed, orders.ModeExchange, 0
 		ex.Error = i18n.M("alert.exchange_stale").String()
 		golden(t, lang, "notice_exchange_failed", OrderNotice(loc, ex, links))
+		ex.Error = i18n.M("alert.exchange_unavailable").String()
+		golden(t, lang, "notice_exchange_failed_unavailable", OrderNotice(loc, ex, links))
+		ex.Error = i18n.M("alert.result_unknown", "bot order #1", "bad gateway").String()
+		other := OrderNotice(loc, ex, links)
+		if strings.Contains(other.Text, "bad gateway") || strings.Contains(other.Text, "#1") {
+			t.Errorf("%s: admin-oriented error leaked:\n%s", lang, other.Text)
+		}
+		golden(t, lang, "notice_exchange_failed_other", other)
 	}
 }
