@@ -104,6 +104,12 @@
         "copy": "Copy"
     },
     "tariffs": {
+        "choice_new": "New subscription",
+        "choice_update": "Update existing",
+        "update_hint": "Pay the difference, or exchange the remaining term for the new plan.",
+        "new_hint": "A separate subscription with its own link.",
+        "pick_subscription": "Subscription",
+        "continue": "Continue",
         "title": "Plans",
         "per_month": "/ mo",
         "addon": "Extra",

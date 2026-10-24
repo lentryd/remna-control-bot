@@ -131,7 +131,7 @@ export function Checkout({ p }: { p: Profile }) {
     const tariffs = useTariffs()
 
     const [subId, setSubId] = useState<number | undefined>(itemId ?? (kind === 'addon' && p.subscriptions.length === 1 ? p.subscriptions[0].id : undefined))
-    const [tariffId, setTariffId] = useState<number | undefined>(num(params.get('tariff_id')))
+    const [pickedTariffId, setTariffId] = useState<number | undefined>(num(params.get('tariff_id')))
     const [chosen, setChosen] = useState<string | null>(null)
     const [amount, setAmount] = useState<number | string>(500)
     const [debouncedAmount] = useDebouncedValue(amount, 300) // the quote follows the amount once typing pauses
@@ -146,6 +146,14 @@ export function Checkout({ p }: { p: Profile }) {
 
     // the tariff whose periods define the term options
     const sub = p.subscriptions.find((s) => s.id === itemId)
+    // a change_tariff target from the link (storefront) is only a preselection:
+    // drop it once the catalog shows it is the current tariff or not a base one
+    const tariffId =
+        kind === 'change_tariff' && pickedTariffId && tariffs.data
+            ? tariffs.data.some((tf) => tf.id === pickedTariffId && tf.kind === 'base' && (sub?.tariff_id != null ? tf.id !== sub.tariff_id : tf.name !== sub?.tariff))
+                ? pickedTariffId
+                : undefined
+            : pickedTariffId
     // an add-on renewal resolves the add-on's own tariff, not the base one
     const addonItem = kind === 'renew' && itemKind === 'addon' ? p.subscriptions.flatMap((s) => s.addons).find((a) => a.id === itemId) : undefined
     const tariff = tariffs.data?.find((tf) => {

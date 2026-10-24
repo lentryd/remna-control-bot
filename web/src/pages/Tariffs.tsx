@@ -1,14 +1,16 @@
 // Tariffs.tsx — the catalog as cards worth tapping: price up front, what's
 // included, savings for longer terms and a bright "connect" button.
-import { Badge, Card, Group, List, Stack, Text, ThemeIcon, Title } from '@mantine/core'
+import { Badge, Card, Group, List, Modal, SegmentedControl, Select, Stack, Text, ThemeIcon, Title } from '@mantine/core'
 import { IconBolt, IconCheck, IconDevices, IconGauge, IconGift, IconPuzzle } from '@tabler/icons-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
 import { fmtBytes, fmtMoney } from '@shared/format'
-import { useTariffs } from '../api'
+import { useProfile, useTariffs } from '../api'
 import { bestPeriod, termKey } from '../pricing'
 import type { Tariff } from '../types'
+import { changeCandidates, checkoutChange } from '../renew'
 import { term } from '../term'
 import { CtaButton } from '../ui/CtaButton'
 import { Empty } from '../ui/Empty'
@@ -21,6 +23,18 @@ function TariffCard({ tf }: { tf: Tariff }) {
     const best = bestPeriod(tf)
     const addon = tf.kind === 'addon'
     const navigate = useNavigate()
+    const profile = useProfile()
+    const [choosing, setChoosing] = useState(false)
+    const [choice, setChoice] = useState<'new' | 'update'>('update')
+    const [picked, setPicked] = useState<string | null>(null)
+    // while the profile loads (or fails) the plain CTA stays
+    const candidates = !addon && profile.data ? changeCandidates(profile.data.subscriptions, tf.id, tf.name) : []
+    const newUrl = `/checkout?kind=${addon ? 'addon' : 'subscribe'}&tariff_id=${tf.id}${best ? `&term=${termKey(best.period)}` : ''}`
+    const subId = candidates.find((s) => String(s.id) === picked)?.id ?? candidates[0]?.id
+    const go = () => {
+        setChoosing(false)
+        navigate(choice === 'update' && subId != null ? checkoutChange(subId, tf.id) : newUrl)
+    }
     return (
         <Card className={classes.card} data-addon={addon || undefined} padding="lg" radius="lg" withBorder>
             <Stack gap="md">
@@ -91,9 +105,40 @@ function TariffCard({ tf }: { tf: Tariff }) {
                     </Stack>
                 )}
 
-                <CtaButton fullWidth leftSection={<IconBolt size={20} />} onClick={() => navigate(`/checkout?kind=${addon ? 'addon' : 'subscribe'}&tariff_id=${tf.id}${best ? `&term=${termKey(best.period)}` : ''}`)} size="lg">
+                <CtaButton fullWidth leftSection={<IconBolt size={20} />} onClick={() => (candidates.length > 0 ? setChoosing(true) : navigate(newUrl))} size="lg">
                     {t('tariffs.connect')}
                 </CtaButton>
+                {candidates.length > 0 && (
+                    <Modal centered onClose={() => setChoosing(false)} opened={choosing} title={tf.name}>
+                        <Stack gap="md">
+                            <SegmentedControl
+                                data={[
+                                    { value: 'update', label: t('tariffs.choice_update') },
+                                    { value: 'new', label: t('tariffs.choice_new') },
+                                ]}
+                                fullWidth
+                                onChange={(v) => setChoice(v as 'new' | 'update')}
+                                value={choice}
+                            />
+                            {choice === 'update' ? (
+                                <>
+                                    <Text c="dimmed" size="sm">{t('tariffs.update_hint')}</Text>
+                                    <Select
+                                        allowDeselect={false}
+                                        data={candidates.map((s) => ({ value: String(s.id), label: `${s.title} · ${s.tariff}` }))}
+                                        label={t('tariffs.pick_subscription')}
+                                        onChange={setPicked}
+                                        radius="md"
+                                        value={subId != null ? String(subId) : null}
+                                    />
+                                </>
+                            ) : (
+                                <Text c="dimmed" size="sm">{t('tariffs.new_hint')}</Text>
+                            )}
+                            <CtaButton fullWidth onClick={go} size="lg">{t('tariffs.continue')}</CtaButton>
+                        </Stack>
+                    </Modal>
+                )}
             </Stack>
         </Card>
     )
