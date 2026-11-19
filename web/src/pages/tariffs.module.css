@@ -2,23 +2,21 @@
     position: relative;
     overflow: hidden;
     box-shadow: none;
-    border-top: 4px solid var(--mantine-primary-color-filled);
-}
-.card[data-addon] {
-    border-top-color: var(--mantine-color-violet-filled);
 }
 .price {
     font-size: 36px;
-    font-weight: 800;
+    font-weight: 600;
     line-height: 1;
     letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
 }
 .save {
     flex-shrink: 0;
     text-transform: none;
 }
 .includes {
-    padding: var(--mantine-spacing-sm);
+    padding: 12px;
     border-radius: var(--mantine-radius-md);
-    background: var(--mantine-color-violet-light);
+    background: var(--app-fill);
+    border: 1px solid var(--app-border);
 }

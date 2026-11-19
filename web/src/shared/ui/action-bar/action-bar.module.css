@@ -6,9 +6,9 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 10px 12px;
+    gap: 8px 12px;
     margin-top: 16px;
-    padding: 10px;
+    padding: 12px;
     border-radius: var(--mantine-radius-lg);
     background: var(--app-surface-raised);
     border: 1px solid var(--app-border-strong);

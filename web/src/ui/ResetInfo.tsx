@@ -21,7 +21,7 @@ function Line({ icon, label, value, sub, variant }: { icon: ReactNode; label: st
                         {icon}
                         <Text c="dimmed" size="xs">{label}</Text>
                     </Group>
-                    <Text fw={700} lh={1.25} size="md" style={{ overflowWrap: 'anywhere' }}>{value}</Text>
+                    <Text fw={600} lh={1.25} size="md" style={{ overflowWrap: 'anywhere' }}>{value}</Text>
                     {sub && <Text c="dimmed" size="xs">{sub}</Text>}
                 </Stack>
             </Paper>

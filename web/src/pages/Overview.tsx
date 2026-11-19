@@ -19,7 +19,7 @@ function StartCard() {
                 <ThemeIcon radius="xl" size={56} variant="light">
                     <IconRocket size={30} />
                 </ThemeIcon>
-                <Text fw={700} size="lg">{t('overview.start_title')}</Text>
+                <Text fw={600} size="lg">{t('overview.start_title')}</Text>
                 <Text c="dimmed" maw={320} size="sm">{t('overview.start_text')}</Text>
                 <CtaButton fullWidth mt="xs" onClick={() => navigate('/tariffs')} size="md">
                     {t('overview.start_button')}
@@ -35,9 +35,9 @@ export function Overview({ p }: { p: Profile }) {
     const empty = p.subscriptions.length === 0
     return (
         <Stack gap="lg">
-            <Title order={3}>{t('overview.hello', { name: p.name })}</Title>
+            <Title order={3}>{t('nav.overview')}</Title>
             {p.is_admin && (
-                <Button leftSection={<IconSettings size={18} />} onClick={() => navigate('/admin')} variant="light">
+                <Button leftSection={<IconSettings size={18} />} onClick={() => navigate('/admin')} variant="default">
                     {t('overview.manage')}
                 </Button>
             )}
@@ -55,7 +55,7 @@ export function Overview({ p }: { p: Profile }) {
                     {p.subscriptions.slice(0, 3).map((s) => (
                         <SubscriptionRow key={s.id} s={s} />
                     ))}
-                    <Button leftSection={<IconTag size={18} />} onClick={() => navigate('/tariffs')} radius="md" size="md" variant="light">
+                    <Button leftSection={<IconTag size={18} />} onClick={() => navigate('/tariffs')} radius="md" size="md" variant="default">
                         {t('overview.tariffs')}
                     </Button>
                 </>

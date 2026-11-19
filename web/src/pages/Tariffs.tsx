@@ -40,8 +40,8 @@ function TariffCard({ tf }: { tf: Tariff }) {
             <Stack gap="md">
                 <Group align="flex-start" justify="space-between" wrap="nowrap">
                     <Stack gap={2} style={{ minWidth: 0 }}>
-                        {addon && <Text c="dimmed" size="xs" tt="uppercase">{t('tariffs.addon')}</Text>}
-                        <Text fw={700} size="xl" truncate="end">{tf.name}</Text>
+                        {addon && <Text c="dimmed" size="xs">{t('tariffs.addon')}</Text>}
+                        <Text fw={600} size="xl" truncate="end">{tf.name}</Text>
                     </Stack>
                     {best && (
                         <Badge className={classes.save} color="teal" radius="sm" size="lg" variant="light">
@@ -62,24 +62,24 @@ function TariffCard({ tf }: { tf: Tariff }) {
                         <Text c="dimmed" size="xs">
                             {t('tariffs.best_period', { term: term(best.period, t) })}
                             {' · '}
-                            <Text c="teal" component="span" fw={700} size="xs">{t('tariffs.saving', { sum: fmtMoney(best.saved) })}</Text>
+                            <Text c="teal" component="span" fw={500} size="xs">{t('tariffs.saving', { sum: fmtMoney(best.saved) })}</Text>
                         </Text>
                     )}
                 </Stack>
 
                 {tf.description && <Text size="sm">{tf.description}</Text>}
 
-                <List center icon={<ThemeIcon color="teal" radius="xl" size={20} variant="light"><IconCheck size={13} /></ThemeIcon>} spacing={6} size="sm">
+                <List center icon={<ThemeIcon color="gray" radius="xl" size={20} variant="light"><IconCheck size={13} /></ThemeIcon>} spacing={6} size="sm">
                     {addon ? (
-                        <List.Item icon={<ThemeIcon color="violet" radius="xl" size={20} variant="light"><IconPuzzle size={13} /></ThemeIcon>}>
+                        <List.Item icon={<ThemeIcon color="gray" radius="xl" size={20} variant="light"><IconPuzzle size={13} /></ThemeIcon>}>
                             {t('tariffs.addon_hint')}
                         </List.Item>
                     ) : null}
-                    <List.Item icon={<ThemeIcon radius="xl" size={20} variant="light"><IconGauge size={13} /></ThemeIcon>}>
+                    <List.Item icon={<ThemeIcon color="gray" radius="xl" size={20} variant="light"><IconGauge size={13} /></ThemeIcon>}>
                         {tf.traffic_limit_bytes > 0 ? t('tariffs.traffic', { size: fmtBytes(tf.traffic_limit_bytes) }) : t('tariffs.traffic_unlimited')}
                     </List.Item>
                     {tf.hwid_limit !== null && (
-                        <List.Item icon={<ThemeIcon radius="xl" size={20} variant="light"><IconDevices size={13} /></ThemeIcon>}>
+                        <List.Item icon={<ThemeIcon color="gray" radius="xl" size={20} variant="light"><IconDevices size={13} /></ThemeIcon>}>
                             {t('tariffs.devices', { count: tf.hwid_limit })}
                         </List.Item>
                     )}
@@ -88,14 +88,14 @@ function TariffCard({ tf }: { tf: Tariff }) {
                 {(tf.includes ?? []).length > 0 && (
                     <Stack className={classes.includes} gap={8}>
                         <Group gap={6}>
-                            <IconGift color="var(--mantine-color-violet-filled)" size={16} />
-                            <Text c="violet" fw={700} size="xs" tt="uppercase">{t('tariffs.includes_title', { count: tf.includes.length })}</Text>
+                            <IconGift color="var(--app-text-muted)" size={16} stroke={1.5} />
+                            <Text c="dimmed" fw={500} size="xs">{t('tariffs.includes_title', { count: tf.includes.length })}</Text>
                         </Group>
                         {tf.includes.map((a) => (
                             <Group gap="xs" key={a.name} wrap="nowrap">
-                                <ThemeIcon color="violet" radius="xl" size={22} variant="light"><IconPuzzle size={13} /></ThemeIcon>
+                                <ThemeIcon color="gray" radius="xl" size={22} variant="light"><IconPuzzle size={13} /></ThemeIcon>
                                 <Stack gap={0} style={{ minWidth: 0 }}>
-                                    <Text fw={600} size="sm" truncate="end">{a.name}</Text>
+                                    <Text fw={500} size="sm" truncate="end">{a.name}</Text>
                                     <Text c="dimmed" size="xs">
                                         {a.traffic_limit_bytes > 0 ? t('tariffs.traffic', { size: fmtBytes(a.traffic_limit_bytes) }) : t('tariffs.traffic_unlimited')}
                                     </Text>

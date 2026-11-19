@@ -50,7 +50,7 @@ export function Referrals({ p }: { p: Profile }) {
                                         haptic()
                                     }}
                                     radius="md"
-                                    variant="light"
+                                    variant={copied ? 'light' : 'default'}
                                 >
                                     {copied ? t('copied') : t('refs.copy')}
                                 </Button>

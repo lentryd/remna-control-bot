@@ -17,7 +17,6 @@
         "referrals": "Рефералы"
     },
     "overview": {
-        "hello": "Привет, {{name}}!",
         "manage": "Управление",
         "balance": "Баланс",
         "monthly": "В месяц",

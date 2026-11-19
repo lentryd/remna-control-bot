@@ -58,7 +58,7 @@
 .value {
     font-size: 1.375rem;
     font-weight: 600;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
     line-height: 1.2;
     color: var(--app-text-strong);
     font-variant-numeric: tabular-nums;

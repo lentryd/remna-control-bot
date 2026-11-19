@@ -1,5 +1,5 @@
-// CtaButton — the main call to action (renew, connect a tariff): the brand
-// violet as a gradient, so it stands out without shouting.
+// CtaButton — the main call to action (renew, connect a tariff): a solid
+// brand-accent button, the one loud element on a quiet screen.
 import { Button, type ButtonProps } from '@mantine/core'
 import type { ReactNode } from 'react'
 
@@ -9,10 +9,9 @@ export function CtaButton({ children, onClick, ...props }: ButtonProps & { child
     return (
         <Button
             className={classes.cta}
-            gradient={{ from: 'brand.5', to: 'brand.8', deg: 135 }}
             onClick={onClick}
-            radius="xl"
-            variant="gradient"
+            radius="md"
+            variant="filled"
             {...props}
         >
             {children}

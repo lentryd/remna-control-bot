@@ -86,7 +86,7 @@ export function SubscriptionDetails({ p }: { p: Profile }) {
                     <div onClick={haptic}>
                         <CopyableFieldShared label={t('sub.link')} size="md" value={s.url} />
                     </div>
-                    <Button leftSection={<IconExternalLink size={18} />} onClick={() => openExternal(s.url)} radius="md" size="md" variant="light">
+                    <Button leftSection={<IconExternalLink size={18} />} onClick={() => openExternal(s.url)} radius="md" size="md" variant="default">
                         {t('sub.open_page')}
                     </Button>
                     <Text c="dimmed" size="xs" ta="center">{t('sub.open_hint')}</Text>

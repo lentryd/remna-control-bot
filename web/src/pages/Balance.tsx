@@ -1,6 +1,6 @@
 // Balance.tsx — totals and full history grouped by month.
-import { Box, Button, Card, Group, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core'
-import { IconPlus, IconReceipt, IconWallet } from '@tabler/icons-react'
+import { Box, Button, Card, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core'
+import { IconPlus, IconReceipt } from '@tabler/icons-react'
 import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -27,11 +27,8 @@ export function Balance({ p }: { p: Profile }) {
                 <Group justify="space-between" wrap="nowrap">
                     <Stack gap={2}>
                         <Text c="dimmed" size="sm">{t('balance.available')}</Text>
-                        <Text fw={700} lh={1.1} size="32px">{fmtMoney(p.balance, 2)}</Text>
+                        <Text fw={600} lh={1.1} size="32px" style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(p.balance, 2)}</Text>
                     </Stack>
-                    <ThemeIcon radius="xl" size={52} variant="light">
-                        <IconWallet size={28} />
-                    </ThemeIcon>
                 </Group>
                 <SimpleGrid cols={2} mt="md" spacing="sm">
                     <Box className={classes.part}>

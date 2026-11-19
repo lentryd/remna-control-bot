@@ -1,7 +1,7 @@
 // BalanceCard — the home screen's top block: balance, what it costs per
 // month, and a renewal call-to-action for the most urgent subscription.
 import { Card, Divider, Group, Stack, Text, ThemeIcon } from '@mantine/core'
-import { IconAlertTriangle, IconBolt, IconClockHour4, IconWallet } from '@tabler/icons-react'
+import { IconAlertTriangle, IconBolt, IconClockHour4 } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
@@ -21,14 +21,11 @@ export function BalanceCard({ p }: { p: Profile }) {
             <Group justify="space-between" wrap="nowrap">
                 <Stack gap={2}>
                     <Text c="dimmed" size="sm">{t('overview.balance')}</Text>
-                    <Text fw={700} lh={1.1} size="32px">{fmtMoney(p.balance, 2)}</Text>
+                    <Text fw={600} lh={1.1} size="32px" style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(p.balance, 2)}</Text>
                     {p.monthly > 0 && (
                         <Text c="dimmed" size="sm">{t('overview.monthly_line', { sum: fmtMoney(p.monthly) })}</Text>
                     )}
                 </Stack>
-                <ThemeIcon radius="xl" size={52} variant="light">
-                    <IconWallet size={28} />
-                </ThemeIcon>
             </Group>
             {urgent && (
                 <>

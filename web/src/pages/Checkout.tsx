@@ -2,7 +2,7 @@
 // add-ons, tariff changes and top-ups. Prices come from the server (quote).
 import { Alert, Button, Card, CopyButton, Group, NumberInput, Select, SimpleGrid, Skeleton, Stack, Text, ThemeIcon, Title, UnstyledButton } from '@mantine/core'
 import { useDebouncedValue } from '@mantine/hooks'
-import { IconAlertTriangle, IconBuildingBank, IconCheck, IconClockHour4, IconCopy, IconCreditCard, IconDiscount2, IconInfoCircle, IconPaperclip, IconReceipt, IconWallet } from '@tabler/icons-react'
+import { IconAlertTriangle, IconBuildingBank, IconCheck, IconClockHour4, IconCopy, IconCreditCard, IconDiscount2, IconInfoCircle, IconPaperclip, IconWallet } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
@@ -57,9 +57,6 @@ function Summary({ title, toPay, children }: { title: string; toPay: number; chi
                         <Text c="dimmed" size="sm">{t('checkout.to_pay')}</Text>
                         <Text className={classes.total}>{fmtMoney(toPay, 2)}</Text>
                     </Stack>
-                    <ThemeIcon radius="xl" size={52} variant="light">
-                        <IconReceipt size={28} />
-                    </ThemeIcon>
                 </Group>
                 <Text fw={600}>{title}</Text>
                 {children}
@@ -405,7 +402,7 @@ export function Checkout({ p }: { p: Profile }) {
                                     onClick={() => setChosen(key(x))}
                                 >
                                     <Text fw={600}>{term(x, t)}</Text>
-                                    {price > 0 && <Text fw={700} size="lg">{fmtMoney(price)}</Text>}
+                                    {price > 0 && <Text fw={600} size="lg">{fmtMoney(price)}</Text>}
                                     {off > 0 && (
                                         <Group gap={6} wrap="nowrap">
                                             <OldPrice size="sm">{fmtMoney(regular)}</OldPrice>
@@ -463,7 +460,7 @@ export function Checkout({ p }: { p: Profile }) {
                     </Summary>
                     {saved >= 0.01 && (
                         <Note color="teal" icon={<IconDiscount2 size={20} />}>
-                            <Text fw={700}>{t('checkout.saving', { sum: fmtMoney(saved) })}</Text>
+                            <Text fw={500}>{t('checkout.saving', { sum: fmtMoney(saved) })}</Text>
                         </Note>
                     )}
                     {locked && (

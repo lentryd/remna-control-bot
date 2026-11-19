@@ -17,7 +17,6 @@
         "referrals": "Referrals"
     },
     "overview": {
-        "hello": "Hi, {{name}}!",
         "manage": "Manage",
         "balance": "Balance",
         "monthly": "Per month",

@@ -9,7 +9,7 @@
 
     @media (max-width: $mantine-breakpoint-sm) {
         align-items: flex-start;
-        margin-bottom: 18px;
+        margin-bottom: 16px;
     }
 }
 

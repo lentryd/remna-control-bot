@@ -11,7 +11,7 @@ function Row({ label, value, strong, color }: { label: string; value: number; st
     return (
         <Group justify="space-between">
             <Text c={strong ? undefined : 'dimmed'} fw={strong ? 600 : undefined} size="sm">{label}</Text>
-            <Text c={color} fw={strong ? 700 : 500} size="sm">{fmtMoney(value, 2)}</Text>
+            <Text c={color} fw={strong ? 600 : 500} size="sm">{fmtMoney(value, 2)}</Text>
         </Group>
     )
 }

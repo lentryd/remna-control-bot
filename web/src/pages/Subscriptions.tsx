@@ -26,7 +26,7 @@ export function Subscriptions({ p }: { p: Profile }) {
                     {p.subscriptions.map((s) => (
                         <SubscriptionRow key={s.id} s={s} />
                     ))}
-                    <Button leftSection={<IconPlus size={18} />} mt="xs" onClick={() => navigate('/tariffs')} radius="md" size="md" variant="light">
+                    <Button leftSection={<IconPlus size={18} />} mt="xs" onClick={() => navigate('/tariffs')} radius="md" size="md" variant="default">
                         {t('sub.connect_more')}
                     </Button>
                 </>
